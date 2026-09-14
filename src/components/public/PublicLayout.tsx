@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useGym } from '../../context/GymContext';
 
 import {
@@ -22,15 +22,57 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ children }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [activeNav, setActiveNav] = useState('HOME');
 
   const navLinks = [
     { label: 'HOME', path: '/' },
-    { label: 'ABOUT', path: '/' },
-    { label: 'SERVICES', path: '/' },
-    { label: 'SCHEDULE', path: '/' },
-    { label: 'PRICING', path: '/' },
-    { label: 'CONTACT', path: '/' }
+    { label: 'ABOUT', path: '/', sectionId: 'about-section' },
+    { label: 'SERVICES', path: '/', sectionId: 'classes-section' },
+    { label: 'SCHEDULE', path: '/', sectionId: 'schedule-section' },
+    { label: 'PRICING', path: '/', sectionId: 'pricing-section' },
+    { label: 'CONTACT', path: '/', sectionId: 'contact-section' }
   ];
+  const sectionLinks = navLinks.filter(link => link.sectionId);
+
+  useEffect(() => {
+    if (currentPath !== '/') {
+      setActiveNav('');
+      return;
+    }
+
+    let frame = 0;
+    const updateActiveSection = () => {
+      frame = 0;
+      const current = sectionLinks.reduce((active, link) => {
+        const section = document.getElementById(link.sectionId!);
+        if (!section) return active;
+        return section.getBoundingClientRect().top <= 130 ? link.label : active;
+      }, 'HOME');
+      setActiveNav(current);
+    };
+    const queueUpdate = () => {
+      if (!frame) frame = window.requestAnimationFrame(updateActiveSection);
+    };
+
+    updateActiveSection();
+    window.addEventListener('scroll', queueUpdate, { passive: true });
+    window.addEventListener('resize', queueUpdate);
+    return () => {
+      window.removeEventListener('scroll', queueUpdate);
+      window.removeEventListener('resize', queueUpdate);
+      if (frame) window.cancelAnimationFrame(frame);
+    };
+  }, [currentPath]);
+
+  const goToNavLink = (link: typeof navLinks[number]) => {
+    setActiveNav(link.label);
+    navigate(link.path);
+    if (link.sectionId) {
+      setTimeout(() => document.getElementById(link.sectionId)?.scrollIntoView({ behavior: 'smooth' }), 100);
+    } else {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
 
   return (
     <div className="public-site min-h-screen bg-[#111111] text-white flex flex-col font-sans antialiased selection:bg-[#EF1B23] selection:text-white">
@@ -44,31 +86,17 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ children }) => {
             <img src="/assets/brand/sarex-logo.png" alt="Sarex Fitness Clinic" className="h-12 sm:h-14 w-auto max-w-[190px] sm:max-w-[230px] object-contain transition-transform group-hover:scale-[1.02]" />
           </button>
 
-          {/* Desktop Navigation Links */}
           <nav className="hidden lg:flex items-center gap-5">
             {navLinks.map(link => {
-              const isActive = currentPath === link.path && link.label === 'HOME';
+              const isActive = currentPath === '/' && activeNav === link.label;
               return (
                 <button
                   key={link.label}
-                  onClick={() => {
-                    if (link.label === 'SCHEDULE') {
-                      navigate('/');
-                      setTimeout(() => {
-                        const el = document.getElementById('schedule-section');
-                        if (el) el.scrollIntoView({ behavior: 'smooth' });
-                      }, 100);
-                    } else if (['ABOUT','SERVICES','PRICING','CONTACT'].includes(link.label)) {
-                    navigate('/');
-                    const targets: Record<string,string> = { ABOUT:'about-section', SERVICES:'classes-section', PRICING:'pricing-section', CONTACT:'contact-section' };
-                    setTimeout(() => document.getElementById(targets[link.label])?.scrollIntoView({ behavior: 'smooth' }), 100);
-                  } else {
-                      navigate(link.path);
-                    }
-                  }}
+                  onClick={() => goToNavLink(link)}
                   className={`transition-colors uppercase tracking-wider text-xs font-black py-1 relative ${
                     isActive ? 'text-[#EF1B23]' : 'text-gray-300 hover:text-white'
                   }`}
+                  aria-current={isActive ? 'page' : undefined}
                 >
                   {link.label}
                   {isActive && (
@@ -79,9 +107,7 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ children }) => {
             })}
           </nav>
 
-          {/* Right Action Icons & CTA */}
           <div className="hidden sm:flex items-center gap-4">
-            {/* Search Toggle */}
             <div className="relative">
               <button
                 onClick={() => setSearchOpen(!searchOpen)}
@@ -118,7 +144,6 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ children }) => {
               )}
             </div>
 
-            {/* Auth / Register Buttons */}
             <button
               onClick={() => navigate('/login')}
               className="text-xs font-bold uppercase tracking-wider text-gray-300 hover:text-white px-2 py-2 transition-colors"
@@ -133,7 +158,6 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ children }) => {
             </button>
           </div>
 
-          {/* Mobile Hamburger */}
           <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
             className="lg:hidden p-2 text-gray-300 hover:text-white"
@@ -143,35 +167,26 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ children }) => {
           </button>
         </div>
 
-        {/* Mobile Dropdown Menu */}
         {mobileMenuOpen && (
           <div className="lg:hidden bg-[#151515] border-b border-neutral-800 px-4 pt-3 pb-6 space-y-3">
-            {navLinks.map(link => (
-              <button
-                key={link.label}
-                onClick={() => {
-                  if (link.label === 'SCHEDULE') {
-                    navigate('/');
+            {navLinks.map(link => {
+              const isActive = currentPath === '/' && activeNav === link.label;
+              return (
+                <button
+                  key={link.label}
+                  onClick={() => {
+                    goToNavLink(link);
                     setMobileMenuOpen(false);
-                    setTimeout(() => {
-                      const el = document.getElementById('schedule-section');
-                      if (el) el.scrollIntoView({ behavior: 'smooth' });
-                    }, 100);
-                  } else if (['ABOUT','SERVICES','PRICING','CONTACT'].includes(link.label)) {
-                    navigate('/');
-                    setMobileMenuOpen(false);
-                    const targets: Record<string,string> = { ABOUT:'about-section', SERVICES:'classes-section', PRICING:'pricing-section', CONTACT:'contact-section' };
-                    setTimeout(() => document.getElementById(targets[link.label])?.scrollIntoView({ behavior: 'smooth' }), 100);
-                  } else {
-                    navigate(link.path);
-                    setMobileMenuOpen(false);
-                  }
-                }}
-                className="block w-full text-left py-2.5 text-sm font-black uppercase tracking-wider text-gray-200 hover:text-[#EF1B23] border-b border-neutral-800"
-              >
-                {link.label}
-              </button>
-            ))}
+                  }}
+                  className={`block w-full border-b border-neutral-800 py-2.5 text-left text-sm font-black uppercase tracking-wider transition-colors ${
+                    isActive ? 'text-[#EF1B23]' : 'text-gray-200 hover:text-[#EF1B23]'
+                  }`}
+                  aria-current={isActive ? 'page' : undefined}
+                >
+                  {link.label}
+                </button>
+              );
+            })}
             <div className="pt-4 flex flex-col gap-2.5">
               <button
                 onClick={() => {
@@ -180,7 +195,7 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ children }) => {
                 }}
                 className="w-full text-center py-2.5 border border-neutral-700 text-white text-xs font-black uppercase tracking-wider"
               >
-                Member / Staff Login
+                Login
               </button>
               <button
                 onClick={() => {
@@ -196,16 +211,13 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ children }) => {
         )}
       </header>
 
-      {/* Main Content Area */}
       <main className="flex-1 pt-[76px]">
         {children}
       </main>
 
-      {/* Footer */}
       <footer className="bg-[#0D0D0D] border-t border-neutral-900 text-neutral-400 text-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-10">
-            {/* Brand column */}
             <div className="space-y-4">
               <img src="/assets/brand/sarex-logo.png" alt="Sarex Fitness Clinic" className="h-16 w-auto max-w-[230px] object-contain" />
               <p className="text-xs text-neutral-400 leading-relaxed">
@@ -224,7 +236,6 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ children }) => {
               </div>
             </div>
 
-            {/* Quick Links */}
             <div>
               <h4 className="font-athletic font-bold uppercase tracking-wider text-white text-sm mb-4">
                 Quick Links
@@ -253,7 +264,6 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ children }) => {
               </ul>
             </div>
 
-            {/* Portals Access */}
             <div>
               <h4 className="font-athletic font-bold uppercase tracking-wider text-white text-sm mb-4">
                 Gym Portals
@@ -261,7 +271,7 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ children }) => {
               <ul className="space-y-2 text-xs">
                 <li>
                   <button onClick={() => navigate('/member/dashboard')} className="hover:text-[#EF1B23] transition-colors">
-                    Reception QR Check-in & Dashboard
+                    Check-in & Member Portal
                   </button>
                 </li>
                 <li>
@@ -282,7 +292,6 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ children }) => {
               </ul>
             </div>
 
-            {/* Contact Details */}
             <div>
               <h4 className="font-athletic font-bold uppercase tracking-wider text-white text-sm mb-4">
                 Contact & Location

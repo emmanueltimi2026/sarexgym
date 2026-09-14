@@ -1,17 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { GymProvider, useGym } from './context/GymContext';
-
-// Public Pages
 import { PublicHome } from './pages/public/PublicHome';
-
-// Auth Pages
 import { LoginPage } from './pages/auth/LoginPage';
 import { RegisterPage } from './pages/auth/RegisterPage';
 import { ForgotPasswordPage } from './pages/auth/ForgotPasswordPage';
 import { ResetPasswordPage } from './pages/auth/ResetPasswordPage';
 import { ChangeInitialPasswordPage } from './pages/auth/ChangeInitialPasswordPage';
-
-// Admin Pages
 import { AdminDashboard } from './pages/admin/AdminDashboard';
 import { AdminMembers } from './pages/admin/AdminMembers';
 import { AdminPlans } from './pages/admin/AdminPlans';
@@ -20,21 +14,15 @@ import { AdminPayments } from './pages/admin/AdminPayments';
 import { AdminStaff } from './pages/admin/AdminStaff';
 import { AdminSettings } from './pages/admin/AdminSettings';
 import { AdminAudit } from './pages/admin/AdminAudit';
-
-// Staff Pages
 import { StaffDashboard } from './pages/staff/StaffDashboard';
 import { StaffCheckIn } from './pages/staff/StaffCheckIn';
 import { StaffMembers } from './pages/staff/StaffMembers';
 import { StaffMemberships } from './pages/staff/StaffMemberships';
 import { StaffAttendance } from './pages/staff/StaffAttendance';
 import { StaffPayments } from './pages/staff/StaffPayments';
-
-// Trainer Pages
 import { TrainerDashboard } from './pages/trainer/TrainerDashboard';
 import { TrainerMembers } from './pages/trainer/TrainerMembers';
 import { TrainerPlans } from './pages/trainer/TrainerPlans';
-
-// Member Pages
 import { MemberDashboard } from './pages/member/MemberDashboard';
 import { MemberMembership } from './pages/member/MemberMembership';
 import { MemberWorkout } from './pages/member/MemberWorkout';
@@ -44,6 +32,7 @@ import { MemberEvents } from './pages/member/MemberEvents';
 import { ReceptionCheckIn } from './pages/member/ReceptionCheckIn';
 import { EventManagement } from './pages/shared/EventManagement';
 import { ErrorBoundary } from './components/ui/ErrorBoundary';
+import { Seo } from './components/seo/Seo';
 
 const DashboardSkeleton: React.FC = () => (
   <div className="flex min-h-screen overflow-hidden bg-[#F5F6F8]" role="status" aria-label="Loading dashboard">
@@ -68,7 +57,7 @@ const DashboardSkeleton: React.FC = () => (
 );
 
 const AppRouter: React.FC = () => {
-  const { currentPath } = useGym();
+  const { currentPath, settings } = useGym();
   const [accessState, setAccessState] = useState<'public' | 'checking' | 'allowed' | 'denied'>('public');
   const [sessionRevision, setSessionRevision] = useState(0);
   const requiredRole = currentPath.startsWith('/admin') ? 'admin' : currentPath.startsWith('/staff') ? 'staff' : currentPath.startsWith('/trainer') ? 'trainer' : currentPath.startsWith('/member') || currentPath === '/check-in/reception' ? 'member' : null;
@@ -95,13 +84,45 @@ const AppRouter: React.FC = () => {
     return () => window.removeEventListener('sarex:session-changed', recheckSession);
   }, []);
 
-  if (accessState === 'checking') return <DashboardSkeleton />;
-  if (accessState === 'denied') return <LoginPage />;
+  const publicDescription = 'SAREX Fitness Clinic in Magboro offers gym access, memberships, fitness classes, personal support, body massage, full body spa services, wellness programs, and secure online member tools.';
+  const routeSeo = (() => {
+    if (currentPath === '/' || currentPath === '/home') {
+      return {
+        title: 'SAREX Fitness Clinic',
+        description: publicDescription,
+        path: '/',
+        structuredData: {
+          '@context': 'https://schema.org',
+          '@type': 'HealthClub',
+          name: 'SAREX Fitness Clinic',
+          description: publicDescription,
+          url: import.meta.env.VITE_PUBLIC_SITE_URL || import.meta.env.VITE_FRONTEND_URL || window.location.origin,
+          logo: `${window.location.origin}/assets/brand/sarex-logo.png`,
+          image: `${window.location.origin}/assets/fitkit/hero_1_2.png`,
+          telephone: settings.phone,
+          email: settings.email,
+          address: {
+            '@type': 'PostalAddress',
+            streetAddress: settings.address,
+            addressCountry: 'NG'
+          }
+        }
+      };
+    }
+    if (currentPath === '/about') return { title: 'About SAREX Fitness Clinic', description: 'Learn about SAREX Fitness Clinic, a Magboro fitness and wellness space for strength training, classes, recovery, and sustainable progress.', path: '/about' };
+    if (currentPath === '/trainers') return { title: 'Fitness Services and Trainers', description: 'Explore guided fitness training, strength work, wellness support, body conditioning, and goal-based membership options at SAREX.', path: '/trainers' };
+    if (currentPath === '/contact') return { title: 'Contact SAREX Fitness Clinic', description: 'Find SAREX Fitness Clinic contact details, location, phone numbers, and directions for membership and training enquiries.', path: '/contact' };
+    if (currentPath === '/register') return { title: 'Create Your SAREX Account', description: 'Create a SAREX Fitness Clinic member account to choose a plan, manage membership access, and follow your fitness journey.', path: '/register', noindex: true };
+    if (currentPath === '/login') return { title: 'Member Login', description: 'Sign in to your SAREX Fitness Clinic member, staff, trainer, or admin portal.', path: '/login', noindex: true };
+    if (currentPath.includes('password')) return { title: 'Account Access', description: 'Manage secure access to your SAREX Fitness Clinic account.', path: currentPath, noindex: true };
+    return { title: 'SAREX Portal', description: 'Secure SAREX Fitness Clinic portal for members, staff, trainers, and administrators.', path: currentPath, noindex: true };
+  })();
 
-  // Route matcher
+  if (accessState === 'checking') return <><Seo {...routeSeo} /><DashboardSkeleton /></>;
+  if (accessState === 'denied') return <><Seo {...routeSeo} /><LoginPage /></>;
+
   const renderRoute = () => {
     switch (currentPath) {
-      // 1. Public Marketing
       case '/':
       case '/home':
         return <PublicHome />;
@@ -110,7 +131,6 @@ const AppRouter: React.FC = () => {
       case '/contact':
         return <PublicHome />;
 
-      // 2. Authentication
       case '/login':
         return <LoginPage />;
       case '/register':
@@ -124,7 +144,6 @@ const AppRouter: React.FC = () => {
       case '/check-in/reception':
         return <ReceptionCheckIn />;
 
-      // 3. Super Admin Portal
       case '/admin':
       case '/admin/dashboard':
         return <AdminDashboard />;
@@ -147,7 +166,6 @@ const AppRouter: React.FC = () => {
       case '/admin/events':
         return <EventManagement />;
 
-      // 4. Staff Portal
       case '/staff':
       case '/staff/dashboard':
         return <StaffDashboard />;
@@ -164,7 +182,6 @@ const AppRouter: React.FC = () => {
       case '/staff/events':
         return <EventManagement />;
 
-      // 5. Trainer Portal
       case '/trainer':
       case '/trainer/dashboard':
         return <TrainerDashboard />;
@@ -175,7 +192,6 @@ const AppRouter: React.FC = () => {
         return <TrainerPlans />;
       case '/trainer/progress':
         return <TrainerMembers />;
-      // 6. Member Portal
       case '/member':
       case '/member/dashboard':
         return <MemberDashboard />;
@@ -192,7 +208,6 @@ const AppRouter: React.FC = () => {
       case '/member/settings':
         return <MemberSettings />;
 
-      // Fallbacks by prefix
       default:
         if (currentPath.startsWith('/admin')) return <AdminDashboard />;
         if (currentPath.startsWith('/staff')) return <StaffDashboard />;
@@ -204,6 +219,7 @@ const AppRouter: React.FC = () => {
 
   return (
     <main className="min-h-screen">
+      <Seo {...routeSeo} />
       <ErrorBoundary>
         {renderRoute()}
       </ErrorBoundary>

@@ -11,7 +11,7 @@
   }
 }
 
-/* Custom sports clipped corners */
+/* Angled edges used on compact sport UI accents. */
 .clip-corner-tr {
   clip-path: polygon(0 0, calc(100% - 14px) 0, 100% 14px, 100% 100%, 0 100%);
 }
@@ -24,8 +24,8 @@
   clip-path: polygon(0 0, calc(100% - 8px) 0, 100% 50%, calc(100% - 8px) 100%, 0 100%);
 }
 
-/* Reference landing page: scope typography and geometry to the public UI. */
-.public-site { font-family: Arial, Helvetica, sans-serif; }
+/* Public marketing surface for the SAREX website. */
+.public-site { max-width: 100%; overflow-x: clip; font-family: Arial, Helvetica, sans-serif; }
 .public-site .max-w-7xl, .reference-container { width: 80%; max-width: 1440px; margin-inline: auto; padding-inline: 0; }
 .public-site h1, .public-site h2, .public-site h3 { font-family: Arial, Helvetica, sans-serif; letter-spacing: -.025em; }
 .public-site header nav button { font-size: 11px; font-weight: 500; letter-spacing: 0; }
@@ -45,12 +45,9 @@
 .section-eyebrow::before { content: ''; width: 46px; height: 1px; background: currentColor; }
 .hero-copy h1 { font-size: clamp(42px, 5.35vw, 90px); line-height: 1.08; font-weight: 900; letter-spacing: -.045em; margin: 0 0 22px; }
 .hero-description { max-width: 600px; width: 90%; font-size: clamp(12px, 1.03vw, 17px); line-height: 1.65; margin-bottom: 28px; }
-.hero-actions { display: flex; align-items: center; gap: 30px; }
-.reference-button { background: #ef101a; color: white; padding: 19px 30px; border: 0; font-size: 11px; font-weight: 700; text-transform: uppercase; white-space: nowrap; transition: background .2s; }
+.hero-actions { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 24px 30px; max-width: 100%; }
+.reference-button { display: inline-flex; min-height: 56px; align-items: center; justify-content: center; text-align: center; line-height: 1.15; background: #ef101a; color: white; padding: 18px 30px; border: 0; font-size: 11px; font-weight: 700; text-transform: uppercase; white-space: nowrap; transition: background .2s; }
 .reference-button:hover { background: #bf0d15; }
-.hero-proof { display: flex; align-items: center; gap: 12px; white-space: nowrap; font-size: clamp(12px, 1.1vw, 18px); font-weight: 700; }
-.hero-proof strong { font-size: 36px; color: #ef1b23; letter-spacing: -.06em; }
-.hero-proof strong span { font-size: 25px; }
 .hero-member { position: absolute; right: -6%; bottom: 0; width: 48%; height: 100%; object-fit: contain; object-position: bottom; }
 .reference-bmi { padding-top: clamp(65px, 7vw, 115px); }
 .section-eyebrow.centered { justify-content: center; margin-bottom: 14px; }
@@ -114,9 +111,8 @@
   .public-site .max-w-7xl, .reference-container { width: 88%; }
   .public-site header nav { gap: 12px; }
   .public-site header > div > .hidden.sm\:flex { gap: 4px; }
-  .hero-proof { gap: 6px; }
   .hero-actions { gap: 15px; }
-  .reference-button { padding: 16px 20px; }
+  .reference-button { min-height: 50px; padding: 16px 20px; }
   .hero-copy h1 { font-size: 5.5vw; }
   .about-details { gap: 16px; }
 }
@@ -130,9 +126,7 @@
   .hero-description { max-width: 440px; font-size: 13px; }
   .hero-member { width: 260px; height: 350px; right: 0; }
   .hero-scene { border-radius: 0 0 35% 10%; }
-  .hero-actions { gap: 16px; flex-wrap: wrap; }
-  .hero-proof { font-size: 12px; }
-  .hero-proof strong { font-size: 30px; }
+  .hero-actions { grid-template-columns: 1fr; justify-items: start; gap: 18px; }
   .reference-bmi { padding-top: 45px; }
   .bmi-grid { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 12px; }
   .bmi-grid > *, .bmi-grid .bmi-activity, .bmi-grid .bmi-output { grid-column: span 1; }
@@ -148,7 +142,7 @@
 }
 @media (prefers-reduced-motion: reduce) { .public-site *, .public-site *::before, .public-site *::after { scroll-behavior: auto !important; animation: none !important; transition: none !important; } }
 
-/* Management product — SAREX Performance OS */
+/* Management product shell. */
 .management-app {
   --saas-red: #e91522;
   --saas-ink: #16191d;
@@ -217,7 +211,7 @@
 .management-content .recharts-wrapper { font-family: 'Plus Jakarta Sans', sans-serif; }
 .management-content .recharts-cartesian-grid line { stroke: #eceef1; }
 
-/* Premium portal surface system */
+/* Portal surfaces and operational dashboard polish. */
 .management-app { background: linear-gradient(135deg,#f6f7f9 0%,#f3f4f7 54%,#f8f5f5 100%); }
 .management-topbar { height:70px; min-height:70px; border-color:#e9ebef; box-shadow:0 3px 18px rgba(15,23,42,.03); }
 .management-topbar h1 { font-size:22px; font-weight:800; }
@@ -266,7 +260,7 @@
   .management-app *, .management-app *::before, .management-app *::after { transition: none !important; animation: none !important; scroll-behavior: auto !important; }
 }
 
-/* Centered sticky pricing deck */
+/* Sticky membership plan cards. */
 .stacked-pricing{padding:96px 0 140px;background:#f7f7f5}
 .stacked-pricing h2{margin-bottom:48px}
 .stacked-plan-list{max-width:820px;margin:0 auto}
@@ -282,7 +276,7 @@
 .stacked-plan-body li svg{color:#ef1b23}
 @media(max-width:720px){.stacked-pricing{padding:72px 0 100px}.stacked-plan-card{top:82px!important}.stacked-plan-card header{grid-template-columns:32px 1fr}.stacked-plan-card header>div{grid-column:2}.stacked-plan-body{grid-template-columns:1fr;gap:18px;padding:24px}.home-gallery .auto-rows-\[210px\]{grid-auto-rows:160px}}
 
-/* Homepage motion language */
+/* Homepage entrance motion and interactive accents. */
 .hero-copy h1 span{display:block;opacity:0;animation:hero-line-in .9s cubic-bezier(.16,1,.3,1) forwards}.hero-copy h1 span:nth-child(2){animation-delay:.16s}.hero-copy .section-eyebrow{animation:hero-copy-in .7s .05s cubic-bezier(.16,1,.3,1) both}.hero-description{animation:hero-copy-in .75s .3s cubic-bezier(.16,1,.3,1) both}.hero-actions{animation:hero-copy-in .75s .43s cubic-bezier(.16,1,.3,1) both}
 @keyframes hero-line-in{from{opacity:0;transform:translateY(55px) skewY(3deg)}to{opacity:1;transform:none}}@keyframes hero-copy-in{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:none}}
 .hero-member{--hero-shift:0px;transform:translate3d(0,var(--hero-shift),0);transition:transform .12s linear;animation:hero-athlete-in 1.15s .15s cubic-bezier(.16,1,.3,1) both}@keyframes hero-athlete-in{from{opacity:0;clip-path:inset(0 0 100% 0)}to{opacity:1;clip-path:inset(0)}}
@@ -294,14 +288,14 @@
 .stacked-plan-card{transition:transform .35s ease,box-shadow .35s ease}.stacked-plan-card:hover{transform:translateY(-8px) scale(1.01);box-shadow:0 28px 55px #1112}
 .map-location-pulse{position:absolute;z-index:2;left:50%;top:50%;display:grid;place-items:center;width:42px;height:42px;color:#fff;background:#ef101a;border:4px solid #fff;border-radius:50% 50% 50% 0;transform:translate(-50%,-75%) rotate(-45deg);box-shadow:0 5px 18px #0005;pointer-events:none}.map-location-pulse svg{transform:rotate(45deg)}.map-location-pulse::after{content:'';position:absolute;inset:-10px;border:2px solid #ef101a;border-radius:50%;animation:map-pulse 1.8s ease-out infinite}@keyframes map-pulse{from{opacity:.8;transform:scale(.6)}to{opacity:0;transform:scale(1.7)}}
 
-/* Expandable, scalable homepage gallery */
+/* Horizontally browsable homepage gallery. */
 .gallery-rail{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(240px,28vw);grid-template-rows:repeat(2,220px);gap:14px;overflow-x:auto;overscroll-behavior-inline:contain;scroll-snap-type:x mandatory;padding:8px 4px 24px;scrollbar-color:#ef1b23 #292929}.gallery-tile{min-width:0}.gallery-tile-wide{grid-row:span 2}.gallery-rail::-webkit-scrollbar{height:7px}.gallery-rail::-webkit-scrollbar-track{background:#292929;border-radius:99px}.gallery-rail::-webkit-scrollbar-thumb{background:#ef1b23;border-radius:99px}@media(max-width:720px){.gallery-rail{grid-auto-columns:78vw;grid-template-rows:repeat(2,180px)}}
 
-/* Sticky service card deck */
+/* Sticky service cards for the public services section. */
 .stacked-service-list{max-width:940px;margin:0 auto}.stacked-service-card{position:sticky;top:calc(86px + var(--service-index)*54px);z-index:calc(var(--service-index) + 1);margin-bottom:30px;overflow:hidden;border:1px solid #dedede;border-radius:20px;background:#fff;box-shadow:0 22px 55px #1112;transition:box-shadow .35s ease}.stacked-service-card:hover{box-shadow:0 30px 65px #1113}.stacked-service-header{display:grid;width:100%;grid-template-columns:48px 1fr auto 24px;align-items:center;gap:18px;min-height:92px;padding:18px 24px;text-align:left;background:#fff}.stacked-service-header>span{font-size:12px;font-weight:900;letter-spacing:.18em;color:#ef1b23}.stacked-service-header small{display:block;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.14em;color:#777}.stacked-service-header h3{margin-top:3px;font-size:22px;font-weight:900;text-transform:uppercase}.stacked-service-header>strong{font-size:11px;text-transform:uppercase;color:#ef1b23}.service-chevron{width:18px;transition:transform .35s ease}.is-open .service-chevron{transform:rotate(90deg)}.stacked-service-body{display:grid;grid-template-columns:1fr 1fr;min-height:330px;border-top:1px solid #eee}.stacked-service-image{position:relative;min-height:310px}.stacked-service-image img{width:100%;height:100%;object-fit:cover}.stacked-service-image span{position:absolute;left:18px;top:18px;padding:7px 10px;background:#ef1b23;color:#fff;font-size:10px;font-weight:900;text-transform:uppercase}.stacked-service-copy{display:flex;flex-direction:column;justify-content:center;padding:34px}.stacked-service-copy>p{font-size:14px;line-height:1.8;color:#626268}.stacked-service-copy dl{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin:24px 0}.stacked-service-copy dt{font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.12em;color:#999}.stacked-service-copy dd{margin-top:4px;font-size:12px;font-weight:800}.service-schedule-button{padding:12px 18px;border:1px solid #d5d5d5;font-size:11px;font-weight:800;text-transform:uppercase}
 @media(max-width:720px){.stacked-service-card{top:calc(82px + var(--service-index)*46px);margin-bottom:18px}.stacked-service-header{grid-template-columns:34px 1fr 18px;gap:10px;min-height:78px;padding:14px}.stacked-service-header>strong{display:none}.stacked-service-header h3{font-size:16px}.stacked-service-body{display:none;grid-template-columns:1fr}.stacked-service-card.is-open .stacked-service-body{display:grid;animation:service-open .5s cubic-bezier(.16,1,.3,1) both}.stacked-service-image{min-height:210px}.stacked-service-copy{padding:22px}.stacked-service-copy dl{gap:14px}.service-chevron{grid-column:3}}@keyframes service-open{from{opacity:0;transform:translateY(-14px)}to{opacity:1;transform:none}}
 
-/* Keep each stacked service fully visible within the available screen. */
+/* Keep sticky service cards readable inside short mobile viewports. */
 .stacked-service-card{top:88px;max-height:calc(100vh - 108px)}.stacked-service-body{height:clamp(390px,58vh,520px)}.stacked-service-image{min-height:0}.stacked-service-copy{overflow:auto}.stacked-service-header .service-chevron{display:none}
 @media(max-width:720px){.stacked-service-card{top:72px!important;max-height:calc(100svh - 84px);margin-bottom:28px}.stacked-service-header{grid-template-columns:30px 1fr;min-height:68px;padding:11px 14px}.stacked-service-header h3{font-size:15px;line-height:1.15}.stacked-service-header small{font-size:8px}.stacked-service-body{display:grid;height:calc(100svh - 164px);min-height:420px;grid-template: minmax(125px,28%) 1fr / 1fr}.stacked-service-image{min-height:0}.stacked-service-image span{left:12px;top:12px;padding:6px 8px;font-size:8px}.stacked-service-copy{justify-content:flex-start;overflow:auto;padding:16px}.stacked-service-copy>p{font-size:12px;line-height:1.55}.stacked-service-copy dl{gap:10px;margin:14px 0}.stacked-service-copy dt{font-size:8px}.stacked-service-copy dd{font-size:10px}.stacked-service-copy .reference-button,.service-schedule-button{padding:10px 12px;font-size:9px}}
 

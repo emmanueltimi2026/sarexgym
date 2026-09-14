@@ -23,7 +23,7 @@ export const PublicHome: React.FC = () => {
     if (!root || !('IntersectionObserver' in window)) return;
     const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
     const animations = new Set<Animation>();
-    // Observe stable section bounds; animate their content so backgrounds stay joined.
+    // Animate section content only, keeping shared background geometry steady.
     const observer = new IntersectionObserver(entries => {
       entries.forEach(entry => {
         if (!entry.isIntersecting) return;
@@ -68,7 +68,7 @@ export const PublicHome: React.FC = () => {
     return () => { window.removeEventListener('scroll', onScroll); if (frame) cancelAnimationFrame(frame); };
   }, []);
 
-  // 1. BMI Interactive Calculator state (From reference design)
+  // State owned by the inline BMI estimator.
   const [bmiWeight, setBmiWeight] = useState<number>(0);
   const [bmiHeight, setBmiHeight] = useState<number>(0);
   const [bmiAge, setBmiAge] = useState<number>(0);
@@ -95,12 +95,12 @@ export const PublicHome: React.FC = () => {
     },
     {
       id: 'spa', title: 'Full Body Spa', category: 'Wellness & Recovery', intensity: 'Restorative', duration: 'By appointment', calories: 'Recovery', trainer: 'Spa Therapist', schedule: 'Book ahead',
-      image: '/assets/photos/photo-1524504388940-b1c1722653e1e.jpg',
+      image: '/assets/photos/full-body-spa.jfif',
       description: 'A restorative full-body wellness experience designed to reduce tension, support recovery, and improve relaxation.'
     },
     {
       id: 'pregnancy', title: 'Pregnancy & After Birth', category: 'Maternal Wellness', intensity: 'Low–Moderate', duration: '45 Mins', calories: 'Personalized', trainer: 'Women’s Wellness Trainer', schedule: 'By consultation',
-      image: '/assets/photos/photo-1580489944761-15a19d654956.jpg',
+      image: '/assets/photos/pregnancy.jpg',
       description: 'Carefully adapted prenatal and postnatal movement sessions focused on mobility, strength, recovery, and confidence.'
     },
     {
@@ -115,15 +115,16 @@ export const PublicHome: React.FC = () => {
     },
     {
       id: 'massage', title: 'Body Massage', category: 'Therapeutic Recovery', intensity: 'Restorative', duration: 'By appointment', calories: 'Recovery', trainer: 'Massage Therapist', schedule: 'Book ahead',
-      image: '/assets/photos/photo-1549060279-7e168fcee0c2.jpg',
+      image: '/assets/photos/massage.jfif',
       description: 'Professional massage sessions for relaxation, muscular tension relief, circulation, and post-training recovery.'
     },
     {
       id: 'abdominal', title: 'Abdominal Exercise', category: 'Core Conditioning', intensity: 'All Levels', duration: '30–45 Mins', calories: 'Conditioning', trainer: 'Core Fitness Trainer', schedule: 'Scheduled sessions',
-      image: '/assets/photos/photo-1517838277536-f5f99be501cd.jpg',
+      image: '/assets/photos/ab.jfif',
       description: 'Focused core training that improves abdominal strength, stability, posture, and control through progressive movement.'
     }
-  ];
+  ];
+
   const [contactForm, setContactForm] = useState({ name: '', email: '', phone: '', message: '' });
   const [upcomingEvents, setUpcomingEvents] = useState<any[]>([]);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
@@ -147,10 +148,9 @@ export const PublicHome: React.FC = () => {
             <div className="hero-copy">
               <p className="section-eyebrow">Keep your body fitness with workouts</p>
               <h1 id="hero-title"><span>YOUR FITNESS</span><span>YOUR VICTORY</span></h1>
-              <p className="hero-description">Gym workouts are structured exercise sessions conducted in a fitness facility equipped with various exercise machines, free weights, and amenities.</p>
+              <p className="hero-description">Train, recover, and feel stronger at SAREX Fitness Clinic with gym access, fitness classes, personal support, body massage, full body spa services, and wellness programs for every goal.</p>
               <div className="hero-actions">
                 <button className="reference-button" onClick={() => document.getElementById('schedule-section')?.scrollIntoView({ behavior: 'smooth' })}>View upcoming events</button>
-                <div className="hero-proof"><strong>Train with purpose</strong><span>Memberships for different fitness goals</span></div>
               </div>
             </div>
             <img className="hero-member" src="/assets/fitkit/hero_1_2.png" alt="Member curling a dumbbell" fetchPriority="high" />
@@ -189,12 +189,8 @@ export const PublicHome: React.FC = () => {
         </div>
       </section>
 
-      {/* ========================================================================= */}
-      {/* 4. WORK PROCESS: "Easy Step To Achieve Your Goals" (From Reference)       */}
-      {/* ========================================================================= */}
       <section className="py-24 bg-[#F9FAFB] text-[#111111] border-t border-b border-gray-200 relative overflow-hidden">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          {/* Section Header */}
           <div className="text-center max-w-3xl mx-auto mb-16">
             <div className="flex items-center justify-center gap-3 mb-2">
               <span className="w-8 h-[2px] bg-[#EF1B23]" />
@@ -208,11 +204,8 @@ export const PublicHome: React.FC = () => {
             </h2>
           </div>
 
-          {/* 3 Circular Step Cards (Exact layout from reference) */}
           <div className="motion-stagger grid grid-cols-1 md:grid-cols-3 gap-10 relative">
-            {/* Step 01 */}
             <div className="text-center flex flex-col items-center group">
-              {/* Circular Photo with Red Ring */}
               <div className="relative mb-6">
                 <div className="w-44 h-44 rounded-full p-2 border-2 border-dashed border-[#EF1B23] group-hover:rotate-45 transition-transform duration-500">
                   <div className="w-full h-full rounded-full overflow-hidden border-4 border-white shadow-lg">
@@ -223,7 +216,6 @@ export const PublicHome: React.FC = () => {
                     />
                   </div>
                 </div>
-                {/* Step badge */}
                 <div className="absolute -bottom-2 left-1/2 transform -translate-x-1/2 bg-[#EF1B23] text-white text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full shadow-md">
                   STEP 01
                 </div>
@@ -237,9 +229,7 @@ export const PublicHome: React.FC = () => {
               </p>
             </div>
 
-            {/* Step 02 */}
             <div className="text-center flex flex-col items-center group">
-              {/* Circular Photo with Red Ring */}
               <div className="relative mb-6">
                 <div className="w-44 h-44 rounded-full p-2 border-2 border-dashed border-[#EF1B23] group-hover:rotate-45 transition-transform duration-500">
                   <div className="w-full h-full rounded-full overflow-hidden border-4 border-white shadow-lg">
@@ -250,7 +240,6 @@ export const PublicHome: React.FC = () => {
                     />
                   </div>
                 </div>
-                {/* Step badge */}
                 <div className="absolute -bottom-2 left-1/2 transform -translate-x-1/2 bg-[#EF1B23] text-white text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full shadow-md">
                   STEP 02
                 </div>
@@ -264,9 +253,7 @@ export const PublicHome: React.FC = () => {
               </p>
             </div>
 
-            {/* Step 03 */}
             <div className="text-center flex flex-col items-center group">
-              {/* Circular Photo with Red Ring */}
               <div className="relative mb-6">
                 <div className="w-44 h-44 rounded-full p-2 border-2 border-dashed border-[#EF1B23] group-hover:rotate-45 transition-transform duration-500">
                   <div className="w-full h-full rounded-full overflow-hidden border-4 border-white shadow-lg">
@@ -277,7 +264,6 @@ export const PublicHome: React.FC = () => {
                     />
                   </div>
                 </div>
-                {/* Step badge */}
                 <div className="absolute -bottom-2 left-1/2 transform -translate-x-1/2 bg-[#EF1B23] text-white text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full shadow-md">
                   STEP 03
                 </div>
@@ -294,12 +280,8 @@ export const PublicHome: React.FC = () => {
         </div>
       </section>
 
-      {/* ========================================================================= */}
-      {/* 5. "OUR GYM FITNESS CLASSES" SECTION (From Reference)                     */}
-      {/* ========================================================================= */}
       <section id="classes-section" className="py-24 bg-[#FFFFFF] text-[#111111]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          {/* Header & View All button */}
           <div className="flex flex-col sm:flex-row items-start sm:items-end justify-between mb-12 gap-4">
             <div>
               <div className="flex items-center gap-2 mb-2">
@@ -331,30 +313,23 @@ export const PublicHome: React.FC = () => {
 
       <section id="schedule-section" className="bg-[#0d0d0d] py-24 text-white border-t border-neutral-900">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="mx-auto mb-12 max-w-3xl text-center"><p className="section-eyebrow centered">SAREX community</p><h2 className="text-3xl font-black uppercase tracking-tight sm:text-5xl">Upcoming events</h2><p className="mt-3 text-sm text-gray-400">Events published by the SAREX team appear here automatically.</p></div>
+          <div className="mx-auto mb-12 max-w-3xl text-center"><p className="section-eyebrow centered">SAREX community</p><h2 className="text-3xl font-black uppercase tracking-tight sm:text-5xl">Upcoming events</h2></div>
           {upcomingEvents.length ? <div className="motion-stagger grid gap-6 md:grid-cols-2 lg:grid-cols-3">{upcomingEvents.slice(0,6).map(event=><article key={event.id} className="overflow-hidden rounded-2xl border border-neutral-800 bg-[#171717] shadow-lg transition hover:-translate-y-2">{event.image_url?<img src={event.image_url} loading="lazy" alt="" className="h-48 w-full object-cover"/>:<div className="h-2 bg-[#EF1B23]"/>}<div className="p-6"><div className="flex items-center justify-between text-[10px] font-black uppercase tracking-widest text-[#EF1B23]"><span>{new Date(event.starts_at).toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'})}</span><span>{Number(event.price_minor)?`₦${(Number(event.price_minor)/100).toLocaleString()}`:'Free'}</span></div><h3 className="mt-3 text-2xl font-black">{event.title}</h3><p className="mt-2 line-clamp-3 text-sm leading-6 text-gray-400">{event.description}</p><div className="mt-5 flex items-center gap-2 text-xs text-gray-400"><MapPin className="h-4 w-4 text-[#EF1B23]"/>{event.location}</div><button onClick={()=>navigate('/login')} className="mt-6 inline-flex items-center gap-2 text-xs font-black uppercase text-[#EF1B23]">Sign in to reserve <ArrowRight className="h-4 w-4"/></button></div></article>)}</div> : <div className="rounded-2xl border border-neutral-800 bg-[#171717] px-6 py-12 text-center text-sm text-gray-400">No upcoming events have been published yet.</div>}
         </div>
       </section>
 
-      {/* ========================================================================= */}
-      {/* 7. "MEET OUR SKILLED TRAINER" SECTION (From Reference)                   */}
-      {/* ========================================================================= */}
       <section className="reference-workout">
         <div className="reference-container workout-grid">
           <div><p className="section-eyebrow">Build your strongest self</p><h2>Invigorating Fitness Workout<br />For Body And Mind!</h2><p>Make time for your strength, energy, and wellbeing. Explore guided training, free weights, and fitness classes that support your goals.</p><button className="reference-button" onClick={() => document.getElementById('pricing-section')?.scrollIntoView({behavior:'smooth'})}>Explore memberships</button></div>
           <div className="workout-photos"><img src="/assets/photos/photo-1581009146145-b5ef050c2e1e.jpg" alt="Strength training with free weights" loading="lazy" /><img src="/assets/photos/photo-1518611012118-696072aa579a.jpg" alt="Guided fitness workout" loading="lazy" /></div>
         </div>
       </section>
-      {/* ========================================================================= */}
-      {/* 8. "FIND YOUR PERFECT PLAN" / PRICING SECTION (From Reference)            */}
-      {/* ========================================================================= */}
-
       <section className="home-gallery bg-[#111] py-24 text-white">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <p className="section-eyebrow text-center">Inside SAREX</p>
           <h2 className="mb-10 text-center text-4xl font-black uppercase sm:text-5xl">Train. Recover. Transform.</h2>
           <div className="gallery-motion gallery-rail">
-            {['photo-1517838277536-f5f99be501cd.jpg','photo-1549060279-7e168fcee0c2.jpg','photo-1574680096145-d05b474e2155.jpg','photo-1581009146145-b5ef050c2e1e.jpg','photo-1518611012118-696072aa579a.jpg','photo-1534367507873-d2d7e24c797f.jpg','photo-1492562080023-ab3db95bfbce.jpg','photo-1500648767791-00dcc994a43e.jpg','photo-1506794778202-cad84cf45f1d.jpg','photo-1507003211169-0a1dd7228f2d.jpg','photo-1519085360753-af0119f7cbe7.jpg','photo-1524504388940-b1c1722653e1e.jpg'].map((photo,index)=>{const src='/assets/photos/'+photo;return <button key={photo} type="button" onClick={()=>setPreviewImage(src)} className={'gallery-tile group relative snap-start overflow-hidden rounded-2xl focus:outline-none focus:ring-4 focus:ring-[#EF1B23]/40 '+(index%5===0?'gallery-tile-wide':'')}><img loading="lazy" src={src} alt={`SAREX Fitness Clinic gallery view ${index+1}`} className="h-full w-full object-cover transition duration-700 group-hover:scale-110"/><div className="absolute inset-0 bg-black/0 transition group-hover:bg-black/15"/></button>})}
+            {['photo-1517838277536-f5f99be501cd.jpg','photo-1549060279-7e168fcee0c2.jpg','photo-1574680096145-d05b474e2155.jpg','photo-1581009146145-b5ef050c2e1e.jpg','photo-1518611012118-696072aa579a.jpg','photo-1534367507873-d2d7e24c797f.jpg','photo-1492562080023-ab3db95bfbce.jpg','photo-1500648767791-00dcc994a43e.jpg','photo-1506794778202-cad84cf45f1d.jpg','photo-1507003211169-0a1dd7228f2d.jpg','photo-1519085360753-af0119f7cbe7.jpg','images.jfif'].map((photo,index)=>{const src='/assets/photos/'+photo;return <button key={photo} type="button" onClick={()=>setPreviewImage(src)} className={'gallery-tile group relative snap-start overflow-hidden rounded-2xl focus:outline-none focus:ring-4 focus:ring-[#EF1B23]/40 '+(index%5===0?'gallery-tile-wide':'')}><img loading="lazy" src={src} alt={`SAREX Fitness Clinic gallery view ${index+1}`} className="h-full w-full object-cover transition duration-700 group-hover:scale-110"/><div className="absolute inset-0 bg-black/0 transition group-hover:bg-black/15"/></button>})}
           </div>
         </div>
       </section>
