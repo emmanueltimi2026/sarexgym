@@ -1,0 +1,540 @@
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { useGym } from '../../context/GymContext';
+import { ConfirmDialog } from '../ui/ConfirmDialog';
+import {
+  LayoutDashboard,
+  Users,
+  CreditCard,
+  QrCode,
+  CalendarCheck,
+  Dumbbell,
+  Shield,
+  Settings,
+  UserCheck,
+  TrendingUp,
+  User,
+  LogOut,
+  Menu,
+  X,
+  Bell,
+  ClipboardList, CalendarDays
+} from 'lucide-react';
+
+const avatarFallback = (initials: string) => `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96"><rect width="100%" height="100%" rx="48" fill="#EF1B23"/><text x="50%" y="54%" text-anchor="middle" dominant-baseline="middle" fill="white" font-family="Arial" font-size="30" font-weight="700">${initials}</text></svg>`)}`;
+
+interface AppLayoutProps {
+  children: React.ReactNode;
+  pageTitle: string;
+  pageSubtitle?: string;
+  actions?: React.ReactNode;
+  breadcrumbs?: Array<{ label: string; path?: string }>;
+}
+
+export const AppLayout: React.FC<AppLayoutProps> = ({
+  children,
+  pageTitle,
+  pageSubtitle,
+  actions
+}) => {
+  const [confirmLogout, setConfirmLogout] = useState(false);
+  const { role, currentPath, navigate, setRole, currentMember, currentStaff, currentTrainer, settings } = useGym();
+  const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [showUserDropdown, setShowUserDropdown] = useState(false);
+  const [notifications, setNotifications] = useState<Array<{id:string;title:string;message:string;read_at?:string;created_at:string}>>([]);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+
+  const refreshNotifications = useCallback(async () => {
+    if (role === 'public' || document.visibilityState === 'hidden') return;
+    try {
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080'}/api/v1/notifications`, { credentials: 'include' });
+      if (!response.ok) {
+        if (response.status === 401) setNotifications([]);
+        return;
+      }
+      const body = await response.json();
+      setNotifications(body.data || []);
+    } catch {
+      // Keep the last successful result during temporary network interruptions.
+    }
+  }, [role]);
+
+  useEffect(() => {
+    scrollContainerRef.current?.scrollTo({ top: 0, behavior: 'instant' });
+    setIsMobileNavOpen(false);
+    setShowNotifications(false);
+    setShowUserDropdown(false);
+  }, [currentPath]);
+
+  useEffect(() => {
+    if (role === 'public') {
+      setNotifications([]);
+      return;
+    }
+    void refreshNotifications();
+    const timer = window.setInterval(() => void refreshNotifications(), 60_000);
+    const refreshWhenActive = () => {
+      if (document.visibilityState === 'visible') void refreshNotifications();
+    };
+    window.addEventListener('focus', refreshWhenActive);
+    document.addEventListener('visibilitychange', refreshWhenActive);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener('focus', refreshWhenActive);
+      document.removeEventListener('visibilitychange', refreshWhenActive);
+    };
+  }, [role, refreshNotifications]);
+
+  // Define sidebar links per role
+  const getNavItems = () => {
+    switch (role) {
+      case 'super_admin':
+        return [
+          { label: 'Dashboard', path: '/admin/dashboard', icon: LayoutDashboard },
+          { label: 'Members', path: '/admin/members', icon: Users },
+          { label: 'Membership Plans', path: '/admin/membership-plans', icon: CreditCard },
+          { label: 'Attendance', path: '/admin/attendance', icon: CalendarCheck },
+          { label: 'Payments', path: '/admin/payments', icon: CreditCard },
+          { label: 'Staff & Trainers', path: '/admin/staff', icon: UserCheck },
+          { label: 'Events', path: '/admin/events', icon: CalendarDays },
+          { label: 'Audit Trail', path: '/admin/audit', icon: ClipboardList },
+          { label: 'Settings', path: '/admin/settings', icon: Settings }
+        ];
+      case 'staff':
+        return [
+          { label: 'Dashboard', path: '/staff/dashboard', icon: LayoutDashboard },
+          { label: 'QR Check-in', path: '/staff/check-in', icon: QrCode, highlight: true },
+          { label: 'Members', path: '/staff/members', icon: Users },
+          { label: 'Memberships', path: '/staff/memberships', icon: CreditCard },
+          { label: 'Attendance', path: '/staff/attendance', icon: CalendarCheck },
+          { label: 'Payments', path: '/staff/payments', icon: CreditCard },
+          { label: 'Events', path: '/staff/events', icon: CalendarDays }
+        ];
+      case 'trainer':
+        return [
+          { label: 'Dashboard', path: '/trainer/dashboard', icon: LayoutDashboard },
+          { label: 'My Members', path: '/trainer/members', icon: Users },
+          { label: 'Workout Plans', path: '/trainer/workout-plans', icon: Dumbbell },
+          { label: 'Member Progress', path: '/trainer/progress', icon: TrendingUp }
+        ];
+      case 'member':
+        return [
+          { label: 'Dashboard', path: '/member/dashboard', icon: LayoutDashboard },
+          { label: 'Membership', path: '/member/membership', icon: CreditCard },
+          { label: 'Attendance', path: '/member/attendance', icon: CalendarCheck },
+          { label: 'Events', path: '/member/events', icon: CalendarDays },
+          ...(currentMember.workoutPlanEnabled ? [{ label: 'Workout Plan', path: '/member/workout', icon: Dumbbell }] : []),
+          { label: 'Profile', path: '/member/profile', icon: User }
+        ];
+      default:
+        return [];
+    }
+  };
+
+  const navItems = getNavItems();
+  const isNavActive = (path: string) => currentPath === path || currentPath.startsWith(`${path}/`);
+  const roleMeta = {
+    super_admin: { eyebrow: 'Control centre', nav: '', code: 'ADMIN / 01' },
+    staff: { eyebrow: 'Staff portal', nav: '', code: 'STAFF / 02' },
+    trainer: { eyebrow: 'Trainer portal', nav: '', code: 'TRAINER / 03' },
+    member: { eyebrow: 'Member portal', nav: '', code: 'MEMBER / 04' }
+  }[role as 'super_admin' | 'staff' | 'trainer' | 'member'] || { eyebrow: 'Workspace', nav: 'Navigation', code: 'SAREX / 00' };
+
+  // Active user presentation
+  const getUserProfile = () => {
+    if (role === 'super_admin') {
+      return {
+        name: settings.adminName || 'SAREX Administrator',
+        roleTitle: 'Super Administrator',
+        avatar: '',
+        email: settings.adminEmail || 'admin@sarex.local'
+      };
+    }
+    if (role === 'staff') {
+      return {
+        name: `${currentStaff.firstName || ''} ${currentStaff.lastName || ''}`.trim() || 'SAREX Staff',
+        roleTitle: 'Staff',
+        avatar: currentStaff.photo,
+        email: currentStaff.email || 'Staff account'
+      };
+    }
+    if (role === 'trainer') {
+      return {
+        name: `${currentTrainer.firstName || ''} ${currentTrainer.lastName || ''}`.trim() || 'SAREX Trainer',
+        roleTitle: currentTrainer.specialization,
+        avatar: currentTrainer.photo,
+        email: currentTrainer.email || 'Trainer account'
+      };
+    }
+    return {
+      name: `${currentMember.firstName || ''} ${currentMember.lastName || ''}`.trim() || 'SAREX Member',
+      roleTitle: `Member (${currentMember.memberId})`,
+      avatar: currentMember.photo,
+      email: currentMember.email
+    };
+  };
+
+  const userProfile = getUserProfile();
+  const isDashboard = currentPath === '/admin/dashboard' || currentPath === '/staff/dashboard' || currentPath === '/trainer/dashboard' || currentPath === '/member/dashboard';
+  const dashboardMessage = role === 'super_admin'
+    ? "Here’s what is happening across your gym today."
+    : role === 'staff'
+      ? 'Your daily member service and entrance activity at a glance.'
+      : role === 'trainer'
+        ? 'Review your members, programs, and latest progress updates.'
+        : 'Your membership, visits, and training activity in one place.';
+  const userInitials = (userProfile.name || 'Admin')
+    .split(' ')
+    .filter(Boolean)
+    .map(n => n[0])
+    .join('')
+    .substring(0, 2)
+    .toUpperCase();
+
+  const handleLogout = async () => {
+    try { await fetch(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080'}/api/v1/auth/logout`, { method: 'POST', credentials: 'include' }); } finally {
+    setRole('public');
+    navigate('/login');
+    }
+  };
+
+  return (
+    <div className="management-app h-screen overflow-hidden bg-[#F7F7F8] text-[#111111] flex flex-col font-sans antialiased" data-role={role} data-path={currentPath}>
+      <div className="flex-1 flex overflow-hidden">
+        {/* DESKTOP SIDEBAR - High Density Dark #151515 */}
+        <aside className="management-sidebar hidden md:flex h-screen flex-col w-[260px] bg-[#151515] text-white border-r border-gray-800 shrink-0 select-none">
+          {/* Brand header */}
+          <div className="px-7 py-6 shrink-0">
+            <img src="/assets/brand/sarex-logo.png" alt="Sarex Fitness Clinic" className="h-14 w-full object-contain object-left" />
+          </div>
+
+          {/* Navigation Links */}
+          <nav className="flex-1 px-4 space-y-1 overflow-y-auto" aria-label={roleMeta.nav}>
+            {roleMeta.nav && <p className="nav-caption">{roleMeta.nav}</p>}
+            {navItems.map(item => {
+              const Icon = item.icon;
+              const isActive = isNavActive(item.path);
+              return (
+                <button
+                  key={item.path}
+                  onClick={() => navigate(item.path)}
+                  className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-colors ${
+                    isActive
+                      ? 'bg-[#1a1a1a] border-l-4 border-[#EF1B23] text-white'
+                      : 'text-gray-400 hover:text-white hover:bg-[#1a1a1a] border-l-4 border-transparent'
+                  }`}
+                >
+                  <Icon
+                    className={`w-5 h-5 shrink-0 ${
+                      isActive ? 'text-[#EF1B23]' : 'text-gray-400'
+                    }`}
+                  />
+                  <span
+                    className={`truncate text-sm ${
+                      isActive
+                        ? 'font-bold uppercase tracking-wider'
+                        : 'font-medium'
+                    }`}
+                  >
+                    {item.label}
+                  </span>
+                  {item.highlight && !isActive && (
+                    <span className="ml-auto w-1.5 h-1.5 rounded-full bg-[#EF1B23]" />
+                  )}
+                </button>
+              );
+            })}
+          </nav>
+
+          {/* User mini badge & quick actions */}
+          <div className="p-6 border-t border-gray-800 bg-[#151515] shrink-0">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3 min-w-0">
+                <img src={userProfile.avatar || avatarFallback(userInitials)} onError={e => { e.currentTarget.src = avatarFallback(userInitials); }} alt={`${userProfile.name} profile`} className="h-10 w-10 shrink-0 rounded-full border border-white/10 object-cover"/>
+                <div className="min-w-0">
+                  <p className="text-xs font-bold text-white truncate leading-tight">
+                    {userProfile.name}
+                  </p>
+                  <p className="text-[10px] font-semibold text-gray-400 truncate">{userProfile.roleTitle}</p>
+                  <p className="text-[9px] text-gray-500 truncate">{userProfile.email}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setConfirmLogout(true)}
+                title="Log Out"
+                className="p-1.5 text-gray-400 hover:text-[#EF1B23] transition-colors shrink-0"
+              >
+                <LogOut className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        </aside>
+
+        {/* MOBILE DRAWER (Off-canvas) */}
+        {isMobileNavOpen && (
+          <div className="fixed inset-0 z-50 flex md:hidden">
+            <div
+              className="fixed inset-0 bg-black/70 backdrop-blur-xs"
+              onClick={() => setIsMobileNavOpen(false)}
+            />
+            <div className="relative flex flex-col w-72 max-w-[80%] bg-[#151515] text-white border-r border-gray-800 z-10 animate-in slide-in-from-left duration-200">
+              <div className="p-6 border-b border-gray-800 flex items-center justify-between">
+                <img src="/assets/brand/sarex-logo.png" alt="Sarex Fitness Clinic" className="h-12 w-auto max-w-[190px] object-contain" />
+                <button
+                  onClick={() => setIsMobileNavOpen(false)}
+                  className="p-1 text-gray-400 hover:text-white"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
+                {navItems.map(item => {
+                  const Icon = item.icon;
+                  const isActive = isNavActive(item.path);
+                  return (
+                    <button
+                      key={item.path}
+                      onClick={() => {
+                        navigate(item.path);
+                        setIsMobileNavOpen(false);
+                      }}
+                      className={`w-full flex items-center gap-3 px-4 py-3 text-left ${
+                        isActive
+                          ? 'bg-[#1a1a1a] border-l-4 border-[#EF1B23] text-white font-bold uppercase tracking-wider text-sm'
+                          : 'text-gray-400 hover:text-white hover:bg-[#1a1a1a] border-l-4 border-transparent text-sm font-medium'
+                      }`}
+                    >
+                      <Icon
+                        className={`w-5 h-5 shrink-0 ${
+                          isActive ? 'text-[#EF1B23]' : 'text-gray-400'
+                        }`}
+                      />
+                      <span className="truncate">{item.label}</span>
+                      {item.highlight && !isActive && (
+                        <span className="ml-auto w-1.5 h-1.5 rounded-full bg-[#EF1B23]" />
+                      )}
+                    </button>
+                  );
+                })}
+              </nav>
+
+              <div className="p-6 border-t border-gray-800 bg-[#151515]">
+                <button
+                  onClick={() => setConfirmLogout(true)}
+                  className="w-full flex items-center gap-2 text-gray-400 hover:text-[#EF1B23] text-xs font-bold uppercase tracking-wider"
+                >
+                  <LogOut className="w-4 h-4" />
+                  Sign Out
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* MAIN BODY WRAPPER */}
+        <div ref={scrollContainerRef} className="management-scroll-area h-screen flex-1 flex flex-col min-w-0 overflow-y-auto pb-16 md:pb-6">
+          {/* TOP BAR - High Density Header */}
+          <header className="management-topbar min-h-20 bg-white/95 backdrop-blur-xl border-b border-[#E5E7EB] sticky top-0 z-30 px-4 py-3 sm:px-8 flex flex-wrap sm:flex-nowrap items-center justify-between gap-3 shrink-0">
+            <div className="flex w-full sm:w-auto flex-1 items-center gap-3 min-w-0">
+              {/* Mobile menu trigger */}
+              <button
+                onClick={() => setIsMobileNavOpen(true)}
+                className="md:hidden p-2 text-gray-700 hover:bg-gray-100 rounded-sm"
+                aria-label="Open menu"
+              >
+                <Menu className="w-5 h-5" />
+              </button>
+
+              <div className="min-w-0 flex-1">
+                <h1 className="truncate text-lg font-black leading-tight text-[#111111] sm:text-2xl">
+                  {pageTitle}
+                </h1>
+                {pageSubtitle && (
+                  <p className="text-xs text-[#6B7280] font-medium hidden sm:block truncate">
+                    {pageSubtitle}
+                  </p>
+                )}
+              </div>
+            </div>
+
+            {/* Right section: Actions & Notifications */}
+            <div className="flex items-center justify-end gap-3 shrink-0">
+              <div className="workspace-date hidden xl:flex">
+                <CalendarCheck className="w-4 h-4" />
+                <span>{new Intl.DateTimeFormat('en-NG', { day: '2-digit', month: 'short', year: 'numeric' }).format(new Date())}</span>
+              </div>
+              {actions && (
+                <div className="hidden items-center gap-2 sm:flex">
+                  {actions}
+                </div>
+              )}
+
+              {/* Notifications Toggle */}
+              <div className="relative">
+                <button
+                  onClick={() => {
+                    const willOpen = !showNotifications;
+                    setShowNotifications(willOpen);
+                    if (willOpen) void refreshNotifications();
+                  }}
+                  className="p-2 text-gray-600 hover:text-black hover:bg-gray-100 rounded-full transition-colors relative"
+                  aria-label="Notifications"
+                >
+                  <Bell className="w-4 h-4" />
+                  {notifications.some(n=>!n.read_at) && <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-[#EF1B23] rounded-full ring-2 ring-white" />}
+                </button>
+
+                {showNotifications && (
+                  <div className="absolute right-0 mt-2 w-80 bg-white border border-[#E5E7EB] rounded-sm shadow-xl py-2 z-50 text-left">
+                    <div className="px-4 py-2 border-b border-[#E5E7EB] flex items-center justify-between bg-[#FDFDFD]">
+                      <span className="text-[10px] font-black uppercase tracking-widest text-[#6B7280]">
+                        Gym Activity Alerts
+                      </span>
+                      <span className="text-[10px] bg-red-50 text-[#EF1B23] font-black uppercase px-1.5 py-0.5 rounded-xs">
+                        {notifications.filter(n=>!n.read_at).length} New
+                      </span>
+                    </div>
+                    <div className="max-h-80 divide-y divide-[#E5E7EB] overflow-y-auto text-xs">
+                      {notifications.length ? notifications.map(notification=><button key={notification.id} onClick={async()=>{if(!notification.read_at){await fetch(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080'}/api/v1/notifications/${notification.id}/read`,{method:'POST',credentials:'include'});setNotifications(items=>items.map(item=>item.id===notification.id?{...item,read_at:new Date().toISOString()}:item))}}} className={`block w-full p-3 text-left transition-colors hover:bg-gray-50 ${notification.read_at?'opacity-60':'bg-red-50/30'}`}><p className="font-bold text-[#111111]">{notification.title}</p><p className="mt-0.5 text-[11px] text-gray-500">{notification.message}</p><span className="text-[10px] text-gray-400">{new Date(notification.created_at).toLocaleString()}</span></button>):<p className="p-5 text-center text-gray-500">No notifications yet.</p>}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Profile Avatar Dropdown */}
+              <div className="relative">
+                <button
+                  onClick={() => setShowUserDropdown(!showUserDropdown)}
+                  className="flex items-center gap-2 pl-2 border-l border-gray-200 hover:opacity-90"
+                >
+                  <img src={userProfile.avatar || avatarFallback(userInitials)} onError={e => { e.currentTarget.src = avatarFallback(userInitials); }} alt={`${userProfile.name} profile`} className="h-8 w-8 rounded-full object-cover"/>
+                  <div className="hidden lg:block text-left text-xs leading-tight">
+                    <span className="font-bold text-[#111111] block">{userProfile.name}</span>
+                    <span className="text-[10px] text-gray-500 block">{userProfile.roleTitle}</span>
+                    <span className="text-[9px] text-gray-400 block max-w-40 truncate">{userProfile.email}</span>
+                  </div>
+                </button>
+
+                {showUserDropdown && (
+                  <div
+                    className="absolute right-0 mt-2 w-56 bg-white border border-[#E5E7EB] rounded-sm shadow-xl py-1 z-50 text-xs"
+                    onClick={() => setShowUserDropdown(false)}
+                  >
+                    <div className="px-4 py-2 border-b border-[#E5E7EB] bg-[#FDFDFD]">
+                      <div className="font-bold text-[#111111]">{userProfile.name}</div>
+                      <div className="text-gray-500 text-[11px] font-mono">{userProfile.email}</div>
+                    </div>
+                    {role === 'super_admin' && (
+                      <button
+                        onClick={() => navigate('/admin/settings')}
+                        className="w-full text-left px-4 py-2 text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                      >
+                        <Settings className="w-3.5 h-3.5" />
+                        System Settings
+                      </button>
+                    )}
+                    {role === 'member' && (
+                      <button
+                        onClick={() => navigate('/member/profile')}
+                        className="w-full text-left px-4 py-2 text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                      >
+                        <User className="w-3.5 h-3.5" />
+                        Member Profile
+                      </button>
+                    )}
+                    <button
+                      onClick={() => navigate('/')}
+                      className="w-full text-left px-4 py-2 text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                    >
+                      <Shield className="w-3.5 h-3.5" />
+                      Public Marketing Site
+                    </button>
+                    <div className="border-t border-gray-100 my-1" />
+                    <button
+                      onClick={() => setConfirmLogout(true)}
+                      className="w-full text-left px-4 py-2 text-[#EF1B23] font-bold uppercase tracking-wider hover:bg-red-50 flex items-center gap-2 text-[11px]"
+                    >
+                      <LogOut className="w-3.5 h-3.5" />
+                      Sign Out
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+            {actions && <div className="order-3 flex w-full items-center gap-2 border-t border-gray-100 pt-3 sm:hidden">{actions}</div>}
+          </header>
+
+          {/* PAGE CONTENT */}
+          <main className="management-content p-4 sm:p-8 max-w-[1500px] w-full mx-auto flex-1">
+            {isDashboard && <section className="portal-welcome mb-6 overflow-hidden rounded-2xl border border-white/70 bg-white px-6 py-7 sm:px-8 sm:py-8">
+              <div className="relative z-10 max-w-xl">
+                <span className="text-[10px] font-black uppercase tracking-[.28em] text-[#EF1B23]">Welcome back</span>
+                <h2 className="mt-2 text-3xl font-black tracking-[-.04em] sm:text-4xl">{userProfile.name}</h2>
+                <p className="mt-2 text-sm text-gray-600">{dashboardMessage}</p>
+              </div>
+              <div className="portal-welcome-quote relative z-10 hidden md:block"><p>“Stronger members.<br/>Healthier communities.”</p><span/></div>
+            </section>}
+            {children}
+          </main>
+        </div>
+      </div>
+
+      {/* MOBILE BOTTOM NAVIGATION FOR MEMBERS (Prompt: "Member experience must be mobile-first. Mobile should use bottom navigation.") */}
+      {role === 'member' && (
+        <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-[#151515] border-t border-neutral-800 px-2 py-2 flex items-center justify-around z-40">
+          <button
+            onClick={() => navigate('/member/dashboard')}
+            className={`flex flex-col items-center gap-1 p-1 text-xs font-semibold ${
+              currentPath === '/member/dashboard' ? 'text-[#EF1B23]' : 'text-neutral-400'
+            }`}
+          >
+            <LayoutDashboard className="w-4 h-4" />
+            <span className="text-[10px]">Home</span>
+          </button>
+          <button
+            onClick={() => navigate('/member/membership')}
+            className={`flex flex-col items-center gap-1 p-1 text-xs font-semibold ${
+              currentPath.startsWith('/member/membership') ? 'text-[#EF1B23]' : 'text-neutral-400'
+            }`}
+          >
+            <CreditCard className="w-4 h-4" />
+            <span className="text-[10px]">Plan</span>
+          </button>
+          <button
+            onClick={() => navigate('/member/attendance')}
+            className={`flex flex-col items-center gap-1 p-1 text-xs font-semibold ${
+              currentPath === '/member/attendance' ? 'text-[#EF1B23]' : 'text-neutral-400'
+            }`}
+          >
+            <CalendarCheck className="w-4 h-4" />
+            <span className="text-[10px]">Log</span>
+          </button>
+          <button
+            onClick={() => navigate('/member/workout')}
+            className={`flex flex-col items-center gap-1 p-1 text-xs font-semibold ${
+              currentPath === '/member/workout' ? 'text-[#EF1B23]' : 'text-neutral-400'
+            }`}
+          >
+            <Dumbbell className="w-4 h-4" />
+            <span className="text-[10px]">Workout</span>
+          </button>
+        </nav>
+      )}
+      <ConfirmDialog open={confirmLogout} title="Sign out?" message="You will need to sign in again to access this portal." confirmLabel="Sign out" tone="danger" onClose={() => setConfirmLogout(false)} onConfirm={() => { setConfirmLogout(false); void handleLogout(); }} />
+    </div>
+  );
+};
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -1,0 +1,61 @@
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+CREATE EXTENSION IF NOT EXISTS btree_gist;
+
+CREATE TYPE account_status AS ENUM ('pending','active','suspended','disabled');
+CREATE TYPE subscription_status AS ENUM ('pending','active','expired','cancelled','frozen','suspended');
+CREATE TYPE payment_status AS ENUM ('pending','successful','failed','refunded');
+CREATE TYPE attendance_status AS ENUM ('open','completed','denied');
+
+CREATE TABLE branches (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), name text NOT NULL, address text NOT NULL, phone text, email text, timezone text NOT NULL DEFAULT 'Africa/Lagos', active boolean NOT NULL DEFAULT true, created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now());
+CREATE TABLE users (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), email text NOT NULL, password_hash text NOT NULL, status account_status NOT NULL DEFAULT 'pending', email_verified_at timestamptz, credential_version integer NOT NULL DEFAULT 1, created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now());
+CREATE UNIQUE INDEX users_email_unique ON users (lower(email));
+CREATE TABLE roles (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), code text NOT NULL UNIQUE, name text NOT NULL);
+CREATE TABLE permissions (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), code text NOT NULL UNIQUE, description text NOT NULL);
+CREATE TABLE user_roles (user_id uuid REFERENCES users ON DELETE CASCADE, role_id uuid REFERENCES roles ON DELETE CASCADE, PRIMARY KEY(user_id,role_id));
+CREATE TABLE role_permissions (role_id uuid REFERENCES roles ON DELETE CASCADE, permission_id uuid REFERENCES permissions ON DELETE CASCADE, PRIMARY KEY(role_id,permission_id));
+CREATE TABLE sessions (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), user_id uuid NOT NULL REFERENCES users ON DELETE CASCADE, token_hash text NOT NULL UNIQUE, expires_at timestamptz NOT NULL, revoked_at timestamptz, ip inet, user_agent text, created_at timestamptz NOT NULL DEFAULT now());
+CREATE INDEX sessions_user_active ON sessions(user_id,expires_at) WHERE revoked_at IS NULL;
+CREATE TABLE password_reset_tokens (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), user_id uuid NOT NULL REFERENCES users ON DELETE CASCADE, token_hash text NOT NULL UNIQUE, expires_at timestamptz NOT NULL, consumed_at timestamptz, created_at timestamptz NOT NULL DEFAULT now());
+
+CREATE TABLE members (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), user_id uuid NOT NULL UNIQUE REFERENCES users ON DELETE RESTRICT, member_number text NOT NULL UNIQUE, first_name text NOT NULL, last_name text NOT NULL, phone text NOT NULL, date_of_birth date, gender text, address text, profile_image_url text, emergency_contact jsonb, home_branch_id uuid REFERENCES branches, joined_at timestamptz NOT NULL DEFAULT now(), created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now());
+CREATE INDEX members_search ON members USING gin (to_tsvector('simple', first_name||' '||last_name||' '||member_number||' '||phone));
+CREATE TABLE trainers (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), user_id uuid NOT NULL UNIQUE REFERENCES users ON DELETE RESTRICT, branch_id uuid REFERENCES branches, first_name text NOT NULL, last_name text NOT NULL, phone text, specialization text, experience_years integer CHECK(experience_years>=0), biography text, profile_image_url text, max_clients integer CHECK(max_clients>0), active boolean NOT NULL DEFAULT true, created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now());
+CREATE TABLE staff (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), user_id uuid NOT NULL UNIQUE REFERENCES users ON DELETE RESTRICT, branch_id uuid NOT NULL REFERENCES branches, first_name text NOT NULL, last_name text NOT NULL, phone text, active boolean NOT NULL DEFAULT true, created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now());
+CREATE TABLE trainer_assignments (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), trainer_id uuid NOT NULL REFERENCES trainers, member_id uuid NOT NULL REFERENCES members, starts_at timestamptz NOT NULL, ends_at timestamptz, active boolean NOT NULL DEFAULT true, created_at timestamptz NOT NULL DEFAULT now());
+CREATE UNIQUE INDEX one_active_trainer_assignment ON trainer_assignments(trainer_id,member_id) WHERE active;
+
+CREATE TABLE membership_plans (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), name text NOT NULL, description text NOT NULL, price_minor bigint NOT NULL CHECK(price_minor>=0), currency char(3) NOT NULL DEFAULT 'NGN', duration_days integer NOT NULL CHECK(duration_days>0), trainer_access boolean NOT NULL DEFAULT false, class_access boolean NOT NULL DEFAULT false, all_branch_access boolean NOT NULL DEFAULT false, freeze_eligible boolean NOT NULL DEFAULT false, max_freeze_days integer NOT NULL DEFAULT 0 CHECK(max_freeze_days>=0), features jsonb NOT NULL DEFAULT '[]', active boolean NOT NULL DEFAULT true, created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now());
+CREATE TABLE plan_branches (plan_id uuid REFERENCES membership_plans ON DELETE CASCADE, branch_id uuid REFERENCES branches ON DELETE CASCADE, PRIMARY KEY(plan_id,branch_id));
+CREATE TABLE subscriptions (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), member_id uuid NOT NULL REFERENCES members, plan_id uuid NOT NULL REFERENCES membership_plans, starts_at timestamptz NOT NULL, ends_at timestamptz NOT NULL, status subscription_status NOT NULL, amount_minor bigint NOT NULL CHECK(amount_minor>=0), currency char(3) NOT NULL, created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now(), CHECK(ends_at>starts_at));
+CREATE INDEX subscriptions_member_period ON subscriptions(member_id,starts_at,ends_at);
+CREATE TABLE subscription_freezes (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), subscription_id uuid NOT NULL REFERENCES subscriptions, starts_at timestamptz NOT NULL, ends_at timestamptz NOT NULL, approved_by uuid REFERENCES users, created_at timestamptz NOT NULL DEFAULT now(), CHECK(ends_at>starts_at));
+
+CREATE TABLE payment_orders (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), member_id uuid NOT NULL REFERENCES members, plan_id uuid NOT NULL REFERENCES membership_plans, amount_minor bigint NOT NULL CHECK(amount_minor>=0), currency char(3) NOT NULL, provider text NOT NULL, provider_reference text NOT NULL UNIQUE, status payment_status NOT NULL DEFAULT 'pending', created_at timestamptz NOT NULL DEFAULT now(), expires_at timestamptz NOT NULL);
+CREATE TABLE payments (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), order_id uuid UNIQUE REFERENCES payment_orders, member_id uuid NOT NULL REFERENCES members, subscription_id uuid REFERENCES subscriptions, plan_id uuid REFERENCES membership_plans, amount_minor bigint NOT NULL CHECK(amount_minor>=0), currency char(3) NOT NULL, method text NOT NULL, provider text, provider_reference text, status payment_status NOT NULL, recorded_by uuid REFERENCES users, paid_at timestamptz, notes text, created_at timestamptz NOT NULL DEFAULT now());
+CREATE UNIQUE INDEX payments_provider_reference_unique ON payments(provider,provider_reference) WHERE provider_reference IS NOT NULL;
+CREATE TABLE webhook_events (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), provider text NOT NULL, event_key text NOT NULL, payload_hash text NOT NULL, status text NOT NULL DEFAULT 'received', processed_at timestamptz, created_at timestamptz NOT NULL DEFAULT now(), UNIQUE(provider,event_key));
+
+CREATE TABLE qr_credentials (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), member_id uuid NOT NULL REFERENCES members, nonce_hash text NOT NULL UNIQUE, credential_version integer NOT NULL, expires_at timestamptz NOT NULL, used_at timestamptz, revoked_at timestamptz, created_at timestamptz NOT NULL DEFAULT now());
+CREATE TABLE attendance (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), member_id uuid NOT NULL REFERENCES members, branch_id uuid NOT NULL REFERENCES branches, checked_in_at timestamptz, checked_out_at timestamptz, scanner_user_id uuid REFERENCES users, method text NOT NULL, status attendance_status NOT NULL, denial_reason text, created_at timestamptz NOT NULL DEFAULT now(), CHECK(checked_out_at IS NULL OR checked_out_at>=checked_in_at));
+CREATE UNIQUE INDEX one_open_attendance_per_member ON attendance(member_id) WHERE status='open';
+
+CREATE TABLE class_definitions (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), name text NOT NULL, description text, duration_minutes integer NOT NULL CHECK(duration_minutes>0), default_capacity integer NOT NULL CHECK(default_capacity>0), active boolean NOT NULL DEFAULT true);
+CREATE TABLE class_sessions (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), class_id uuid NOT NULL REFERENCES class_definitions, branch_id uuid NOT NULL REFERENCES branches, trainer_id uuid REFERENCES trainers, starts_at timestamptz NOT NULL, ends_at timestamptz NOT NULL, capacity integer NOT NULL CHECK(capacity>0), status text NOT NULL DEFAULT 'scheduled', CHECK(ends_at>starts_at));
+CREATE TABLE class_bookings (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), session_id uuid NOT NULL REFERENCES class_sessions, member_id uuid NOT NULL REFERENCES members, status text NOT NULL DEFAULT 'booked', created_at timestamptz NOT NULL DEFAULT now(), UNIQUE(session_id,member_id));
+CREATE TABLE appointments (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), member_id uuid NOT NULL REFERENCES members, trainer_id uuid NOT NULL REFERENCES trainers, starts_at timestamptz NOT NULL, ends_at timestamptz NOT NULL, status text NOT NULL, notes text, created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now(), CHECK(ends_at>starts_at));
+ALTER TABLE appointments ADD CONSTRAINT trainer_appointment_no_overlap EXCLUDE USING gist (trainer_id WITH =, tstzrange(starts_at,ends_at,'[)') WITH &&) WHERE (status IN ('scheduled','confirmed'));
+
+CREATE TABLE audit_logs (id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY, actor_user_id uuid REFERENCES users, action text NOT NULL, entity_type text NOT NULL, entity_id text, old_values jsonb, new_values jsonb, ip inet, request_id text, created_at timestamptz NOT NULL DEFAULT now());
+CREATE INDEX audit_entity ON audit_logs(entity_type,entity_id,created_at DESC);
+CREATE TABLE notifications (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), recipient_user_id uuid NOT NULL REFERENCES users ON DELETE CASCADE, type text NOT NULL, title text NOT NULL, message text NOT NULL, metadata jsonb NOT NULL DEFAULT '{}', read_at timestamptz, created_at timestamptz NOT NULL DEFAULT now());
+
+INSERT INTO roles(code,name) VALUES ('admin','Administrator'),('staff','Reception Staff'),('trainer','Trainer'),('member','Member');
+INSERT INTO permissions(code,description) VALUES
+('members.view','View member records'),('members.create','Create members'),('members.update','Update members'),('members.suspend','Suspend members'),
+('subscriptions.view','View subscriptions'),('subscriptions.create','Create subscriptions'),('subscriptions.renew','Renew subscriptions'),('subscriptions.freeze','Freeze subscriptions'),
+('payments.view','View payments'),('payments.record','Record manual payments'),('checkin.scan','Scan QR credentials'),('checkin.manual','Record manual check-ins'),
+('workouts.view','View workouts'),('workouts.create','Create workouts'),('workouts.assign','Assign workouts'),('reports.view','View reports'),('settings.update','Update settings'),('audit.view','View audit logs');
+INSERT INTO role_permissions SELECT r.id,p.id FROM roles r CROSS JOIN permissions p WHERE r.code='admin';
+INSERT INTO role_permissions SELECT r.id,p.id FROM roles r JOIN permissions p ON p.code IN ('members.view','members.create','members.update','subscriptions.view','subscriptions.renew','payments.view','payments.record','checkin.scan','checkin.manual') WHERE r.code='staff';
+INSERT INTO role_permissions SELECT r.id,p.id FROM roles r JOIN permissions p ON p.code IN ('members.view','workouts.view','workouts.create','workouts.assign') WHERE r.code='trainer';
+INSERT INTO role_permissions SELECT r.id,p.id FROM roles r JOIN permissions p ON p.code IN ('subscriptions.view','workouts.view') WHERE r.code='member';

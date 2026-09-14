@@ -1,0 +1,16 @@
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: sarex
+      POSTGRES_USER: sarex
+      POSTGRES_PASSWORD: sarex-local-only
+    ports: ["127.0.0.1:${POSTGRES_PORT:-5433}:5432"]
+    volumes: ["sarex-postgres:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sarex -d sarex"]
+      interval: 5s
+      timeout: 3s
+      retries: 15
+volumes:
+  sarex-postgres:
