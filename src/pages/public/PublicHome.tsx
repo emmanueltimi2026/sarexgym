@@ -154,7 +154,7 @@ export const PublicHome: React.FC = () => {
               <h1 id="hero-title"><span>YOUR FITNESS</span><span>YOUR VICTORY</span></h1>
               <p className="hero-description">Train, recover, and feel stronger at SAREX Fitness Clinic with gym access, fitness classes, personal support, body massage, full body spa services, and wellness programs for every goal.</p>
               <div className="hero-actions">
-                <button className="reference-button" onClick={() => document.getElementById('schedule-section')?.scrollIntoView({ behavior: 'smooth' })}>View upcoming events</button>
+                <button className="reference-button hero-access-button" onClick={() => navigate('/register')}>Join or sign in</button>
               </div>
             </div>
             <img className="hero-member" src="/assets/fitkit/hero_1_2.png" alt="Member curling a dumbbell" fetchPriority="high" />
@@ -411,9 +411,6 @@ export const PublicHome: React.FC = () => {
     </PublicLayout>
   );
 };
-
-
-
 
 
 

@@ -48,6 +48,7 @@
 .hero-actions { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 24px 30px; max-width: 100%; }
 .reference-button { display: inline-flex; min-height: 56px; align-items: center; justify-content: center; text-align: center; line-height: 1.15; background: #ef101a; color: white; padding: 18px 30px; border: 0; font-size: 11px; font-weight: 700; text-transform: uppercase; white-space: nowrap; transition: background .2s; }
 .reference-button:hover { background: #bf0d15; }
+.hero-access-button { min-height: 44px; padding: 13px 22px; font-size: 10px; }
 .hero-member { position: absolute; right: -6%; bottom: 0; width: 48%; height: 100%; object-fit: contain; object-position: bottom; }
 .reference-bmi { padding-top: clamp(65px, 7vw, 115px); }
 .section-eyebrow.centered { justify-content: center; margin-bottom: 14px; }
