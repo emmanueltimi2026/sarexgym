@@ -7,6 +7,7 @@ const schema = z.object({
   APP_ORIGIN: z.string().url(),
   FRONTEND_URL: z.string().url().optional(),
   DATABASE_SSL_MODE: z.enum(['require','no-verify','disable']).optional(),
+  DATABASE_CA_CERT: z.preprocess(value => typeof value === 'string' && value.trim() === '' ? undefined : value, z.string().min(20).optional()),
   DATABASE_POOL_MAX: z.coerce.number().int().min(1).max(20).optional(),
   SESSION_COOKIE_NAME: z.string().min(3).default('sarex_session'),
   SESSION_TTL_HOURS: z.coerce.number().int().min(1).max(720).default(720),
@@ -44,6 +45,7 @@ export function loadConfig(env = process.env) {
     APP_ORIGIN:data.APP_ORIGIN.replace(/\/$/,''),
     FRONTEND_URL:frontendUrl,
     DATABASE_SSL_MODE:data.DATABASE_SSL_MODE||(production?'require':'disable'),
+    DATABASE_CA_CERT:data.DATABASE_CA_CERT?.replace(/\\n/g,'\n'),
     DATABASE_POOL_MAX:data.DATABASE_POOL_MAX||(production?5:10),
     COOKIE_SAME_SITE:data.COOKIE_SAME_SITE||(production?'none':'lax'),
     secureCookies:production

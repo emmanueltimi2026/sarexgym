@@ -5,7 +5,7 @@ import { createExpiryNotifications } from './expiry-notifications.js';
 
 const timestamp=()=>new Date().toISOString();
 const config=loadConfig();
-const db=createDatabase(config.DATABASE_URL,{sslMode:config.DATABASE_SSL_MODE,max:Math.min(config.DATABASE_POOL_MAX,2)});
+const db=createDatabase(config.DATABASE_URL,{sslMode:config.DATABASE_SSL_MODE,ca:config.DATABASE_CA_CERT,max:Math.min(config.DATABASE_POOL_MAX,2)});
 console.log(JSON.stringify({timestamp:timestamp(),level:'info',event:'expiry_job_started'}));
 try {
   const result=await createExpiryNotifications(db,config);

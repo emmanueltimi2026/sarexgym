@@ -4,7 +4,7 @@ import { createDatabase } from './db.js';
 import { loadConfig } from './config.js';
 import { hashPassword } from './security.js';
 const input=z.object({ADMIN_EMAIL:z.string().email(),ADMIN_PASSWORD:z.string().min(14).max(200),ADMIN_NAME:z.string().min(2).default('System Administrator')}).parse(process.env);
-const config=loadConfig(); const db=createDatabase(config.DATABASE_URL,{sslMode:config.DATABASE_SSL_MODE,max:config.DATABASE_POOL_MAX});
+const config=loadConfig(); const db=createDatabase(config.DATABASE_URL,{sslMode:config.DATABASE_SSL_MODE,ca:config.DATABASE_CA_CERT,max:config.DATABASE_POOL_MAX});
 try {
  const passwordHash=await hashPassword(input.ADMIN_PASSWORD);
  await db.transaction(async c=>{
