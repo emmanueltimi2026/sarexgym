@@ -23,7 +23,6 @@ export const PublicHome: React.FC = () => {
     if (!root || !('IntersectionObserver' in window)) return;
     const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
     const animations = new Set<Animation>();
-    // Animate section content only, keeping shared background geometry steady.
     const observer = new IntersectionObserver(entries => {
       entries.forEach(entry => {
         if (!entry.isIntersecting) return;
@@ -68,7 +67,6 @@ export const PublicHome: React.FC = () => {
     return () => { window.removeEventListener('scroll', onScroll); if (frame) cancelAnimationFrame(frame); };
   }, []);
 
-  // State owned by the inline BMI estimator.
   const [bmiWeight, setBmiWeight] = useState<number>(0);
   const [bmiHeight, setBmiHeight] = useState<number>(0);
   const [bmiAge, setBmiAge] = useState<number>(0);
@@ -81,7 +79,6 @@ export const PublicHome: React.FC = () => {
     setBmiResult({ bmi: Number((bmiWeight / (bmiHeight / 100) ** 2).toFixed(1)) });
   };
 
-  // Services offered at the Magboro fitness clinic.
   const fitnessClasses = [
     {
       id: 'gym', title: 'Gym', category: 'Open Training', intensity: 'All Levels', duration: 'Flexible', calories: 'Goal based', trainer: 'Floor Training Team', schedule: 'Daily',
@@ -131,10 +128,17 @@ export const PublicHome: React.FC = () => {
 
   useEffect(() => {
     const base = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
-    fetch(`${base}/api/v1/public/events`)
-      .then(response => response.ok ? response.json() : Promise.reject())
+    const loadEvents = (attempt = 0) => fetch(`${base}/api/v1/public/events`, { cache: 'no-store' })
+      .then(response => response.ok ? response.json() : Promise.reject(new Error('Event feed unavailable')))
       .then(body => setUpcomingEvents(body.data || []))
-      .catch(() => setUpcomingEvents([]));
+      .catch(() => {
+        if (attempt < 2) window.setTimeout(() => loadEvents(attempt + 1), 900);
+        else setUpcomingEvents([]);
+      });
+    const reloadEvents = () => { void loadEvents(); };
+    loadEvents();
+    addEventListener('focus', reloadEvents);
+    return () => removeEventListener('focus', reloadEvents);
   }, []);
 
   return (
@@ -314,7 +318,7 @@ export const PublicHome: React.FC = () => {
       <section id="schedule-section" className="bg-[#0d0d0d] py-24 text-white border-t border-neutral-900">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="mx-auto mb-12 max-w-3xl text-center"><p className="section-eyebrow centered">SAREX community</p><h2 className="text-3xl font-black uppercase tracking-tight sm:text-5xl">Upcoming events</h2></div>
-          {upcomingEvents.length ? <div className="motion-stagger grid gap-6 md:grid-cols-2 lg:grid-cols-3">{upcomingEvents.slice(0,6).map(event=><article key={event.id} className="overflow-hidden rounded-2xl border border-neutral-800 bg-[#171717] shadow-lg transition hover:-translate-y-2">{event.image_url?<img src={event.image_url} loading="lazy" alt="" className="h-48 w-full object-cover"/>:<div className="h-2 bg-[#EF1B23]"/>}<div className="p-6"><div className="flex items-center justify-between text-[10px] font-black uppercase tracking-widest text-[#EF1B23]"><span>{new Date(event.starts_at).toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'})}</span><span>{Number(event.price_minor)?`₦${(Number(event.price_minor)/100).toLocaleString()}`:'Free'}</span></div><h3 className="mt-3 text-2xl font-black">{event.title}</h3><p className="mt-2 line-clamp-3 text-sm leading-6 text-gray-400">{event.description}</p><div className="mt-5 flex items-center gap-2 text-xs text-gray-400"><MapPin className="h-4 w-4 text-[#EF1B23]"/>{event.location}</div><button onClick={()=>navigate('/login')} className="mt-6 inline-flex items-center gap-2 text-xs font-black uppercase text-[#EF1B23]">Sign in to reserve <ArrowRight className="h-4 w-4"/></button></div></article>)}</div> : <div className="rounded-2xl border border-neutral-800 bg-[#171717] px-6 py-12 text-center text-sm text-gray-400">No upcoming events have been published yet.</div>}
+          {upcomingEvents.length ? <div className="motion-stagger grid gap-6 md:grid-cols-2 lg:grid-cols-3">{upcomingEvents.slice(0,6).map(event=><article key={event.id} className="overflow-hidden rounded-2xl border border-neutral-800 bg-[#171717] shadow-lg transition hover:-translate-y-2">{event.image_url?<img src={event.image_url} loading="lazy" alt={event.title} className="h-48 w-full object-cover"/>:<div className="h-2 bg-[#EF1B23]"/>}<div className="p-6"><div className="flex items-center justify-between text-[10px] font-black uppercase tracking-widest text-[#EF1B23]"><span>{new Date(event.starts_at).toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'})}</span><span>{Number(event.price_minor)?`₦${(Number(event.price_minor)/100).toLocaleString()}`:'Free'}</span></div><h3 className="mt-3 text-2xl font-black">{event.title}</h3><p className="mt-2 line-clamp-2 text-sm leading-6 text-gray-400">{event.description}</p><div className="mt-5 flex items-center gap-2 text-xs text-gray-400"><MapPin className="h-4 w-4 text-[#EF1B23]"/>{event.location}</div><div className="mt-6 flex flex-wrap items-center gap-4"><button onClick={()=>navigate(`/events/${event.id}`)} className="inline-flex items-center gap-2 rounded-lg bg-[#EF1B23] px-4 py-2.5 text-xs font-black uppercase text-white">View details <ArrowRight className="h-4 w-4"/></button><button onClick={()=>navigate('/login')} className="inline-flex items-center gap-2 text-xs font-black uppercase text-[#EF1B23]">Sign in to reserve</button></div></div></article>)}</div> : <div className="rounded-2xl border border-neutral-800 bg-[#171717] px-6 py-12 text-center text-sm text-gray-400">No upcoming events have been published yet.</div>}
         </div>
       </section>
 

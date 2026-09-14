@@ -54,7 +54,7 @@ export const MemberWorkout: React.FC = () => {
       pageSubtitle="Follow the exercises, sets, and schedule assigned by your trainer."
       breadcrumbs={[{ label: 'Member Portal', path: '/member/dashboard' }, { label: 'Workout Program' }]}
     >
-      {/* Program Summary Banner */}
+      
       <div className="bg-[#151515] text-white rounded-lg p-5 mb-6 border border-neutral-800">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div>
@@ -85,7 +85,7 @@ export const MemberWorkout: React.FC = () => {
         </div>
       </div>
 
-      {/* Routine Days Split Tabs */}
+      
       {routines.length > 0 && (
         <div className="flex items-center gap-2 overflow-x-auto pb-2 mb-6">
           {routines.map((day, idx) => {
@@ -110,7 +110,7 @@ export const MemberWorkout: React.FC = () => {
         </div>
       )}
 
-      {/* Active Day Exercises Card */}
+      
       {activeRoutine && (
         <div className="bg-white border border-[#E5E7EB] rounded-lg p-5 shadow-xs">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 pb-4 mb-4 border-b border-gray-100">

@@ -147,7 +147,7 @@ export const AdminStaff: React.FC = () => {
         {!trainers.length&&<div className="col-span-full rounded-xl border border-dashed border-gray-300 bg-white px-6 py-12 text-center text-sm text-gray-500">No trainers have been added yet.</div>}
       </div>
 
-      {/* Add Trainer Modal */}
+      
       <Modal
         isOpen={isAddModalOpen}
         onClose={() => setIsAddModalOpen(false)}

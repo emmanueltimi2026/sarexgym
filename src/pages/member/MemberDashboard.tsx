@@ -29,9 +29,8 @@ export const MemberDashboard: React.FC = () => {
   }
 
   const memberAttendance = attendance.filter(a => a.memberId === currentMember.memberId);
-  const myWorkoutPlan = workoutPlans[0]; // Active assigned plan
-
-  // Calculate days remaining
+  const canViewWorkoutPlan = Boolean(currentMember.workoutPlanEnabled);
+  const myWorkoutPlan = canViewWorkoutPlan ? workoutPlans.find(plan => plan.memberId === currentMember.id || plan.memberId === currentMember.memberId) || null : null;
   const expiry = new Date(currentMember.membershipExpiryDate);
   const now = new Date();
   const diffTime = expiry.getTime() - now.getTime();
@@ -49,7 +48,6 @@ export const MemberDashboard: React.FC = () => {
         </button>
       ) : undefined      }
     >
-      {/* Top 3 Member KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
         <StatCard
           label="Pass Expiration"
@@ -72,10 +70,8 @@ export const MemberDashboard: React.FC = () => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Right: Assigned Regimen & Recent Attendance */}
         <div className="lg:col-span-12 space-y-6">
-          {/* Active Workout Regimen */}
-          <div className="bg-white border border-[#E5E7EB] rounded-lg p-5 shadow-xs">
+          {canViewWorkoutPlan && <div className="bg-white border border-[#E5E7EB] rounded-lg p-5 shadow-xs">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
                 <Dumbbell className="w-5 h-5 text-[#EF1B23]" />
@@ -139,9 +135,8 @@ export const MemberDashboard: React.FC = () => {
                 No active workout routine currently assigned. Consult with your trainer to establish your training split.
               </div>
             )}
-          </div>
+          </div>}
 
-          {/* Recent Attendance Scans */}
           <div className="bg-white border border-[#E5E7EB] rounded-lg p-5 shadow-xs">
             <h3 className="font-athletic font-bold uppercase tracking-wider text-base text-[#111111] mb-3">
               My Recent Facility Check-ins
@@ -169,7 +164,6 @@ export const MemberDashboard: React.FC = () => {
         </div>
       </div>
 
-      {/* Paystack Modal */}
       <PaystackModal
         isOpen={Boolean(selectedPlanForRenew) && hasActiveSubscription && diffDays <= 7 && isPaystackOpen}
         onClose={() => setIsPaystackOpen(false)}
@@ -183,5 +177,4 @@ export const MemberDashboard: React.FC = () => {
     </AppLayout>
   );
 };
-
 

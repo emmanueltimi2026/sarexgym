@@ -52,13 +52,11 @@ export const AdminDashboard: React.FC = () => {
   });
   const formatRevenueAxis = (value: number) => value >= 1_000_000 ? `₦${Number((value / 1_000_000).toFixed(1))}m` : value >= 1_000 ? `₦${Math.round(value / 1_000)}k` : `₦${value}`;
 
-  // Plan distribution for Pie Chart
   const planData = plans.map(p => ({
     name: p.name,
     value: members.filter(m => m.membershipPlanId === p.id && m.membershipStatus === 'Active').length
   })).filter(item => item.value > 0);
 
-  // Pure athletic colors: Red, Charcoal, Gray, Gold (NO BLUE)
   const PIE_COLORS = ['#EF1B23', '#151515', '#6B7280', '#D97706'];
 
   const expiringList = members
@@ -73,7 +71,7 @@ export const AdminDashboard: React.FC = () => {
       pageSubtitle="Monitor memberships, attendance, payments, and daily gym activity."
       breadcrumbs={[{ label: 'Administration' }, { label: 'Dashboard' }]}
     >
-      {/* Business overview */}
+      
       <div className="admin-dashboard-stats grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-4">
         <StatCard label="Total Members" value={totalMembers} subtext="All registered members" icon={Users}/>
         <StatCard label="Active Members" value={activeMembers} subtext="Currently active" icon={UserCheck}/>
@@ -82,9 +80,9 @@ export const AdminDashboard: React.FC = () => {
         <div className="col-span-2 sm:col-span-1"><StatCard label="Total Revenue" value={`₦${totalRevenue.toLocaleString()}`} subtext="Successful payments" icon={TrendingUp}/></div>
       </div>
 
-      {/* Core High Density Split Section: Recent Check-ins & Expiring Soon */}
+      
       <div className="admin-dashboard-operations flex flex-col lg:flex-row gap-6 mb-6">
-        {/* Recent Check-ins (flex-[3]) */}
+        
         <div className="flex-1 lg:flex-[3] bg-white border border-[#E5E7EB] rounded-sm flex flex-col overflow-hidden">
           <div className="p-4 border-b border-[#E5E7EB] flex justify-between items-center bg-[#FDFDFD]">
             <h3 className="text-xs font-black uppercase tracking-widest text-[#111111]">
@@ -153,7 +151,7 @@ export const AdminDashboard: React.FC = () => {
           </div>
         </div>
 
-        {/* Expiring Soon Widget (flex-[1.5]) */}
+        
         <div className="flex-1 lg:flex-[1.5] bg-white border border-[#E5E7EB] rounded-sm flex flex-col">
           <div className="p-4 border-b border-[#E5E7EB] bg-[#FDFDFD] flex justify-between items-center">
             <h3 className="text-xs font-black uppercase tracking-widest text-[#111111]">
@@ -184,9 +182,9 @@ export const AdminDashboard: React.FC = () => {
         </div>
       </div>
 
-      {/* Visual Analytics Grid (2 Charts) */}
+      
       <div className="admin-dashboard-analytics grid grid-cols-1 lg:grid-cols-12 gap-4 mb-4">
-        {/* Revenue Performance Chart */}
+        
         <div className="lg:col-span-8 bg-white border border-[#E5E7EB] rounded-sm overflow-hidden flex flex-col">
           <div className="p-4 border-b border-[#E5E7EB] flex items-center justify-between bg-[#FDFDFD]">
             <div>
@@ -225,7 +223,7 @@ export const AdminDashboard: React.FC = () => {
           </div>
         </div>
 
-        {/* Plan Distribution Donut Chart */}
+        
         <div className="lg:col-span-4 bg-white border border-[#E5E7EB] rounded-sm overflow-hidden flex flex-col justify-between">
           <div className="p-4 border-b border-[#E5E7EB] bg-[#FDFDFD]">
             <h3 className="text-xs font-black uppercase tracking-widest text-[#111111]">
@@ -261,7 +259,7 @@ export const AdminDashboard: React.FC = () => {
               </ResponsiveContainer> : <div className="grid h-full place-items-center text-center text-xs text-[#6B7280]">No active member plan mix yet.</div>}
             </div>
 
-            {/* Legend */}
+            
             <div className="grid grid-cols-2 gap-2 text-xs pt-3 border-t border-[#E5E7EB]">
               {planData.map((p, idx) => (
                 <div key={p.name} className="flex items-center gap-2">
@@ -277,9 +275,9 @@ export const AdminDashboard: React.FC = () => {
         </div>
       </div>
 
-      {/* 2-Column Tables: Recent Payments Ledger & Entrance Scan Stream */}
+      
       <div className="admin-dashboard-recent">
-        {/* Recent Financial Transactions */}
+        
         <div className="bg-white border border-[#E5E7EB] rounded-sm overflow-hidden flex flex-col">
           <div className="p-4 border-b border-[#E5E7EB] flex items-center justify-between bg-[#FDFDFD]">
             <h3 className="text-xs font-black uppercase tracking-widest text-[#111111]">

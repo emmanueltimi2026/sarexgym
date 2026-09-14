@@ -51,7 +51,7 @@ export const TrainerMembers: React.FC = () => {
         </div>
       )}
 
-      {/* Search Bar */}
+      
       <div className="bg-white border border-[#E5E7EB] rounded-lg p-4 mb-6 shadow-xs flex items-center justify-between">
         <div className="relative w-full sm:w-80">
           <input
@@ -65,7 +65,7 @@ export const TrainerMembers: React.FC = () => {
         </div>
       </div>
 
-      {/* Members Grid */}
+      
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {filtered.map(member => {
           const checkInCount = getMemberAttendanceCount(member.memberId);
@@ -137,7 +137,7 @@ export const TrainerMembers: React.FC = () => {
         })}
       </div>
 
-      {/* Assign Plan Modal */}
+      
       {selectedMember && (
         <Modal
           isOpen={isAssignPlanOpen}

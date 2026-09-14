@@ -19,7 +19,6 @@ export const StaffMembers: React.FC = () => {
   const [page, setPage] = useState(1);
   const pageSize = 12;
 
-  // Modals
   const [selectedMemberForRenew, setSelectedMemberForRenew] = useState<Member | null>(null);
   const [selectedPlanForRenew, setSelectedPlanForRenew] = useState(plans[2]);
   const [isPaystackOpen, setIsPaystackOpen] = useState(false);
@@ -48,7 +47,7 @@ export const StaffMembers: React.FC = () => {
       pageSubtitle="Find members, review access status, update details, and renew memberships."
       breadcrumbs={[{ label: 'Staff Portal', path: '/staff/dashboard' }, { label: 'Members' }]}
     >
-      {/* Toast alert banner */}
+      
       {toastMessage && (
         <div className="mb-4 p-3 bg-emerald-50 border border-emerald-300 text-emerald-800 text-xs rounded flex items-center justify-between animate-in fade-in">
           <div className="flex items-center gap-2">
@@ -59,7 +58,7 @@ export const StaffMembers: React.FC = () => {
         </div>
       )}
 
-      {/* Filter and Search Bar */}
+      
       <div className="bg-white border border-[#E5E7EB] rounded-lg p-4 mb-6 shadow-xs flex flex-col sm:flex-row gap-4 items-center justify-between">
         <div className="relative w-full sm:w-80">
           <input
@@ -72,7 +71,7 @@ export const StaffMembers: React.FC = () => {
           <Search className="w-4 h-4 text-gray-400 absolute left-3 top-2.5" />
         </div>
 
-        {/* Status Filter Chips */}
+        
         <div className="flex items-center gap-1.5 overflow-x-auto w-full sm:w-auto pb-1 sm:pb-0 text-xs font-semibold">
           {(['All', 'Active', 'Expiring', 'Expired', 'Inactive'] as const).map(st => (
             <button
@@ -90,7 +89,7 @@ export const StaffMembers: React.FC = () => {
         </div>
       </div>
 
-      {/* Member Table */}
+      
       <div className="bg-white border border-[#E5E7EB] rounded-lg shadow-xs overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">
@@ -198,7 +197,7 @@ export const StaffMembers: React.FC = () => {
         </Modal>
       )}
 
-      {/* Renew Modal */}
+      
       {selectedMemberForRenew && (
         <Modal
           isOpen={!!selectedMemberForRenew}
@@ -265,7 +264,7 @@ export const StaffMembers: React.FC = () => {
         </Modal>
       )}
 
-      {/* Paystack Modal */}
+      
       {selectedMemberForRenew && (
         <PaystackModal
           isOpen={isPaystackOpen}
@@ -283,7 +282,7 @@ export const StaffMembers: React.FC = () => {
         />
       )}
 
-      {/* Add New Member Modal */}
+      
     </AppLayout>
   );
 };

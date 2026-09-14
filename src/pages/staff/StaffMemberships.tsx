@@ -55,7 +55,7 @@ export const StaffMemberships: React.FC = () => {
       breadcrumbs={[{ label: 'Staff Portal', path: '/staff/dashboard' }, { label: 'Memberships' }]}
     >
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Left: Plans Overview */}
+        
         <div className="lg:col-span-7 space-y-6">
           <div className="bg-white border border-[#E5E7EB] rounded-lg p-5 shadow-xs">
             <h3 className="text-base font-bold font-athletic uppercase tracking-wider text-[#111111] mb-4">
@@ -107,7 +107,7 @@ export const StaffMemberships: React.FC = () => {
           </div>
         </div>
 
-        {/* Right: Member Selection & Renewal Action Box */}
+        
         <div className="lg:col-span-5 space-y-6">
           <div className="bg-white border border-[#E5E7EB] rounded-lg p-5 shadow-xs">
             <h3 className="text-base font-bold font-athletic uppercase tracking-wider text-[#111111] mb-1">
@@ -136,7 +136,7 @@ export const StaffMemberships: React.FC = () => {
               <Search className="w-4 h-4 text-gray-400 absolute left-3 top-2.5" />
             </div>
 
-            {/* Matching Members list */}
+            
             {memberOptionsOpen && <div id="renewal-member-options" role="listbox" className="border border-gray-200 rounded max-h-48 overflow-y-auto divide-y divide-gray-100 text-xs mb-4 shadow-sm">
               {matchedMembers.map(m => {
                 const isChosen = selectedMember?.id === m.id;
@@ -161,7 +161,7 @@ export const StaffMemberships: React.FC = () => {
               {!matchedMembers.length && <div className="p-4 text-center text-gray-500">No member matches that name or ID.</div>}
             </div>}
 
-            {/* Selected Summary */}
+            
             {selectedMember ? (
               <div className="bg-gray-50 border border-gray-200 rounded p-4 text-xs space-y-2 mb-4">
                 <div className="flex justify-between">
@@ -193,7 +193,7 @@ export const StaffMemberships: React.FC = () => {
               </div>
             )}
 
-            {/* Action Buttons */}
+            
             <div className="space-y-2">
               <div>
                 <button
@@ -208,7 +208,7 @@ export const StaffMemberships: React.FC = () => {
           </div>
         </div>
       </div>
-      {/* Success Modal */}
+      
       <Modal
         isOpen={isSuccessModalOpen}
         onClose={() => setIsSuccessModalOpen(false)}

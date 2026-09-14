@@ -89,7 +89,7 @@ export const AdminPayments: React.FC = () => {
         />
       </div>
 
-      {/* Filters */}
+      
       <div className="bg-white border border-[#E5E7EB] rounded-xl p-4 mb-5 shadow-xs flex flex-col md:flex-row gap-4 items-center justify-between">
         <div className="relative w-full md:max-w-[620px] md:flex-1">
           <input
@@ -127,7 +127,7 @@ export const AdminPayments: React.FC = () => {
         </div>
       </div>
 
-      {/* Transactions Table */}
+      
       <div className="bg-white border border-[#E5E7EB] rounded-xl shadow-xs overflow-hidden">
         <div className="flex items-center justify-between gap-4 border-b border-gray-100 px-5 py-4">
           <div><h3 className="text-sm font-black uppercase tracking-wide">Transactions</h3><p className="mt-1 text-[11px] text-gray-500">A record of all payments received through your registered channels.</p></div>
@@ -206,7 +206,7 @@ export const AdminPayments: React.FC = () => {
         <Pagination page={page} pageSize={pageSize} total={filtered.length} onPageChange={setPage} />
       </div>
 
-      {/* Receipt Modal */}
+      
       <Modal isOpen={isRecordOpen} onClose={() => setIsRecordOpen(false)} title="RECORD PAYMENT" subtitle="Record a verified in-person payment and renew the membership.">
         <form onSubmit={recordPayment} className="space-y-4 text-xs">
           <label className="block font-bold uppercase text-gray-700">Member<select required value={paymentForm.memberId} onChange={e=>setPaymentForm({...paymentForm,memberId:e.target.value})} className="mt-1 w-full rounded border border-gray-300 bg-white px-3 py-2.5 text-sm font-normal"><option value="">Select member</option>{members.map(m=><option key={m.id} value={m.id}>{m.firstName} {m.lastName} · {m.memberId}</option>)}</select></label>

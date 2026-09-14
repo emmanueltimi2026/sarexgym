@@ -38,7 +38,7 @@ export const StaffAttendance: React.FC = () => {
         </button>
       }
     >
-      {/* Search and Filters */}
+      
       <div className="bg-white border border-[#E5E7EB] rounded-lg p-4 mb-6 shadow-xs flex flex-col sm:flex-row gap-4 items-center justify-between">
         <div className="relative w-full sm:w-80">
           <input
@@ -68,7 +68,7 @@ export const StaffAttendance: React.FC = () => {
         </div>
       </div>
 
-      {/* Attendance Table */}
+      
       <div className="bg-white border border-[#E5E7EB] rounded-lg shadow-xs overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">

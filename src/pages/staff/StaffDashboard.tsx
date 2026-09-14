@@ -20,13 +20,11 @@ import { Member } from '../../types';
 export const StaffDashboard: React.FC = () => {
   const { members, attendance, payments, plans, navigate, renewMemberMembership } = useGym();
 
-  // State for modals
   const [isRenewModalOpen, setIsRenewModalOpen] = useState(false);
   const [selectedMemberForRenew, setSelectedMemberForRenew] = useState<Member | null>(null);
   const [selectedPlanForRenew, setSelectedPlanForRenew] = useState(plans.find(plan => plan.isActive !== false) || plans[0]);
   const [isPaystackOpen, setIsPaystackOpen] = useState(false);
 
-  // Calculate metrics
   const lagosDate = (value: string | Date) => new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Lagos', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(value));
   const todayStr = lagosDate(new Date());
   const todayCheckIns = attendance.filter(a => lagosDate(a.checkInTime || a.date) === todayStr);
@@ -56,7 +54,7 @@ export const StaffDashboard: React.FC = () => {
         </div>
       }
     >
-      {/* Dashboard stats */}
+      
       <div className="mb-4 grid grid-cols-1 gap-3 min-[430px]:grid-cols-2 xl:grid-cols-5">
         <StatCard label="Today's Check-ins" value={todayCheckIns.length} subtext="Successful entries" icon={CalendarCheck}/>
         <StatCard label="Active Memberships" value={activeMembersCount} subtext="Currently active" icon={Users}/>
@@ -65,7 +63,7 @@ export const StaffDashboard: React.FC = () => {
         <StatCard label="Expired Memberships" value={expiredMembers.length} subtext="Access currently inactive" icon={Clock}/>
       </div>
 
-      {/* Quick Desk Action Buttons */}
+      
       <div className="bg-white border border-[#E5E7EB] rounded-sm mb-6 overflow-hidden">
         <div className="p-4 border-b border-[#E5E7EB] flex items-center justify-between bg-[#FDFDFD]">
           <span className="text-xs font-black uppercase tracking-widest text-[#111111]">
@@ -115,9 +113,9 @@ export const StaffDashboard: React.FC = () => {
         </div>
       </div>
 
-      {/* 2-Column Content: Live Attendance Stream & Expiring Members */}
+      
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Left: Live Today Check-ins */}
+        
         <div className="bg-white border border-[#E5E7EB] rounded-sm overflow-hidden flex flex-col">
           <div className="p-4 border-b border-[#E5E7EB] flex items-center justify-between bg-[#FDFDFD]">
             <h3 className="text-xs font-black uppercase tracking-widest text-[#111111]">
@@ -168,7 +166,7 @@ export const StaffDashboard: React.FC = () => {
           </div>
         </div>
 
-        {/* Right: Expiring Members Awaiting Renewal */}
+        
         <div className="bg-white border border-[#E5E7EB] rounded-sm overflow-hidden flex flex-col">
           <div className="p-4 border-b border-[#E5E7EB] flex items-center justify-between bg-[#FDFDFD]">
             <h3 className="text-xs font-black uppercase tracking-widest text-[#111111]">
@@ -226,7 +224,7 @@ export const StaffDashboard: React.FC = () => {
 
       
 
-      {/* Modal: Renew Member Plan */}
+      
       {selectedMemberForRenew && (
         <Modal
           isOpen={isRenewModalOpen}
@@ -304,7 +302,7 @@ export const StaffDashboard: React.FC = () => {
         </Modal>
       )}
 
-      {/* Paystack Online Payment */}
+      
       {selectedMemberForRenew && (
         <PaystackModal
           isOpen={isPaystackOpen}

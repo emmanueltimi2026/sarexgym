@@ -67,7 +67,7 @@ export const AdminAttendance: React.FC = () => {
       pageSubtitle="Review member check-ins, busy training hours, and unsuccessful access attempts."
       breadcrumbs={[{ label: 'Administration' }, { label: 'Attendance' }]}
     >
-      {/* 3 Metric Cards */}
+      
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
         <StatCard
           label="Total Scans Logged"
@@ -89,7 +89,7 @@ export const AdminAttendance: React.FC = () => {
         />
       </div>
 
-      {/* Hourly Flow Chart */}
+      
       <div className="bg-white border border-[#E5E7EB] rounded-lg p-5 mb-6 shadow-xs">
         <h3 className="font-athletic font-bold uppercase tracking-wider text-base text-[#111111] mb-1">
           Today's Member Check-ins by Hour
@@ -110,7 +110,7 @@ export const AdminAttendance: React.FC = () => {
         </div>
       </div>
 
-      {/* Search and Filters */}
+      
       <div className="bg-white border border-[#E5E7EB] rounded-lg p-4 mb-6 shadow-xs flex flex-col sm:flex-row gap-4 items-center justify-between">
         <div className="relative w-full sm:w-80">
           <input
@@ -140,7 +140,7 @@ export const AdminAttendance: React.FC = () => {
         </div>
       </div>
 
-      {/* Table */}
+      
       <div className="bg-white border border-[#E5E7EB] rounded-lg shadow-xs overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">

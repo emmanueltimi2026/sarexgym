@@ -13,7 +13,6 @@ export const TrainerPlans: React.FC = () => {
   const [saveError, setSaveError] = useState('');
   const eligibleMembers = members.filter(member => member.workoutPlanEnabled);
 
-  // New Plan form state
   const [newPlan, setNewPlan] = useState({
     title: '',
     description: '',
@@ -99,7 +98,7 @@ export const TrainerPlans: React.FC = () => {
               key={plan.id}
               className="bg-white border border-[#E5E7EB] rounded-lg overflow-hidden shadow-xs"
             >
-              {/* Plan Header */}
+              
               <div
                 onClick={() => setExpandedPlanId(isExpanded ? null : plan.id)}
                 className="p-5 flex items-center justify-between cursor-pointer hover:bg-gray-50 transition-colors select-none"
@@ -135,7 +134,7 @@ export const TrainerPlans: React.FC = () => {
                 </div>
               </div>
 
-              {/* Routine Breakdown if expanded */}
+              
               {isExpanded && (
                 <div className="border-t border-gray-100 p-5 bg-gray-50/50 space-y-4">
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -198,7 +197,7 @@ export const TrainerPlans: React.FC = () => {
         })}
       </div>
 
-      {/* Create Program Modal */}
+      
       <Modal
         isOpen={isCreateOpen}
         onClose={() => { if (!isSaving) { setIsCreateOpen(false); setSaveError(''); } }}

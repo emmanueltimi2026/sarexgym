@@ -32,7 +32,7 @@ export const AdminSettings: React.FC = () => {
         )}
 
         <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Facility Details */}
+          
           <div className="bg-white border border-[#E5E7EB] rounded-lg p-6 shadow-xs">
             <div className="flex items-center gap-2 pb-4 mb-4 border-b border-gray-100">
               <Settings className="w-4 h-4 text-[#EF1B23]" />
@@ -84,7 +84,7 @@ export const AdminSettings: React.FC = () => {
             </div>
           </div>
 
-          {/* Save Action */}
+          
           <div className="flex items-center justify-end pt-2">
             <button
               type="submit"

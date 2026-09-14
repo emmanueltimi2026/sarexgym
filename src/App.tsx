@@ -31,6 +31,7 @@ import { MemberAttendance } from './pages/member/MemberAttendance';
 import { MemberEvents } from './pages/member/MemberEvents';
 import { ReceptionCheckIn } from './pages/member/ReceptionCheckIn';
 import { EventManagement } from './pages/shared/EventManagement';
+import { EventDetails } from './pages/shared/EventDetails';
 import { ErrorBoundary } from './components/ui/ErrorBoundary';
 import { Seo } from './components/seo/Seo';
 
@@ -114,6 +115,7 @@ const AppRouter: React.FC = () => {
     if (currentPath === '/contact') return { title: 'Contact SAREX Fitness Clinic', description: 'Find SAREX Fitness Clinic contact details, location, phone numbers, and directions for membership and training enquiries.', path: '/contact' };
     if (currentPath === '/register') return { title: 'Create Your SAREX Account', description: 'Create a SAREX Fitness Clinic member account to choose a plan, manage membership access, and follow your fitness journey.', path: '/register', noindex: true };
     if (currentPath === '/login') return { title: 'Member Login', description: 'Sign in to your SAREX Fitness Clinic member, staff, trainer, or admin portal.', path: '/login', noindex: true };
+    if (/^\/events\/[0-9a-f-]{36}$/i.test(currentPath)) return { title: 'SAREX Event Details', description: 'View full SAREX Fitness Clinic event details, including date, location, booking information, and fitness community activities.', path: currentPath };
     if (currentPath.includes('password')) return { title: 'Account Access', description: 'Manage secure access to your SAREX Fitness Clinic account.', path: currentPath, noindex: true };
     return { title: 'SAREX Portal', description: 'Secure SAREX Fitness Clinic portal for members, staff, trainers, and administrators.', path: currentPath, noindex: true };
   })();
@@ -122,6 +124,8 @@ const AppRouter: React.FC = () => {
   if (accessState === 'denied') return <><Seo {...routeSeo} /><LoginPage /></>;
 
   const renderRoute = () => {
+    if (/^\/events\/[0-9a-f-]{36}$/i.test(currentPath)) return <EventDetails mode="public" />;
+    if (/^\/(?:admin|staff|member)\/events\/[0-9a-f-]{36}$/i.test(currentPath)) return <EventDetails mode="portal" />;
     switch (currentPath) {
       case '/':
       case '/home':

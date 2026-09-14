@@ -48,7 +48,7 @@ export const Modal: React.FC<ModalProps> = ({
         className={`relative w-full ${maxWidthClass} bg-white text-[#111111] rounded-md border border-[#E5E7EB] shadow-2xl overflow-hidden transition-all`}
         onClick={e => e.stopPropagation()}
       >
-        {/* Top brand accent bar */}
+        
         <div className="h-1 bg-[#EF1B23] w-full" />
 
         <div className="flex items-start justify-between p-5 border-b border-[#E5E7EB]">

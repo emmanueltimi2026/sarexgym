@@ -10,7 +10,6 @@ export const AdminPlans: React.FC = () => {
   const [editingPlan, setEditingPlan] = useState<MembershipPlan | null>(null);
   const [isAddOpen, setIsAddOpen] = useState(false);
 
-  // New plan form state
   const [newPlan, setNewPlan] = useState({
     name: '',
     price: 35000,
@@ -130,7 +129,7 @@ export const AdminPlans: React.FC = () => {
         })}
       </div>
 
-      {/* Edit Plan Modal */}
+      
       {editingPlan && (
         <Modal
           isOpen={!!editingPlan}
@@ -217,7 +216,7 @@ export const AdminPlans: React.FC = () => {
         </Modal>
       )}
 
-      {/* Add New Plan Modal */}
+      
       <Modal
         isOpen={isAddOpen}
         onClose={() => setIsAddOpen(false)}

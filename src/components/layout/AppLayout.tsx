@@ -55,7 +55,6 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
       const body = await response.json();
       setNotifications(body.data || []);
     } catch {
-      // Keep the last successful result during temporary network interruptions.
     }
   }, [role]);
 
@@ -85,7 +84,6 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
     };
   }, [role, refreshNotifications]);
 
-  // Define sidebar links per role
   const getNavItems = () => {
     switch (role) {
       case 'super_admin':
@@ -140,7 +138,6 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
     member: { eyebrow: 'Member portal', nav: '', code: 'MEMBER / 04' }
   }[role as 'super_admin' | 'staff' | 'trainer' | 'member'] || { eyebrow: 'Workspace', nav: 'Navigation', code: 'SAREX / 00' };
 
-  // Active user presentation
   const getUserProfile = () => {
     if (role === 'super_admin') {
       return {
@@ -201,14 +198,14 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
   return (
     <div className="management-app h-screen overflow-hidden bg-[#F7F7F8] text-[#111111] flex flex-col font-sans antialiased" data-role={role} data-path={currentPath}>
       <div className="flex-1 flex overflow-hidden">
-        {/* DESKTOP SIDEBAR - High Density Dark #151515 */}
+        
         <aside className="management-sidebar hidden md:flex h-screen flex-col w-[260px] bg-[#151515] text-white border-r border-gray-800 shrink-0 select-none">
-          {/* Brand header */}
+          
           <div className="px-7 py-6 shrink-0">
             <img src="/assets/brand/sarex-logo.png" alt="Sarex Fitness Clinic" className="h-14 w-full object-contain object-left" />
           </div>
 
-          {/* Navigation Links */}
+          
           <nav className="flex-1 px-4 space-y-1 overflow-y-auto" aria-label={roleMeta.nav}>
             {roleMeta.nav && <p className="nav-caption">{roleMeta.nav}</p>}
             {navItems.map(item => {
@@ -246,7 +243,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
             })}
           </nav>
 
-          {/* User mini badge & quick actions */}
+          
           <div className="p-6 border-t border-gray-800 bg-[#151515] shrink-0">
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-3 min-w-0">
@@ -270,7 +267,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
           </div>
         </aside>
 
-        {/* MOBILE DRAWER (Off-canvas) */}
+        
         {isMobileNavOpen && (
           <div className="fixed inset-0 z-50 flex md:hidden">
             <div
@@ -332,12 +329,12 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
           </div>
         )}
 
-        {/* MAIN BODY WRAPPER */}
+        
         <div ref={scrollContainerRef} className="management-scroll-area h-screen flex-1 flex flex-col min-w-0 overflow-y-auto pb-16 md:pb-6">
-          {/* TOP BAR - High Density Header */}
+          
           <header className="management-topbar min-h-20 bg-white/95 backdrop-blur-xl border-b border-[#E5E7EB] sticky top-0 z-30 px-4 py-3 sm:px-8 flex flex-wrap sm:flex-nowrap items-center justify-between gap-3 shrink-0">
             <div className="flex w-full sm:w-auto flex-1 items-center gap-3 min-w-0">
-              {/* Mobile menu trigger */}
+              
               <button
                 onClick={() => setIsMobileNavOpen(true)}
                 className="md:hidden p-2 text-gray-700 hover:bg-gray-100 rounded-sm"
@@ -358,7 +355,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
               </div>
             </div>
 
-            {/* Right section: Actions & Notifications */}
+            
             <div className="flex items-center justify-end gap-3 shrink-0">
               <div className="workspace-date hidden xl:flex">
                 <CalendarCheck className="w-4 h-4" />
@@ -370,7 +367,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
                 </div>
               )}
 
-              {/* Notifications Toggle */}
+              
               <div className="relative">
                 <button
                   onClick={() => {
@@ -402,7 +399,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
                 )}
               </div>
 
-              {/* Profile Avatar Dropdown */}
+              
               <div className="relative">
                 <button
                   onClick={() => setShowUserDropdown(!showUserDropdown)}
@@ -465,7 +462,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
             {actions && <div className="order-3 flex w-full items-center gap-2 border-t border-gray-100 pt-3 sm:hidden">{actions}</div>}
           </header>
 
-          {/* PAGE CONTENT */}
+          
           <main className="management-content p-4 sm:p-8 max-w-[1500px] w-full mx-auto flex-1">
             {isDashboard && <section className="portal-welcome mb-6 overflow-hidden rounded-2xl border border-white/70 bg-white px-6 py-7 sm:px-8 sm:py-8">
               <div className="relative z-10 max-w-xl">
@@ -480,7 +477,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
         </div>
       </div>
 
-      {/* MOBILE BOTTOM NAVIGATION FOR MEMBERS (Prompt: "Member experience must be mobile-first. Mobile should use bottom navigation.") */}
+      
       {role === 'member' && (
         <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-[#151515] border-t border-neutral-800 px-2 py-2 flex items-center justify-around z-40">
           <button

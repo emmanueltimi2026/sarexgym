@@ -28,13 +28,11 @@ export const StaffPayments: React.FC = () => {
   const [page, setPage] = useState(1);
   const pageSize = 15;
 
-  // Modals
   const [isNewPaymentModalOpen, setIsNewPaymentModalOpen] = useState(false);
   const [selectedReceipt, setSelectedReceipt] = useState<PaymentRecord | null>(null);
   const [quote, setQuote] = useState<{ membershipAmount: number; registrationFee: number; total: number } | null>(null);
   const [quoteLoading, setQuoteLoading] = useState(false);
 
-  // New payment form
   const [newPayForm, setNewPayForm] = useState({
     memberId: members[0]?.id || '',
     planId: plans[2]?.id || '',
@@ -111,7 +109,7 @@ export const StaffPayments: React.FC = () => {
         <PaymentSummaryCard label="Cash & Transfers" value={`₦${cashTransferTotal.toLocaleString()}`} supportingText="Gym/third-party payments" icon={ArrowLeftRight} tone="blue" />
       </div>
 
-      {/* Filter and Search Bar */}
+      
       <div className="bg-white border border-[#E5E7EB] rounded-xl p-4 mb-5 shadow-xs flex flex-col md:flex-row gap-4 items-center justify-between">
         <div className="relative w-full md:max-w-[620px] md:flex-1">
           <input
@@ -125,7 +123,7 @@ export const StaffPayments: React.FC = () => {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          {/* Method Selector */}
+          
           <select
             value={methodFilter}
             onChange={e => setMethodFilter(e.target.value as any)}
@@ -137,7 +135,7 @@ export const StaffPayments: React.FC = () => {
             <option value="Bank Transfer">Bank Transfer</option>
           </select>
 
-          {/* Status Selector */}
+          
           <select
             value={statusFilter}
             onChange={e => setStatusFilter(e.target.value as any)}
@@ -151,7 +149,7 @@ export const StaffPayments: React.FC = () => {
         </div>
       </div>
 
-      {/* Ledger Table */}
+      
       <div className="bg-white border border-[#E5E7EB] rounded-xl shadow-xs overflow-hidden">
         <div className="flex items-center justify-between gap-4 border-b border-gray-100 px-5 py-4">
           <div><h3 className="text-sm font-black uppercase tracking-wide">Transactions</h3><p className="mt-1 text-[11px] text-gray-500">A record of all payments received through your registered channels.</p></div>
@@ -243,7 +241,7 @@ export const StaffPayments: React.FC = () => {
         <Pagination page={page} pageSize={pageSize} total={filteredPayments.length} onPageChange={setPage} />
       </div>
 
-      {/* Record Payment Modal */}
+      
       <Modal
         isOpen={isNewPaymentModalOpen}
         onClose={() => setIsNewPaymentModalOpen(false)}
@@ -328,7 +326,7 @@ export const StaffPayments: React.FC = () => {
         </form>
       </Modal>
 
-      {/* Receipt Modal */}
+      
       {selectedReceipt && (
         <Modal
           isOpen={!!selectedReceipt}

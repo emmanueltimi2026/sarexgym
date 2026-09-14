@@ -18,7 +18,7 @@ interface PublicLayoutProps {
 }
 
 export const PublicLayout: React.FC<PublicLayoutProps> = ({ children }) => {
-  const { currentPath, navigate, settings } = useGym();
+  const { currentPath, navigate, settings, role } = useGym();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -33,6 +33,7 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ children }) => {
     { label: 'CONTACT', path: '/', sectionId: 'contact-section' }
   ];
   const sectionLinks = navLinks.filter(link => link.sectionId);
+  const portalPath = role === 'super_admin' ? '/admin/dashboard' : role === 'staff' ? '/staff/dashboard' : role === 'trainer' ? '/trainer/dashboard' : role === 'member' ? '/member/dashboard' : null;
 
   useEffect(() => {
     if (currentPath !== '/') {
@@ -144,18 +145,20 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ children }) => {
               )}
             </div>
 
-            <button
-              onClick={() => navigate('/login')}
-              className="text-xs font-bold uppercase tracking-wider text-gray-300 hover:text-white px-2 py-2 transition-colors"
-            >
-              Login
-            </button>
-            <button
-              onClick={() => navigate('/register')}
-              className="bg-[#EF1B23] hover:bg-red-700 text-white text-xs font-black uppercase tracking-widest px-5 py-2.5 transition-all shadow-md shadow-red-600/20"
-            >
-              Join Now
-            </button>
+            {portalPath ? (
+              <button onClick={() => navigate(portalPath)} className="bg-[#EF1B23] hover:bg-red-700 text-white text-xs font-black uppercase tracking-widest px-5 py-2.5 transition-all shadow-md shadow-red-600/20">
+                Back to portal
+              </button>
+            ) : (
+              <>
+                <button onClick={() => navigate('/login')} className="text-xs font-bold uppercase tracking-wider text-gray-300 hover:text-white px-2 py-2 transition-colors">
+                  Login
+                </button>
+                <button onClick={() => navigate('/register')} className="bg-[#EF1B23] hover:bg-red-700 text-white text-xs font-black uppercase tracking-widest px-5 py-2.5 transition-all shadow-md shadow-red-600/20">
+                  Join Now
+                </button>
+              </>
+            )}
           </div>
 
           <button
@@ -188,24 +191,20 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ children }) => {
               );
             })}
             <div className="pt-4 flex flex-col gap-2.5">
-              <button
-                onClick={() => {
-                  navigate('/login');
-                  setMobileMenuOpen(false);
-                }}
-                className="w-full text-center py-2.5 border border-neutral-700 text-white text-xs font-black uppercase tracking-wider"
-              >
-                Login
-              </button>
-              <button
-                onClick={() => {
-                  navigate('/register');
-                  setMobileMenuOpen(false);
-                }}
-                className="w-full text-center py-2.5 bg-[#EF1B23] text-white text-xs font-black uppercase tracking-widest"
-              >
-                Join Now
-              </button>
+              {portalPath ? (
+                <button onClick={() => { navigate(portalPath); setMobileMenuOpen(false); }} className="w-full text-center py-2.5 bg-[#EF1B23] text-white text-xs font-black uppercase tracking-widest">
+                  Back to portal
+                </button>
+              ) : (
+                <>
+                  <button onClick={() => { navigate('/login'); setMobileMenuOpen(false); }} className="w-full text-center py-2.5 border border-neutral-700 text-white text-xs font-black uppercase tracking-wider">
+                    Login
+                  </button>
+                  <button onClick={() => { navigate('/register'); setMobileMenuOpen(false); }} className="w-full text-center py-2.5 bg-[#EF1B23] text-white text-xs font-black uppercase tracking-widest">
+                    Join Now
+                  </button>
+                </>
+              )}
             </div>
           </div>
         )}
@@ -328,6 +327,3 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ children }) => {
     </div>
   );
 };
-
-
-

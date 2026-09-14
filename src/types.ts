@@ -14,7 +14,7 @@ export interface MembershipPlan {
   id: string;
   name: string;
   description: string;
-  price: number; // in Naira (₦)
+  price: number;
   durationDays: number;
   activeMembers?: number;
   status?: 'active' | 'inactive';
@@ -27,7 +27,7 @@ export interface MembershipPlan {
 
 export interface Member {
   id: string;
-  memberId: string; // e.g. "GYM-000124"
+  memberId: string;
   firstName: string;
   lastName: string;
   email: string;
@@ -108,7 +108,7 @@ export interface PaymentRecord {
 
 export interface StaffMember {
   id: string;
-  employeeId?: string; // e.g. "EMP-104"
+  employeeId?: string;
   firstName: string;
   lastName: string;
   email: string;

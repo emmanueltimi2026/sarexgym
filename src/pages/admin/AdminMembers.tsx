@@ -19,7 +19,6 @@ export const AdminMembers: React.FC = () => {
   const [page, setPage] = useState(1);
   const pageSize = 12;
 
-  // Modals
   const [editingMember, setEditingMember] = useState<Member | null>(null);
 
   const filteredMembers = members.filter(m => {
@@ -58,7 +57,7 @@ export const AdminMembers: React.FC = () => {
       pageSubtitle="View member accounts, membership status, assigned trainers, and access passes in one place."
       breadcrumbs={[{ label: 'Administration' }, { label: 'Members' }]}
     >
-      {/* Search & Filters */}
+      
       <div className="bg-white border border-[#E5E7EB] rounded-lg p-4 mb-6 shadow-xs flex flex-col md:flex-row gap-4 items-center justify-between">
         <div className="relative w-full md:w-80">
           <input
@@ -72,7 +71,7 @@ export const AdminMembers: React.FC = () => {
         </div>
 
         <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
-          {/* Status Filter */}
+          
           <select
             value={statusFilter}
             onChange={e => setStatusFilter(e.target.value)}
@@ -85,7 +84,7 @@ export const AdminMembers: React.FC = () => {
             <option value="Inactive">Inactive</option>
           </select>
 
-          {/* Plan Filter */}
+          
           <select
             value={planFilter}
             onChange={e => setPlanFilter(e.target.value)}
@@ -101,7 +100,7 @@ export const AdminMembers: React.FC = () => {
         </div>
       </div>
 
-      {/* Members Master Table */}
+      
       <div className="bg-white border border-[#E5E7EB] rounded-lg shadow-xs overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">
@@ -189,7 +188,7 @@ export const AdminMembers: React.FC = () => {
         <Pagination page={page} pageSize={pageSize} total={filteredMembers.length} onPageChange={setPage} />
       </div>
 
-      {/* Edit Member Modal */}
+      
       {editingMember && (
         <Modal
           isOpen={!!editingMember}
