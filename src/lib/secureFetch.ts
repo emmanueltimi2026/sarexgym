@@ -1,6 +1,7 @@
 const configuredApiBase=import.meta.env.VITE_API_BASE_URL;
 if(import.meta.env.PROD&&!configuredApiBase)throw new Error('VITE_API_BASE_URL is required for production builds');
 const apiBase=(configuredApiBase||'http://localhost:8080').replace(/\/$/,'');
+export const apiUrl=(path:string)=>`${apiBase}${path.startsWith('/')?path:`/${path}`}`;
 const nativeFetch=window.fetch.bind(window);
 const unsafe=new Set(['POST','PUT','PATCH','DELETE']);
 const publicUnsafe=[

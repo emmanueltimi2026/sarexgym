@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { apiUrl } from '../../lib/secureFetch';
 
 declare global { interface Window { google?: { accounts: { id: { initialize(options: { client_id: string; callback: (response: { credential: string }) => void; auto_select?: boolean }): void; renderButton(element: HTMLElement, options: Record<string, unknown>): void } } } } }
 
@@ -22,7 +23,7 @@ export const GoogleAuthButton: React.FC<{ onResult: (result: GoogleResult) => vo
       if (!window.google || !container.current) return;
       activeCredentialHandler = async credential => {
         try {
-          const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || ''}/api/v1/auth/google`, { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ credential }) });
+          const response = await fetch(apiUrl('/api/v1/auth/google'), { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ credential }) });
           const body = await response.json().catch(() => ({}));
           if (!response.ok) throw new Error(body?.error?.message || 'Google authentication failed.');
           resultHandler.current(body);

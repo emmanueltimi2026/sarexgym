@@ -6,7 +6,7 @@ const parseDataUrl=value=>{
   const match=/^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/.exec(value);
   if(!match||!allowed.has(match[1]))throw Object.assign(new Error('Image must be JPG, PNG, or WebP'),{status:422,code:'INVALID_IMAGE_TYPE'});
   const bytes=Buffer.from(match[2],'base64');
-  if(bytes.length>2_000_000)throw Object.assign(new Error('Image must be 2 MB or smaller'),{status:413,code:'IMAGE_TOO_LARGE'});
+  if(bytes.length>20_000_000)throw Object.assign(new Error('Image must be 20 MB or smaller'),{status:413,code:'IMAGE_TOO_LARGE'});
   return {mime:match[1],bytes};
 };
 const signature=(params,secret)=>crypto.createHash('sha1').update(new URLSearchParams(Object.entries(params).sort()).toString().replaceAll('%2F','/')+secret).digest('hex');
@@ -31,3 +31,4 @@ export const createImageStorage=config=>{
   };
   return{upload,remove};
 };
+

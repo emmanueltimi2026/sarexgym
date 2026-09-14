@@ -11,7 +11,7 @@ import { StaffMember, Trainer } from '../../types';
 type PersonTarget = { kind: 'staff' | 'trainers'; person: StaffMember | Trainer; action: 'reset' | 'suspend' | 'reactivate' | 'delete' };
 
 export const AdminStaff: React.FC = () => {
-  const { trainers, staffList = [], addTrainer, refresh } = useGym();
+  const { trainers, staffList = [], refresh } = useGym();
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [resetNotice,setResetNotice]=useState('');
   const [confirmTarget,setConfirmTarget]=useState<PersonTarget|null>(null);
@@ -24,7 +24,8 @@ export const AdminStaff: React.FC = () => {
   const openEditor=(kind:'staff'|'trainers',person:StaffMember|Trainer)=>{setEditTarget({kind,person});setEditForm({firstName:person.firstName,lastName:person.lastName,email:person.email,phone:person.phone||'',specialization:kind==='trainers'?(person as Trainer).specialization||'':''})};
   const saveAccount=async(event:React.FormEvent)=>{event.preventDefault();if(!editTarget)return;setBusy(true);setResetNotice('');try{const payload=editTarget.kind==='trainers'?editForm:{firstName:editForm.firstName,lastName:editForm.lastName,email:editForm.email,phone:editForm.phone};const response=await fetch(`${base}/api/v1/${editTarget.kind}/${editTarget.person.id}`,{method:'PATCH',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});if(!response.ok){const body=await response.json().catch(()=>({}));throw new Error(body?.error?.message||'Unable to save account')}await refresh();setResetNotice(`${editForm.firstName} ${editForm.lastName}'s account was updated.`);setEditTarget(null)}catch(error){setResetNotice(error instanceof Error?error.message:'Unable to save account')}finally{setBusy(false)}};
 
-  const [newTrainer, setNewTrainer] = useState({
+  const [newStaff, setNewStaff] = useState({
+    staffType: 'trainer' as 'trainer' | 'receptionist',
     firstName: '',
     lastName: '',
     email: '',
@@ -34,33 +35,63 @@ export const AdminStaff: React.FC = () => {
     photo: ''
   });
 
-  const handleAddSubmit = (e: React.FormEvent) => {
+  const resetNewStaff = () => setNewStaff({
+    staffType: 'trainer',
+    firstName: '',
+    lastName: '',
+    email: '',
+    phone: '',
+    specialization: '',
+    password: '',
+    photo: ''
+  });
+
+  const handleAddSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    addTrainer({
-      firstName: newTrainer.firstName,
-      lastName: newTrainer.lastName,
-      email: newTrainer.email,
-      phone: newTrainer.phone,
-      specialization: newTrainer.specialization,
-      password: newTrainer.password,
-      photo: newTrainer.photo,
-      isActive: true
-    });
-    setIsAddModalOpen(false);
-    setNewTrainer({
-      firstName: '',
-      lastName: '',
-      email: '',
-      phone: '',
-      specialization: '',
-      password: '',
-      photo: ''
-    });
+    setBusy(true);
+    setResetNotice('');
+    try {
+      const isTrainer = newStaff.staffType === 'trainer';
+      const response = await fetch(`${base}/api/v1/${isTrainer ? 'trainers' : 'staff'}`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(isTrainer ? {
+          firstName: newStaff.firstName,
+          lastName: newStaff.lastName,
+          email: newStaff.email,
+          phone: newStaff.phone,
+          specialization: newStaff.specialization,
+          password: newStaff.password,
+          photo: newStaff.photo,
+          isActive: true
+        } : {
+          firstName: newStaff.firstName,
+          lastName: newStaff.lastName,
+          email: newStaff.email,
+          phone: newStaff.phone,
+          password: newStaff.password,
+          isActive: true
+        })
+      });
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        throw new Error(body?.error?.message || 'Unable to create staff account');
+      }
+      await refresh();
+      setResetNotice(`${newStaff.firstName} ${newStaff.lastName} was added as ${isTrainer ? 'a trainer' : 'a receptionist'} and must change password on first login.`);
+      setIsAddModalOpen(false);
+      resetNewStaff();
+    } catch (error) {
+      setResetNotice(error instanceof Error ? error.message : 'Unable to create staff account');
+    } finally {
+      setBusy(false);
+    }
   };
   const loadTrainerPhoto = (file?: File) => {
-    if (!file || !file.type.startsWith('image/') || file.size > 2 * 1024 * 1024) return;
+    if (!file || !file.type.startsWith('image/') || file.size > 20 * 1024 * 1024) return;
     const reader = new FileReader();
-    reader.onload = () => setNewTrainer(current => ({ ...current, photo: String(reader.result) }));
+    reader.onload = () => setNewStaff(current => ({ ...current, photo: String(reader.result) }));
     reader.readAsDataURL(file);
   };
 
@@ -75,7 +106,7 @@ export const AdminStaff: React.FC = () => {
           className="px-4 py-2 bg-[#EF1B23] hover:bg-red-700 text-white font-athletic font-bold uppercase text-xs rounded transition-colors flex items-center gap-1.5 shadow-xs"
         >
           <Plus className="w-4 h-4" />
-          Add Trainer
+          Add Staff
         </button>
       }
     >
@@ -150,19 +181,25 @@ export const AdminStaff: React.FC = () => {
       
       <Modal
         isOpen={isAddModalOpen}
-        onClose={() => setIsAddModalOpen(false)}
-        title="APPOINT NEW COACH"
-        subtitle="Add a certified trainer to the SAREX training staff"
+        onClose={() => !busy && setIsAddModalOpen(false)}
+        title="ADD STAFF ACCOUNT"
+        subtitle="Create a trainer or receptionist account with first-login password change"
       >
         <form onSubmit={handleAddSubmit} className="space-y-4 text-xs">
+          <label className="block font-bold uppercase text-gray-700">Staff type
+            <select value={newStaff.staffType} onChange={e=>setNewStaff({...newStaff,staffType:e.target.value as 'trainer'|'receptionist',specialization:e.target.value==='trainer'?newStaff.specialization:''})} className="mt-1 w-full rounded border border-gray-300 px-3 py-2 text-sm font-normal outline-none focus:border-[#EF1B23]">
+              <option value="trainer">Trainer</option>
+              <option value="receptionist">Receptionist</option>
+            </select>
+          </label>
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block font-bold uppercase text-gray-700 mb-1">First Name</label>
               <input
                 type="text"
                 required
-                value={newTrainer.firstName}
-                onChange={e => setNewTrainer({ ...newTrainer, firstName: e.target.value })}
+                value={newStaff.firstName}
+                onChange={e => setNewStaff({ ...newStaff, firstName: e.target.value })}
                 className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:border-[#EF1B23] focus:outline-none"
                 placeholder="David"
               />
@@ -172,8 +209,8 @@ export const AdminStaff: React.FC = () => {
               <input
                 type="text"
                 required
-                value={newTrainer.lastName}
-                onChange={e => setNewTrainer({ ...newTrainer, lastName: e.target.value })}
+                value={newStaff.lastName}
+                onChange={e => setNewStaff({ ...newStaff, lastName: e.target.value })}
                 className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:border-[#EF1B23] focus:outline-none"
                 placeholder="James"
               />
@@ -186,8 +223,8 @@ export const AdminStaff: React.FC = () => {
               <input
                 type="email"
                 required
-                value={newTrainer.email}
-                onChange={e => setNewTrainer({ ...newTrainer, email: e.target.value })}
+                value={newStaff.email}
+                onChange={e => setNewStaff({ ...newStaff, email: e.target.value })}
                 className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:border-[#EF1B23] focus:outline-none"
                 placeholder="david@sarexfitness.com"
               />
@@ -197,51 +234,53 @@ export const AdminStaff: React.FC = () => {
               <input
                 type="tel"
                 required
-                value={newTrainer.phone}
-                onChange={e => setNewTrainer({ ...newTrainer, phone: e.target.value })}
+                value={newStaff.phone}
+                onChange={e => setNewStaff({ ...newStaff, phone: e.target.value })}
                 className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:border-[#EF1B23] focus:outline-none"
                 placeholder="+234 803 111 2222"
               />
             </div>
           </div>
 
-          <div>
+          {newStaff.staffType==='trainer'&&<div>
             <label className="block font-bold uppercase text-gray-700 mb-1">Specialization</label>
             <input
               type="text"
               required
-              value={newTrainer.specialization}
-              onChange={e => setNewTrainer({ ...newTrainer, specialization: e.target.value })}
+              value={newStaff.specialization}
+              onChange={e => setNewStaff({ ...newStaff, specialization: e.target.value })}
               className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:border-[#EF1B23] focus:outline-none"
               placeholder="e.g. Olympic Weightlifting & Functional Mobility"
             />
-          </div>
+          </div>}
 
           <div>
             <label className="block font-bold uppercase text-gray-700 mb-1">Temporary login password</label>
-            <input type="password" required minLength={10} autoComplete="new-password" value={newTrainer.password} onChange={e=>setNewTrainer({...newTrainer,password:e.target.value})} className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:border-[#EF1B23] focus:outline-none" placeholder="Minimum 10 characters"/>
-            <p className="mt-1 text-[11px] text-gray-500">The trainer must replace this password immediately after the first sign-in.</p>
+            <input type="password" required minLength={10} autoComplete="new-password" value={newStaff.password} onChange={e=>setNewStaff({...newStaff,password:e.target.value})} className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:border-[#EF1B23] focus:outline-none" placeholder="Minimum 10 characters"/>
+            <p className="mt-1 text-[11px] text-gray-500">The staff member must replace this password immediately after the first sign-in.</p>
           </div>
 
-          <label onDragOver={e=>e.preventDefault()} onDrop={e=>{e.preventDefault();loadTrainerPhoto(e.dataTransfer.files[0])}} className="flex cursor-pointer items-center gap-4 rounded-lg border-2 border-dashed border-gray-300 bg-gray-50 p-4 transition hover:border-[#EF1B23] hover:bg-red-50/30">
-            {newTrainer.photo ? <img src={newTrainer.photo} alt="Trainer preview" className="h-14 w-14 rounded-lg object-cover"/> : <span className="grid h-14 w-14 place-items-center rounded-lg bg-white text-[#EF1B23]"><UploadCloud className="h-6 w-6"/></span>}
-            <span><strong className="block text-xs uppercase text-gray-800">Drop trainer photo here</strong><span className="mt-1 block text-[11px] text-gray-500">or tap to browse · JPG, PNG or WebP · max 2 MB</span></span>
+          {newStaff.staffType==='trainer'&&<label onDragOver={e=>e.preventDefault()} onDrop={e=>{e.preventDefault();loadTrainerPhoto(e.dataTransfer.files[0])}} className="flex cursor-pointer items-center gap-4 rounded-lg border-2 border-dashed border-gray-300 bg-gray-50 p-4 transition hover:border-[#EF1B23] hover:bg-red-50/30">
+            {newStaff.photo ? <img src={newStaff.photo} alt="Trainer preview" className="h-14 w-14 rounded-lg object-cover"/> : <span className="grid h-14 w-14 place-items-center rounded-lg bg-white text-[#EF1B23]"><UploadCloud className="h-6 w-6"/></span>}
+            <span><strong className="block text-xs uppercase text-gray-800">Drop trainer photo here</strong><span className="mt-1 block text-[11px] text-gray-500">or tap to browse · JPG, PNG or WebP · max 20 MB</span></span>
             <input type="file" accept="image/jpeg,image/png,image/webp" className="sr-only" onChange={e=>loadTrainerPhoto(e.target.files?.[0])}/>
-          </label>
+          </label>}
 
           <div className="pt-3 border-t border-gray-200 flex justify-end gap-2">
             <button
               type="button"
               onClick={() => setIsAddModalOpen(false)}
+              disabled={busy}
               className="px-4 py-2 border border-gray-300 rounded text-xs font-bold uppercase text-gray-700"
             >
               Cancel
             </button>
             <button
+              disabled={busy}
               type="submit"
               className="px-5 py-2 bg-[#EF1B23] hover:bg-red-700 text-white font-athletic font-bold uppercase text-xs rounded transition-colors"
             >
-              Confirm Trainer Appointment
+              {busy?'Creating…':'Create Staff Account'}
             </button>
           </div>
         </form>

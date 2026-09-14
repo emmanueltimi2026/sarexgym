@@ -24,8 +24,8 @@ export const MemberSettings: React.FC = () => {
 
   const upload = (file?: File) => {
     if (!file) return;
-    if (file.size > 2_000_000) {
-      setMessage('Image must be smaller than 2 MB.');
+    if (file.size > 20_000_000) {
+      setMessage('Image must be smaller than 20 MB.');
       return;
     }
     const reader = new FileReader();
@@ -58,7 +58,7 @@ export const MemberSettings: React.FC = () => {
           <InitialsAvatar src={form.photo} firstName={form.firstName} lastName={form.lastName} className="h-24 w-24 text-2xl" />
           <div>
             <h2 className="text-xl font-black">Profile photo</h2>
-            <p className="mt-1 text-xs text-gray-500">JPG or PNG, up to 2 MB. Your initials are used when no image is uploaded.</p>
+            <p className="mt-1 text-xs text-gray-500">JPG or PNG, up to 20 MB. Your initials are used when no image is uploaded.</p>
             <label className="mt-3 inline-flex cursor-pointer items-center gap-2 rounded-lg bg-[#151515] px-4 py-2 text-xs font-bold text-white">
               <Camera className="h-4 w-4" />
               Choose image
@@ -81,3 +81,5 @@ export const MemberSettings: React.FC = () => {
     </AppLayout>
   );
 };
+
+

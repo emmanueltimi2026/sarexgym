@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { sha256 } from './security.js';
+import { sessionCookieOptions } from './http-security.js';
 
 export const requestContext = (req, res, next) => {
   req.requestId = req.get('x-request-id')?.slice(0, 100) || randomUUID();
@@ -17,7 +18,10 @@ export const requireAuth = db => async (req, res, next) => {
         AND s.last_seen_at > now() - make_interval(hours => $2)
       GROUP BY s.id,u.id,u.email,u.status`, [sha256(raw), req.app.locals.config.SESSION_IDLE_TIMEOUT_HOURS]);
     const actor = rows[0];
-    if (!actor || actor.status !== 'active') return res.status(401).json({ error: { code: 'INVALID_SESSION', message: 'Session is no longer valid', requestId: req.requestId } });
+    if (!actor || actor.status !== 'active') {
+      res.clearCookie(req.app.locals.config.SESSION_COOKIE_NAME, sessionCookieOptions(req.app.locals.config));
+      return res.status(401).json({ error: { code: 'INVALID_SESSION', message: 'Session is no longer valid', requestId: req.requestId } });
+    }
     await db.query('UPDATE sessions SET last_seen_at=now() WHERE id=$1', [actor.session_id]);
     req.actor = actor;
     if (req.method !== 'GET' && actor.roles.some(role => ['admin','staff','trainer'].includes(role))) {

@@ -40,6 +40,8 @@ export function loadConfig(env = process.env) {
     throw new Error('Cloudinary configuration is required in production');
   }
   const frontendUrl=(data.FRONTEND_URL||data.APP_ORIGIN).replace(/\/$/,'');
+  const secureCookies=production;
+  const sameSite=data.COOKIE_SAME_SITE||(production?'none':'lax');
   return {
     ...data,
     APP_ORIGIN:data.APP_ORIGIN.replace(/\/$/,''),
@@ -47,7 +49,7 @@ export function loadConfig(env = process.env) {
     DATABASE_SSL_MODE:data.DATABASE_SSL_MODE||(production?'require':'disable'),
     DATABASE_CA_CERT:data.DATABASE_CA_CERT?.replace(/\\n/g,'\n'),
     DATABASE_POOL_MAX:data.DATABASE_POOL_MAX||(production?5:10),
-    COOKIE_SAME_SITE:data.COOKIE_SAME_SITE||(production?'none':'lax'),
-    secureCookies:production
+    COOKIE_SAME_SITE:!secureCookies&&sameSite==='none'?'lax':sameSite,
+    secureCookies
   };
 }
