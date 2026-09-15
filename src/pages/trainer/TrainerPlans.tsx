@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useGym } from '../../context/GymContext';
 import { AppLayout } from '../../components/layout/AppLayout';
 import { Modal } from '../../components/ui/Modal';
-import { Dumbbell, Plus, ChevronDown, ChevronUp } from 'lucide-react';
+import { Dumbbell, Plus, ChevronDown, ChevronUp, Search } from 'lucide-react';
 import { WorkoutDayRoutine } from '../../types';
 
 export const TrainerPlans: React.FC = () => {
@@ -11,14 +11,16 @@ export const TrainerPlans: React.FC = () => {
   const [expandedPlanId, setExpandedPlanId] = useState<string | null>(workoutPlans[0]?.id || null);
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
-  const eligibleMembers = members.filter(member => member.workoutPlanEnabled);
+  const [memberSearch, setMemberSearch] = useState('');
+  const eligibleMembers = members.filter(member => member.workoutPlanEnabled && member.trainerAccess);
+  const visibleEligibleMembers = eligibleMembers.filter(member => `${member.firstName} ${member.lastName} ${member.memberId}`.toLowerCase().includes(memberSearch.toLowerCase()));
 
   const [newPlan, setNewPlan] = useState({
     title: '',
     description: '',
     difficulty: 'Intermediate' as 'Beginner' | 'Intermediate' | 'Advanced',
-    daysPerWeek: 4
-    ,memberId: ''
+    daysPerWeek: 4,
+    memberIds: [] as string[]
   });
 
   const handleCreateSubmit = async (e: React.FormEvent) => {
@@ -55,11 +57,12 @@ export const TrainerPlans: React.FC = () => {
         trainerId: user?.id || '',
         trainerName: user ? `${user.firstName} ${user.lastName}` : 'Assigned trainer',
         routine: defaultRoutines,
-        memberId: newPlan.memberId
+        memberIds: newPlan.memberIds
       });
       setExpandedPlanId(result?.data?.id || null);
       setIsCreateOpen(false);
-      setNewPlan({ title: '', description: '', difficulty: 'Intermediate', daysPerWeek: 4, memberId: '' });
+      setNewPlan({ title: '', description: '', difficulty: 'Intermediate', daysPerWeek: 4, memberIds: [] });
+      setMemberSearch('');
     } catch (error) {
       setSaveError(error instanceof Error ? error.message : 'The workout program could not be saved.');
     } finally {
@@ -206,11 +209,14 @@ export const TrainerPlans: React.FC = () => {
       >
         <form onSubmit={handleCreateSubmit} className="space-y-4 text-xs">
           <div>
-            <label className="block font-bold uppercase text-gray-700 mb-1">Assign to member</label>
-            <select required value={newPlan.memberId} onChange={e=>setNewPlan({...newPlan,memberId:e.target.value})} className="w-full px-3 py-2 text-sm border border-gray-300 rounded bg-white">
-              <option value="">Select eligible member</option>{eligibleMembers.map(m=><option key={m.id} value={m.id}>{m.firstName} {m.lastName} · {m.memberId}</option>)}
-            </select>
-            {!eligibleMembers.length && <p className="mt-2 text-[11px] text-amber-700">No assigned member currently has an active subscription with workout plan access.</p>}
+            <div className="mb-2 flex items-center justify-between gap-3"><label className="font-bold uppercase text-gray-700">Assign members</label><span className="text-[11px] font-semibold text-gray-500">{newPlan.memberIds.length} selected</span></div>
+            <div className="overflow-hidden rounded-lg border border-gray-300 bg-white">
+              <div className="flex items-center gap-2 border-b border-gray-200 bg-gray-50 px-3 py-2"><Search className="h-4 w-4 text-gray-400"/><input type="search" value={memberSearch} onChange={event => setMemberSearch(event.target.value)} placeholder="Search eligible members" className="min-w-0 flex-1 bg-transparent text-sm outline-none"/></div>
+              <label className="flex cursor-pointer items-center gap-3 border-b border-gray-200 px-3 py-2.5 font-bold"><input type="checkbox" checked={eligibleMembers.length > 0 && newPlan.memberIds.length === eligibleMembers.length} onChange={event => setNewPlan({ ...newPlan, memberIds: event.target.checked ? eligibleMembers.map(member => member.id) : [] })} className="h-4 w-4 accent-[#EF1B23]"/>Select all eligible members</label>
+              <div className="max-h-48 overflow-y-auto">{visibleEligibleMembers.map(member => <label key={member.id} className="flex cursor-pointer items-center gap-3 border-b border-gray-100 px-3 py-2.5 last:border-0 hover:bg-gray-50"><input type="checkbox" checked={newPlan.memberIds.includes(member.id)} onChange={event => setNewPlan({ ...newPlan, memberIds: event.target.checked ? [...newPlan.memberIds, member.id] : newPlan.memberIds.filter(id => id !== member.id) })} className="h-4 w-4 accent-[#EF1B23]"/><span className="min-w-0"><strong className="block truncate text-sm">{member.firstName} {member.lastName}</strong><span className="text-[10px] text-gray-500">{member.memberId} · {member.membershipPlanName}</span></span></label>)}</div>
+            </div>
+            {!eligibleMembers.length && <p className="mt-2 text-[11px] text-amber-700">No assigned member currently has an active subscription with trainer and workout-plan access.</p>}
+            {eligibleMembers.length > 0 && !visibleEligibleMembers.length && <p className="mt-2 text-[11px] text-gray-500">No eligible members match this search.</p>}
           </div>
           <div>
             <label className="block font-bold uppercase text-gray-700 mb-1">Program Title</label>
@@ -275,10 +281,10 @@ export const TrainerPlans: React.FC = () => {
             </button>
             <button
               type="submit"
-              disabled={isSaving || !eligibleMembers.length}
+              disabled={isSaving || !newPlan.memberIds.length}
               className="px-5 py-2 bg-[#EF1B23] hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50 text-white font-athletic font-bold uppercase text-xs rounded transition-colors"
             >
-              {isSaving ? 'Saving…' : 'Save Program to Library'}
+              {isSaving ? 'Saving…' : `Save Program${newPlan.memberIds.length > 1 ? 's' : ''}`}
             </button>
           </div>
         </form>
@@ -286,4 +292,3 @@ export const TrainerPlans: React.FC = () => {
     </AppLayout>
   );
 };
-

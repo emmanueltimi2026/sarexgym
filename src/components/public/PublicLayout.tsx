@@ -10,7 +10,6 @@ import {
   Instagram,
   Facebook,
   Twitter,
-  Search,
 } from 'lucide-react';
 
 interface PublicLayoutProps {
@@ -20,17 +19,14 @@ interface PublicLayoutProps {
 export const PublicLayout: React.FC<PublicLayoutProps> = ({ children }) => {
   const { currentPath, navigate, settings, role } = useGym();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [searchOpen, setSearchOpen] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
   const [activeNav, setActiveNav] = useState('HOME');
   const mobileMenuRef = useRef<HTMLDivElement>(null);
-  const searchMenuRef = useRef<HTMLDivElement>(null);
 
   const navLinks = [
     { label: 'HOME', path: '/' },
     { label: 'ABOUT', path: '/', sectionId: 'about-section' },
     { label: 'SERVICES', path: '/', sectionId: 'classes-section' },
-    { label: 'SCHEDULE', path: '/', sectionId: 'schedule-section' },
+    { label: 'EVENTS', path: '/', sectionId: 'events-section' },
     { label: 'GALLERY', path: '/', sectionId: 'gallery-section' },
     { label: 'PRICING', path: '/', sectionId: 'pricing-section' },
     { label: 'CONTACT', path: '/', sectionId: 'contact-section' }
@@ -39,7 +35,7 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ children }) => {
   const portalPath = role === 'super_admin' ? '/admin/dashboard' : role === 'staff' ? '/staff/dashboard' : role === 'trainer' ? '/trainer/dashboard' : role === 'member' ? '/member/dashboard' : null;
 
   useEffect(() => {
-    if (currentPath !== '/') {
+    if (currentPath !== '/' && currentPath !== '/home') {
       setActiveNav('');
       return;
     }
@@ -69,15 +65,14 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ children }) => {
   }, [currentPath]);
 
   useEffect(() => {
-    if (!mobileMenuOpen && !searchOpen) return;
+    if (!mobileMenuOpen) return;
     const closeMenus = (event: MouseEvent) => {
       const target = event.target as Node;
       if (mobileMenuOpen && mobileMenuRef.current && !mobileMenuRef.current.contains(target)) setMobileMenuOpen(false);
-      if (searchOpen && searchMenuRef.current && !searchMenuRef.current.contains(target)) setSearchOpen(false);
     };
     document.addEventListener('mousedown', closeMenus);
     return () => document.removeEventListener('mousedown', closeMenus);
-  }, [mobileMenuOpen, searchOpen]);
+  }, [mobileMenuOpen]);
 
   const goToNavLink = (link: typeof navLinks[number]) => {
     setActiveNav(link.label);
@@ -87,6 +82,11 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ children }) => {
     } else {
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
+  };
+
+  const isNavLinkActive = (label: string) => {
+    if (label === 'EVENTS' && currentPath.startsWith('/events/')) return true;
+    return (currentPath === '/' || currentPath === '/home') && activeNav === label;
   };
 
   return (
@@ -103,7 +103,7 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ children }) => {
 
           <nav className="hidden lg:flex items-center gap-5">
             {navLinks.map(link => {
-              const isActive = currentPath === '/' && activeNav === link.label;
+              const isActive = isNavLinkActive(link.label);
               return (
                 <button
                   key={link.label}
@@ -123,42 +123,6 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ children }) => {
           </nav>
 
           <div className="hidden sm:flex items-center gap-4">
-            <div className="relative" ref={searchMenuRef}>
-              <button
-                onClick={() => setSearchOpen(!searchOpen)}
-                className="p-2 text-gray-400 hover:text-white transition-colors"
-                title="Search classes or trainers"
-              >
-                <Search className="w-4 h-4" />
-              </button>
-              {searchOpen && (
-                <div className="absolute right-0 mt-2 w-64 bg-[#1a1a1a] border border-neutral-700 p-2 shadow-2xl z-50">
-                  <input
-                    type="text"
-                    placeholder="Search services and memberships..."
-                    value={searchQuery}
-                    onChange={e => setSearchQuery(e.target.value)}
-                    className="w-full bg-[#111111] border border-neutral-700 px-3 py-1.5 text-xs text-white rounded-xs focus:outline-none focus:border-[#EF1B23]"
-                    autoFocus
-                  />
-                  {searchQuery && (
-                    <div className="mt-2 text-left text-xs space-y-1">
-                      <button
-                        onClick={() => {
-                          navigate('/');
-                          setTimeout(() => document.getElementById('pricing-section')?.scrollIntoView({ behavior: 'smooth' }), 100);
-                          setSearchOpen(false);
-                        }}
-                        className="block w-full text-left p-1 text-gray-300 hover:bg-neutral-800 rounded-xs"
-                      >
-                        Search memberships for "{searchQuery}"
-                      </button>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-
             {portalPath ? (
               <button onClick={() => navigate(portalPath)} className="bg-[#EF1B23] hover:bg-red-700 text-white text-xs font-black uppercase tracking-widest px-5 py-2.5 transition-all shadow-md shadow-red-600/20">
                 Back to portal
@@ -187,7 +151,7 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ children }) => {
         {mobileMenuOpen && (
           <div ref={mobileMenuRef} className="lg:hidden bg-[#151515] border-b border-neutral-800 px-4 pt-3 pb-6 space-y-3">
             {navLinks.map(link => {
-              const isActive = currentPath === '/' && activeNav === link.label;
+              const isActive = isNavLinkActive(link.label);
               return (
                 <button
                   key={link.label}

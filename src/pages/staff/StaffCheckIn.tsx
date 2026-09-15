@@ -51,7 +51,7 @@ export const StaffCheckIn: React.FC = () => {
   return <AppLayout pageTitle="Reception Check-in" pageSubtitle="Display the permanent reception QR and handle manual check-ins when needed." breadcrumbs={[{ label: 'Staff Portal', path: '/staff/dashboard' }, { label: 'Check-in' }]}>
     <section className="reception-print-card mb-6 flex flex-col items-center justify-center gap-6 rounded-2xl border border-gray-200 bg-white px-5 py-7 shadow-xs sm:flex-row sm:px-8">
       {receptionUrl ? <QrCodeDisplay value={receptionUrl} showEnlargeButton /> : <div className="grid h-56 w-56 place-items-center rounded-xl border border-gray-200 bg-gray-50"><div className="h-36 w-36 animate-pulse rounded-lg bg-gray-200"/></div>}
-      <div className="max-w-sm text-center sm:text-left"><span className="text-[10px] font-black uppercase tracking-[.2em] text-[#EF1B23]">Permanent reception QR</span><h2 className="mt-2 text-2xl font-black text-[#111]">Scan. Check in. Show reception.</h2><p className="mt-2 text-sm text-gray-500">{qrError || 'Print and paste this code at reception. Members scan it, then show the confirmation screen with their member details and subscription status.'}</p></div>
+      <div className="max-w-sm text-center sm:text-left"><span className="text-[10px] font-black uppercase tracking-[.2em] text-[#EF1B23]">reception QR</span><h2 className="mt-2 text-2xl font-black text-[#111]">Scan. Check in. Train.</h2><p className="mt-2 text-sm text-gray-500">{qrError}</p></div>
     </section>
 
     <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_380px]">

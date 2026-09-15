@@ -33,6 +33,7 @@ import { ReceptionCheckIn } from './pages/member/ReceptionCheckIn';
 import { MemberCheckInScanner } from './pages/member/MemberCheckInScanner';
 import { EventManagement } from './pages/shared/EventManagement';
 import { EventDetails } from './pages/shared/EventDetails';
+import { MemberDetails } from './pages/shared/MemberDetails';
 import { ErrorBoundary } from './components/ui/ErrorBoundary';
 import { Seo } from './components/seo/Seo';
 
@@ -127,6 +128,7 @@ const AppRouter: React.FC = () => {
   const renderRoute = () => {
     if (/^\/events\/[0-9a-f-]{36}$/i.test(currentPath)) return <EventDetails mode="public" />;
     if (/^\/(?:admin|staff|member)\/events\/[0-9a-f-]{36}$/i.test(currentPath)) return <EventDetails mode="portal" />;
+    if (/^\/(?:admin|staff)\/members\/[0-9a-f-]{36}$/i.test(currentPath)) return <MemberDetails />;
     switch (currentPath) {
       case '/':
       case '/home':
@@ -241,6 +243,5 @@ export default function App() {
     </GymProvider>
   );
 }
-
 
 

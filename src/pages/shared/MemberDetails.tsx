@@ -1,0 +1,78 @@
+import React, { useEffect, useState } from 'react';
+import { ArrowLeft, CalendarCheck, Dumbbell, Mail, MapPin, Phone, ShieldCheck, UserRound } from 'lucide-react';
+import { AppLayout } from '../../components/layout/AppLayout';
+import { Badge } from '../../components/ui/Badge';
+import { InitialsAvatar } from '../../components/ui/InitialsAvatar';
+import { Pagination } from '../../components/ui/Pagination';
+import { useGym } from '../../context/GymContext';
+import type { AttendanceRecord, Member } from '../../types';
+
+const BASE = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
+
+type DetailsResponse = {
+  member: Member;
+  attendance: AttendanceRecord[];
+  pagination: { page: number; pageSize: number; total: number };
+};
+
+export const MemberDetails: React.FC = () => {
+  const { currentPath, navigate } = useGym();
+  const portal = currentPath.startsWith('/admin/') ? 'admin' : 'staff';
+  const memberId = currentPath.split('/').filter(Boolean).at(-1) || '';
+  const [page, setPage] = useState(1);
+  const [details, setDetails] = useState<DetailsResponse | null>(null);
+  const [error, setError] = useState('');
+  const pageSize = 10;
+
+  useEffect(() => {
+    const controller = new AbortController();
+    setError('');
+    fetch(`${BASE}/api/v1/members/${encodeURIComponent(memberId)}/details?page=${page}&pageSize=${pageSize}`, { credentials: 'include', signal: controller.signal })
+      .then(async response => {
+        const body = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(body?.error?.message || 'Member details could not be loaded.');
+        return body.data as DetailsResponse;
+      })
+      .then(setDetails)
+      .catch(reason => { if (reason.name !== 'AbortError') setError(reason.message); });
+    return () => controller.abort();
+  }, [memberId, page]);
+
+  const member = details?.member;
+  const backPath = `/${portal}/members`;
+  const portalLabel = portal === 'admin' ? 'Administration' : 'Staff Portal';
+
+  return (
+    <AppLayout
+      pageTitle="Member Details"
+      pageSubtitle="Review profile, membership access, and check-in history."
+      breadcrumbs={[{ label: portalLabel, path: `/${portal}/dashboard` }, { label: 'Members', path: backPath }, { label: member?.memberId || 'Details' }]}
+      actions={<button type="button" onClick={() => navigate(backPath)} className="flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-bold text-gray-700 transition hover:border-gray-500"><ArrowLeft className="h-4 w-4"/>Back to members</button>}
+    >
+      {!details && !error && <div className="space-y-5" role="status" aria-label="Loading member details"><div className="h-40 animate-pulse rounded-lg bg-white"/><div className="grid gap-4 md:grid-cols-2"><div className="h-56 animate-pulse rounded-lg bg-white"/><div className="h-56 animate-pulse rounded-lg bg-white"/></div><div className="h-72 animate-pulse rounded-lg bg-white"/></div>}
+
+      {error && <div className="rounded-lg border border-red-200 bg-red-50 p-8 text-center"><h2 className="font-bold text-red-800">Unable to open this member</h2><p className="mt-2 text-sm text-red-700">{error}</p><button type="button" onClick={() => navigate(backPath)} className="mt-5 rounded-lg bg-[#151515] px-4 py-2 text-xs font-bold text-white">BACK TO MEMBERS</button></div>}
+
+      {member && details && <div className="space-y-5">
+        <section className="flex flex-col gap-5 rounded-lg border border-gray-200 bg-white p-5 shadow-xs sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex min-w-0 items-center gap-4"><InitialsAvatar src={member.photo} firstName={member.firstName} lastName={member.lastName} className="h-16 w-16 shrink-0"/><div className="min-w-0"><p className="text-[10px] font-bold uppercase tracking-wider text-[#EF1B23]">{member.memberId}</p><h1 className="truncate text-2xl font-black text-[#111111]">{member.firstName} {member.lastName}</h1><p className="mt-1 truncate text-sm text-gray-500">Member since {member.memberSince || 'Not recorded'}</p></div></div>
+          <Badge variant={member.membershipStatus === 'Active' ? 'success' : member.membershipStatus === 'Expiring' ? 'warning' : 'danger'}>{member.membershipStatus || 'Inactive'}</Badge>
+        </section>
+
+        <div className="grid gap-5 lg:grid-cols-2">
+          <section className="rounded-lg border border-gray-200 bg-white p-5 shadow-xs"><div className="mb-5 flex items-center gap-2"><UserRound className="h-5 w-5 text-[#EF1B23]"/><h2 className="font-black uppercase">Contact and profile</h2></div><dl className="grid gap-4 text-sm sm:grid-cols-2"><Info label="Email" value={member.email} icon={Mail}/><Info label="Phone" value={member.phone} icon={Phone}/><Info label="Gender" value={member.gender}/><Info label="Date of birth" value={member.dateOfBirth || 'Not provided'}/><Info label="Address" value={member.address || 'Not provided'} icon={MapPin}/><Info label="Fitness goal" value={member.fitnessGoal || 'Not provided'} icon={Dumbbell}/></dl></section>
+
+          <section className="rounded-lg border border-gray-200 bg-white p-5 shadow-xs"><div className="mb-5 flex items-center gap-2"><ShieldCheck className="h-5 w-5 text-[#EF1B23]"/><h2 className="font-black uppercase">Membership access</h2></div><dl className="grid gap-4 text-sm sm:grid-cols-2"><Info label="Current plan" value={member.membershipPlanName}/><Info label="Assigned trainer" value={member.assignedTrainerName || 'Not assigned'}/><Info label="Start date" value={member.membershipStartDate || 'Not active'}/><Info label="Expiry date" value={member.membershipExpiryDate || 'Not active'}/><Info label="Trainer access" value={member.trainerAccess ? 'Included' : 'Not included'}/><Info label="Workout plans" value={member.workoutPlanEnabled ? 'Included' : 'Not included'}/></dl></section>
+        </div>
+
+        <section className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-xs">
+          <div className="flex items-center justify-between border-b border-gray-100 p-5"><div><h2 className="font-black uppercase">Check-in history</h2><p className="mt-1 text-xs text-gray-500">{details.pagination.total} recorded visit{details.pagination.total === 1 ? '' : 's'}</p></div><CalendarCheck className="h-5 w-5 text-[#EF1B23]"/></div>
+          <div className="overflow-x-auto"><table className="w-full text-left text-xs"><thead className="border-b border-gray-200 bg-gray-50 uppercase tracking-wider text-gray-600"><tr><th className="px-4 py-3">Date</th><th className="px-4 py-3">Time</th><th className="px-4 py-3">Method</th><th className="px-4 py-3">Outcome</th></tr></thead><tbody className="divide-y divide-gray-100">{details.attendance.length ? details.attendance.map(record => <tr key={record.id}><td className="px-4 py-3 text-gray-700">{record.date}</td><td className="px-4 py-3 font-mono font-semibold">{record.time}</td><td className="px-4 py-3 text-gray-600">{record.method}</td><td className="px-4 py-3"><Badge variant={record.status === 'Denied' ? 'danger' : 'success'}>{record.status}</Badge></td></tr>) : <tr><td colSpan={4} className="px-4 py-12 text-center text-gray-500">No check-ins recorded for this member.</td></tr>}</tbody></table></div>
+          <Pagination page={page} pageSize={pageSize} total={details.pagination.total} onPageChange={setPage}/>
+        </section>
+      </div>}
+    </AppLayout>
+  );
+};
+
+const Info: React.FC<{ label: string; value: React.ReactNode; icon?: React.ComponentType<{ className?: string }> }> = ({ label, value, icon: Icon }) => <div className="min-w-0"><dt className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-gray-400">{Icon && <Icon className="h-3.5 w-3.5"/>}{label}</dt><dd className="mt-1 break-words font-semibold text-gray-800">{value}</dd></div>;

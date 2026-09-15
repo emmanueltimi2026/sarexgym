@@ -7,13 +7,14 @@ import { Modal } from '../../components/ui/Modal';
 import { PaystackModal } from '../../components/ui/PaystackModal';
 import {
   Search,
-  CheckCircle2
+  CheckCircle2,
+  Eye
 } from 'lucide-react';
 import { Member } from '../../types';
 import { Pagination } from '../../components/ui/Pagination';
 
 export const StaffMembers: React.FC = () => {
-  const { members, plans, trainers, updateMember, renewMemberMembership } = useGym();
+  const { members, plans, trainers, updateMember, renewMemberMembership, navigate } = useGym();
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'All' | 'Active' | 'Expiring' | 'Expired' | 'Inactive'>('All');
   const [page, setPage] = useState(1);
@@ -112,7 +113,7 @@ export const StaffMembers: React.FC = () => {
                 </tr>
               ) : (
                 visibleMembers.map(member => (
-                  <tr key={member.id} className="hover:bg-gray-50 transition-colors">
+                  <tr key={member.id} role="link" tabIndex={0} onClick={() => navigate(`/staff/members/${member.id}`)} onKeyDown={event => { if (event.key === 'Enter') navigate(`/staff/members/${member.id}`); }} className="cursor-pointer hover:bg-gray-50 transition-colors focus-within:bg-gray-50">
                     <td className="py-3 px-4">
                       <div className="flex items-center gap-3">
                         <InitialsAvatar src={member.photo} firstName={member.firstName} lastName={member.lastName} className="h-8 w-8"/>
@@ -154,15 +155,18 @@ export const StaffMembers: React.FC = () => {
                     <td className="py-3 px-4 text-right">
                       <div className="flex items-center justify-end gap-1.5">
 
+                        <button onClick={event => { event.stopPropagation(); navigate(`/staff/members/${member.id}`); }} className="p-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded transition-colors" title="View member details"><Eye className="w-3.5 h-3.5"/></button>
+
                         <button
-                          onClick={() => { setSelectedMemberForTrainer(member); setTrainerId(member.assignedTrainerId || ''); }}
+                          onClick={event => { event.stopPropagation(); setSelectedMemberForTrainer(member); setTrainerId(member.assignedTrainerId || ''); }}
                           className="px-2.5 py-1 border border-gray-300 hover:border-[#EF1B23] text-gray-700 font-bold uppercase text-[10px] rounded transition-colors"
                         >
                           Assign Trainer
                         </button>
 
                         <button
-                          onClick={() => {
+                          onClick={event => {
+                            event.stopPropagation();
                             setSelectedMemberForRenew(member);
                             const pl = plans.find(p => p.id === member.membershipPlanId) || plans[2];
                             setSelectedPlanForRenew(pl);
@@ -286,7 +290,6 @@ export const StaffMembers: React.FC = () => {
     </AppLayout>
   );
 };
-
 
 
 

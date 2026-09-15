@@ -80,13 +80,12 @@ export const StaffAttendance: React.FC = () => {
                 <th className="py-3 px-4">Time</th>
                 <th className="py-3 px-4">Verification Method</th>
                 <th className="py-3 px-4">Outcome</th>
-                <th className="py-3 px-4">Notes / Gate Detail</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
               {filteredLogs.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="py-8 text-center text-gray-500">
+                  <td colSpan={6} className="py-8 text-center text-gray-500">
                     No attendance logs match your filter criteria.
                   </td>
                 </tr>
@@ -124,13 +123,6 @@ export const StaffAttendance: React.FC = () => {
                       </Badge>
                     </td>
 
-                    <td className="py-3 px-4 text-gray-500 text-[11px]">
-                      {item.denialReason ? (
-                        <span className="text-[#EF1B23] font-medium">{item.denialReason}</span>
-                      ) : (
-                        <span>Checked in successfully</span>
-                      )}
-                    </td>
                   </tr>
                 ))
               )}
@@ -142,4 +134,3 @@ export const StaffAttendance: React.FC = () => {
     </AppLayout>
   );
 };
-

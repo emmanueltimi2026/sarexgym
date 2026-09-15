@@ -152,7 +152,6 @@ export const AdminAttendance: React.FC = () => {
                 <th className="py-3 px-4">Time</th>
                 <th className="py-3 px-4">Method</th>
                 <th className="py-3 px-4">Outcome</th>
-                <th className="py-3 px-4">Denial / Audit Reason</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -167,13 +166,6 @@ export const AdminAttendance: React.FC = () => {
                     <Badge variant={item.status !== 'Denied' ? 'success' : 'danger'}>
                       {item.status}
                     </Badge>
-                  </td>
-                  <td className="py-3 px-4 text-gray-500 text-[11px]">
-                    {item.denialReason ? (
-                      <span className="text-[#EF1B23] font-semibold">{item.denialReason}</span>
-                    ) : (
-                      'Checked in successfully'
-                    )}
                   </td>
                 </tr>
               ))}

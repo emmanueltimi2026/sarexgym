@@ -44,12 +44,12 @@ export const MemberDashboard: React.FC = () => {
       pageSubtitle="See your membership status, assigned workout plan, and recent gym visits."
       breadcrumbs={[{ label: 'Member Portal' }, { label: 'Dashboard' }]}
       actions={<>
-        <button onClick={() => navigate('/member/check-in')} className="flex items-center gap-1.5 rounded bg-[#111111] px-3.5 py-2 font-athletic text-xs font-bold uppercase text-white shadow-xs transition-colors hover:bg-[#EF1B23]">
-          <QrCode className="h-4 w-4" /> Check in
+        <button aria-label="Check in" title="Check in" onClick={() => navigate('/member/check-in')} className="flex h-9 w-9 items-center justify-center gap-1.5 rounded bg-[#111111] font-athletic text-xs font-bold uppercase text-white shadow-xs transition-colors hover:bg-[#EF1B23] sm:w-auto sm:px-3.5">
+          <QrCode className="h-4 w-4" /> <span className="hidden sm:inline">Check in</span>
         </button>
         {hasActiveSubscription && diffDays <= 7 && selectedPlanForRenew && (
-          <button onClick={() => setIsPaystackOpen(true)} className="px-3.5 py-2 bg-[#EF1B23] hover:bg-red-700 text-white font-athletic font-bold uppercase text-xs rounded transition-colors flex items-center gap-1.5 shadow-xs">
-            <CreditCard className="w-4 h-4" /> Renew Membership
+          <button aria-label="Renew membership" title="Renew membership" onClick={() => setIsPaystackOpen(true)} className="flex h-9 w-9 items-center justify-center gap-1.5 rounded bg-[#EF1B23] font-athletic text-xs font-bold uppercase text-white shadow-xs transition-colors hover:bg-red-700 sm:w-auto sm:px-3.5">
+            <CreditCard className="h-4 w-4" /> <span className="hidden sm:inline">Renew Membership</span>
           </button>
         )}
       </>}

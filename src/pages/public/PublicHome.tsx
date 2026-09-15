@@ -17,6 +17,8 @@ export const PublicHome: React.FC = () => {
   const publicPhones = settings.phone.split(/\s*(?:\/|,|\n)\s*/).filter(Boolean);
   const mapQuery = encodeURIComponent(settings.address);
   const homepageRef = useRef<HTMLDivElement>(null);
+  const galleryRef = useRef<HTMLDivElement>(null);
+  const [previewImage, setPreviewImage] = useState<string | null>(null);
 
   useEffect(() => {
     const root = homepageRef.current;
@@ -66,6 +68,82 @@ export const PublicHome: React.FC = () => {
     update(); window.addEventListener('scroll', onScroll, { passive: true });
     return () => { window.removeEventListener('scroll', onScroll); if (frame) cancelAnimationFrame(frame); };
   }, []);
+
+  useEffect(() => {
+    const rail = galleryRef.current;
+    if (!rail || previewImage || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const track = rail.querySelector<HTMLElement>('.gallery-auto-track');
+    if (!track) return;
+
+    let frame = 0;
+    let previousTime = performance.now();
+    let isPaused = false;
+    let resumeTimer = 0;
+    let preciseScrollPosition = rail.scrollLeft;
+    const pixelsPerSecond = 14;
+
+    const pause = () => {
+      isPaused = true;
+      preciseScrollPosition = rail.scrollLeft;
+      track.style.transform = '';
+      if (resumeTimer) window.clearTimeout(resumeTimer);
+    };
+    const resume = () => {
+      if (resumeTimer) window.clearTimeout(resumeTimer);
+      isPaused = false;
+      preciseScrollPosition = rail.scrollLeft;
+      previousTime = performance.now();
+    };
+    const resumeAfterInteraction = () => {
+      if (resumeTimer) window.clearTimeout(resumeTimer);
+      resumeTimer = window.setTimeout(resume, 1400);
+    };
+    const handleWheel = () => {
+      pause();
+      resumeAfterInteraction();
+    };
+
+    const tick = (time: number) => {
+      const elapsed = Math.min(time - previousTime, 80);
+      previousTime = time;
+      const sequence = track.querySelector<HTMLElement>('.gallery-sequence');
+      const loopWidth = sequence ? sequence.offsetWidth + 14 : 0;
+
+      if (!isPaused && document.visibilityState === 'visible' && loopWidth > rail.clientWidth) {
+        preciseScrollPosition += pixelsPerSecond * (elapsed / 1000);
+        if (preciseScrollPosition >= loopWidth) preciseScrollPosition -= loopWidth;
+        const renderedPosition = Math.floor(preciseScrollPosition);
+        rail.scrollLeft = renderedPosition;
+        track.style.transform = `translate3d(-${preciseScrollPosition - renderedPosition}px,0,0)`;
+      }
+
+      frame = window.requestAnimationFrame(tick);
+    };
+
+    rail.addEventListener('pointerenter', pause);
+    rail.addEventListener('pointerleave', resume);
+    rail.addEventListener('pointerdown', pause);
+    rail.addEventListener('pointerup', resumeAfterInteraction);
+    rail.addEventListener('pointercancel', resumeAfterInteraction);
+    rail.addEventListener('wheel', handleWheel, { passive: true });
+    rail.addEventListener('focusin', pause);
+    rail.addEventListener('focusout', resume);
+    frame = window.requestAnimationFrame(tick);
+
+    return () => {
+      window.cancelAnimationFrame(frame);
+      track.style.transform = '';
+      if (resumeTimer) window.clearTimeout(resumeTimer);
+      rail.removeEventListener('pointerenter', pause);
+      rail.removeEventListener('pointerleave', resume);
+      rail.removeEventListener('pointerdown', pause);
+      rail.removeEventListener('pointerup', resumeAfterInteraction);
+      rail.removeEventListener('pointercancel', resumeAfterInteraction);
+      rail.removeEventListener('wheel', handleWheel);
+      rail.removeEventListener('focusin', pause);
+      rail.removeEventListener('focusout', resume);
+    };
+  }, [previewImage]);
 
   const [bmiWeight, setBmiWeight] = useState<number>(0);
   const [bmiHeight, setBmiHeight] = useState<number>(0);
@@ -124,7 +202,6 @@ export const PublicHome: React.FC = () => {
 
   const [contactForm, setContactForm] = useState({ name: '', email: '', phone: '', message: '' });
   const [upcomingEvents, setUpcomingEvents] = useState<any[]>([]);
-  const [previewImage, setPreviewImage] = useState<string | null>(null);
   const galleryPhotos = ['photo-1517838277536-f5f99be501cd.jpg','photo-1549060279-7e168fcee0c2.jpg','photo-1574680096145-d05b474e2155.jpg','photo-1581009146145-b5ef050c2e1e.jpg','photo-1518611012118-696072aa579a.jpg','photo-1534367507873-d2d7e24c797f.jpg','photo-1492562080023-ab3db95bfbce.jpg','photo-1500648767791-00dcc994a43e.jpg','photo-1506794778202-cad84cf45f1d.jpg','photo-1507003211169-0a1dd7228f2d.jpg','photo-1519085360753-af0119f7cbe7.jpg','images.jfif'];
   const testimonials = [
     ['Samuel Ojo', 'The coaches pay attention to technique and progress. Every session feels purposeful, and I have become much stronger and more confident.'],
@@ -316,14 +393,14 @@ export const PublicHome: React.FC = () => {
               </div>
               <div className="stacked-service-body">
                 <div className="stacked-service-image"><img src={cls.image} alt={cls.title} loading="lazy"/><span>{cls.intensity} intensity</span></div>
-                <div className="stacked-service-copy"><p>{cls.description}</p><dl><div><dt>Duration</dt><dd>{cls.duration}</dd></div><div><dt>Focus</dt><dd>{cls.calories}</dd></div><div><dt>Trainer</dt><dd>{cls.trainer}</dd></div><div><dt>Availability</dt><dd>{cls.schedule}</dd></div></dl><div className="flex flex-wrap gap-3"><button className="reference-button" onClick={()=>document.getElementById('contact-section')?.scrollIntoView({behavior:'smooth'})}>Enquire about service</button><button className="service-schedule-button" onClick={()=>document.getElementById('schedule-section')?.scrollIntoView({behavior:'smooth'})}>View upcoming events</button></div></div>
+                <div className="stacked-service-copy"><p>{cls.description}</p><dl><div><dt>Duration</dt><dd>{cls.duration}</dd></div><div><dt>Focus</dt><dd>{cls.calories}</dd></div><div><dt>Trainer</dt><dd>{cls.trainer}</dd></div><div><dt>Availability</dt><dd>{cls.schedule}</dd></div></dl><div className="flex flex-wrap gap-3"><button className="reference-button" onClick={()=>document.getElementById('contact-section')?.scrollIntoView({behavior:'smooth'})}>Enquire about service</button><button className="service-schedule-button" onClick={()=>document.getElementById('events-section')?.scrollIntoView({behavior:'smooth'})}>View upcoming events</button></div></div>
               </div>
             </article>)}
           </div>
         </div>
       </section>
 
-      <section id="schedule-section" className="bg-[#0d0d0d] py-24 text-white border-t border-neutral-900">
+      <section id="events-section" className="bg-[#0d0d0d] py-24 text-white border-t border-neutral-900">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="mx-auto mb-12 max-w-3xl text-center"><p className="section-eyebrow centered">SAREX community</p><h2 className="text-3xl font-black uppercase tracking-tight sm:text-5xl">Upcoming events</h2></div>
           {upcomingEvents.length ? <div className="motion-stagger grid gap-6 md:grid-cols-2 lg:grid-cols-3">{upcomingEvents.slice(0,6).map(event=><article key={event.id} className="overflow-hidden rounded-2xl border border-neutral-800 bg-[#171717] shadow-lg transition hover:-translate-y-2">{event.image_url?<img src={event.image_url} loading="lazy" alt={event.title} className="h-48 w-full object-cover"/>:<div className="h-2 bg-[#EF1B23]"/>}<div className="p-6"><div className="flex items-center justify-between text-[10px] font-black uppercase tracking-widest text-[#EF1B23]"><span>{new Date(event.starts_at).toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'})}</span><span>{Number(event.price_minor)?`₦${(Number(event.price_minor)/100).toLocaleString()}`:'Free'}</span></div><h3 className="mt-3 text-2xl font-black">{event.title}</h3><p className="mt-2 line-clamp-2 text-sm leading-6 text-gray-400">{event.description}</p><div className="mt-5 flex items-center gap-2 text-xs text-gray-400"><MapPin className="h-4 w-4 text-[#EF1B23]"/>{event.location}</div><div className="mt-6 flex flex-wrap items-center gap-4"><button onClick={()=>navigate(`/events/${event.id}`)} className="inline-flex items-center gap-2 rounded-lg bg-[#EF1B23] px-4 py-2.5 text-xs font-black uppercase text-white">View details <ArrowRight className="h-4 w-4"/></button><button onClick={()=>navigate('/login')} className="inline-flex items-center gap-2 text-xs font-black uppercase text-[#EF1B23]">Sign in to reserve</button></div></div></article>)}</div> : <div className="rounded-2xl border border-neutral-800 bg-[#171717] px-6 py-12 text-center text-sm text-gray-400">No upcoming events have been published yet.</div>}
@@ -340,9 +417,9 @@ export const PublicHome: React.FC = () => {
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <p className="section-eyebrow text-center">Inside SAREX</p>
           <h2 className="mb-10 text-center text-4xl font-black uppercase sm:text-5xl">Train. Recover. Transform.</h2>
-          <div className="gallery-motion gallery-rail">
+          <div ref={galleryRef} className="gallery-motion gallery-rail">
             <div className="gallery-auto-track">
-              {[...galleryPhotos, ...galleryPhotos].map((photo,index)=>{const src='/assets/photos/'+photo;return <button key={`${photo}-${index}`} type="button" onClick={()=>setPreviewImage(src)} className={'gallery-tile group relative overflow-hidden rounded-2xl focus:outline-none focus:ring-4 focus:ring-[#EF1B23]/40 '+(index%5===0?'gallery-tile-wide':'')}><img loading="lazy" src={src} alt={`SAREX Fitness Clinic gallery view ${index%galleryPhotos.length+1}`} className="h-full w-full object-cover transition duration-700 group-hover:scale-110"/><div className="absolute inset-0 bg-black/0 transition group-hover:bg-black/15"/></button>})}
+              {[0, 1].map(copy => <div key={copy} className="gallery-sequence" aria-hidden={copy === 1 || undefined}>{galleryPhotos.map((photo,index)=>{const src='/assets/photos/'+photo;return <button key={`${photo}-${index}`} type="button" tabIndex={copy === 1 ? -1 : 0} onClick={()=>setPreviewImage(src)} className={'gallery-tile group relative overflow-hidden rounded-2xl focus:outline-none focus:ring-4 focus:ring-[#EF1B23]/40 '+(index%5===0?'gallery-tile-wide':'')}><img loading="lazy" src={src} alt={copy === 0 ? `SAREX Fitness Clinic gallery view ${index+1}` : ''} className="h-full w-full object-cover transition duration-700 group-hover:scale-110"/><div className="absolute inset-0 bg-black/0 transition group-hover:bg-black/15"/></button>})}</div>)}
             </div>
           </div>
         </div>
@@ -365,7 +442,7 @@ export const PublicHome: React.FC = () => {
           <div className="mx-auto mb-12 max-w-3xl text-center">
             <p className="section-eyebrow text-center">Testimonials</p>
             <h2 className="text-4xl font-black uppercase sm:text-5xl">Member Feedback</h2>
-            <p className="mt-4 text-sm leading-6 text-[#6B7280]">Real experiences from members who train, grow, and feel at home at SAREX Fitness Clinic.</p>
+            <p className="mt-4 text-sm leading-6 text-[#6B7280]">Experiences from members who train, grow, and feel at home at SAREX Fitness Clinic.</p>
           </div>
           <div className="review-carousel" aria-label="Member reviews">
             <div className="review-track">

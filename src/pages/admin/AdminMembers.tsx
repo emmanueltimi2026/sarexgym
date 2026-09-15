@@ -6,13 +6,14 @@ import { Badge } from '../../components/ui/Badge';
 import { Modal } from '../../components/ui/Modal';
 import {
   Search,
-  Edit2
+  Edit2,
+  Eye
 } from 'lucide-react';
 import { Member } from '../../types';
 import { Pagination } from '../../components/ui/Pagination';
 
 export const AdminMembers: React.FC = () => {
-  const { members, plans, updateMember } = useGym();
+  const { members, plans, updateMember, navigate } = useGym();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('All');
   const [planFilter, setPlanFilter] = useState<string>('All');
@@ -124,7 +125,7 @@ export const AdminMembers: React.FC = () => {
                 </tr>
               ) : (
                 visibleMembers.map(member => (
-                  <tr key={member.id} className="hover:bg-gray-50 transition-colors">
+                  <tr key={member.id} role="link" tabIndex={0} onClick={() => navigate(`/admin/members/${member.id}`)} onKeyDown={event => { if (event.key === 'Enter') navigate(`/admin/members/${member.id}`); }} className="cursor-pointer hover:bg-gray-50 transition-colors focus-within:bg-gray-50">
                     <td className="py-3 px-4">
                       <div className="flex items-center gap-3">
                         <InitialsAvatar src={member.photo} firstName={member.firstName} lastName={member.lastName} className="h-8 w-8"/>
@@ -170,8 +171,10 @@ export const AdminMembers: React.FC = () => {
                     <td className="py-3 px-4 text-right">
                       <div className="flex items-center justify-end gap-1.5">
 
+                        <button onClick={event => { event.stopPropagation(); navigate(`/admin/members/${member.id}`); }} className="p-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded transition-colors" title="View member details"><Eye className="w-3.5 h-3.5"/></button>
+
                         <button
-                          onClick={() => setEditingMember(member)}
+                          onClick={event => { event.stopPropagation(); setEditingMember(member); }}
                           className="p-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded transition-colors"
                           title="Edit Profile"
                         >
@@ -289,5 +292,4 @@ export const AdminMembers: React.FC = () => {
     </AppLayout>
   );
 };
-
 

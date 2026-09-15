@@ -150,6 +150,7 @@ export interface WorkoutDayRoutine {
 export interface WorkoutPlan {
   id: string;
   memberId?: string;
+  memberIds?: string[];
   memberName?: string;
   title?: string;
   workoutName?: string;
@@ -192,4 +193,3 @@ export interface GymSettings {
   adminName?: string;
   adminEmail?: string;
 }
-
