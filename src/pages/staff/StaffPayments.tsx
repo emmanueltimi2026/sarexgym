@@ -303,7 +303,7 @@ export const StaffPayments: React.FC = () => {
                 className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:border-[#EF1B23] focus:outline-none bg-white"
               >
                 <option value="Cash">Physical Cash</option>
-                <option value="Bank Transfer">Direct Wire Transfer</option>
+                <option value="Bank Transfer">Bank Transfer</option>
               </select>
           </div>
 

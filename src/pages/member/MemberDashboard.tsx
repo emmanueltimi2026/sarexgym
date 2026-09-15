@@ -70,7 +70,7 @@ export const MemberDashboard: React.FC = () => {
         <StatCard
           label="Facility Visits"
           value={`${memberAttendance.length} Sessions`}
-          subtext="Biometric entries logged"
+          subtext="check-in entries logged"
           icon={Clock}
         />
       </div>
