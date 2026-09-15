@@ -126,6 +126,13 @@ export const PublicHome: React.FC = () => {
   const [upcomingEvents, setUpcomingEvents] = useState<any[]>([]);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const galleryPhotos = ['photo-1517838277536-f5f99be501cd.jpg','photo-1549060279-7e168fcee0c2.jpg','photo-1574680096145-d05b474e2155.jpg','photo-1581009146145-b5ef050c2e1e.jpg','photo-1518611012118-696072aa579a.jpg','photo-1534367507873-d2d7e24c797f.jpg','photo-1492562080023-ab3db95bfbce.jpg','photo-1500648767791-00dcc994a43e.jpg','photo-1506794778202-cad84cf45f1d.jpg','photo-1507003211169-0a1dd7228f2d.jpg','photo-1519085360753-af0119f7cbe7.jpg','images.jfif'];
+  const testimonials = [
+    ['Samuel Ojo', 'The coaches pay attention to technique and progress. Every session feels purposeful, and I have become much stronger and more confident.'],
+    ['Bola Taju', 'The atmosphere is welcoming, the equipment is well maintained, and the team makes it easy to stay consistent with my training.'],
+    ['Amina Yusuf', 'I joined for fitness and found a real community. The classes are challenging, supportive, and something I look forward to every week.'],
+    ['Tunde Adebayo', 'The reception process is smooth, the gym feels organized, and the team always knows how to guide members properly.'],
+    ['Grace Nwosu', 'SAREX helped me stay consistent with training and recovery. The spa and massage services make the whole routine feel complete.']
+  ];
 
   useEffect(() => {
     const base = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
@@ -360,18 +367,16 @@ export const PublicHome: React.FC = () => {
             <h2 className="text-4xl font-black uppercase sm:text-5xl">Member Feedback</h2>
             <p className="mt-4 text-sm leading-6 text-[#6B7280]">Real experiences from members who train, grow, and feel at home at SAREX Fitness Clinic.</p>
           </div>
-          <div className="grid gap-5 md:grid-cols-3">
-            {[
-              ['Samuel Ojo', 'The coaches pay attention to technique and progress. Every session feels purposeful, and I have become much stronger and more confident.'],
-              ['Bola Taju', 'The atmosphere is welcoming, the equipment is well maintained, and the team makes it easy to stay consistent with my training.'],
-              ['Amina Yusuf', 'I joined for fitness and found a real community. The classes are challenging, supportive, and something I look forward to every week.']
-            ].map(([title, text]) => (
-              <article key={title} className="rounded-2xl border border-neutral-700 bg-[#171717]/90 p-6 shadow-lg">
-                <div className="mb-4 flex gap-1 text-amber-500">{[0, 1, 2, 3, 4].map(item => <Star key={item} className="h-4 w-4 fill-amber-500" />)}</div>
-                <h3 className="text-lg font-black">{title}</h3>
-                <p className="mt-3 text-sm leading-6 text-[#6B7280]">{text}</p>
-              </article>
-            ))}
+          <div className="review-carousel" aria-label="Member reviews">
+            <div className="review-track">
+              {[...testimonials, ...testimonials].map(([title, text], index) => (
+                <article key={`${title}-${index}`} className="review-card">
+                  <div className="mb-4 flex gap-1 text-amber-500">{[0, 1, 2, 3, 4].map(item => <Star key={item} className="h-4 w-4 fill-amber-500" />)}</div>
+                  <h3 className="text-lg font-black">{title}</h3>
+                  <p className="mt-3 text-sm leading-6 text-[#6B7280]">{text}</p>
+                </article>
+              ))}
+            </div>
           </div>
         </div>
       </section>
