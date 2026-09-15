@@ -125,6 +125,7 @@ export const PublicHome: React.FC = () => {
   const [contactForm, setContactForm] = useState({ name: '', email: '', phone: '', message: '' });
   const [upcomingEvents, setUpcomingEvents] = useState<any[]>([]);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
+  const galleryPhotos = ['photo-1517838277536-f5f99be501cd.jpg','photo-1549060279-7e168fcee0c2.jpg','photo-1574680096145-d05b474e2155.jpg','photo-1581009146145-b5ef050c2e1e.jpg','photo-1518611012118-696072aa579a.jpg','photo-1534367507873-d2d7e24c797f.jpg','photo-1492562080023-ab3db95bfbce.jpg','photo-1500648767791-00dcc994a43e.jpg','photo-1506794778202-cad84cf45f1d.jpg','photo-1507003211169-0a1dd7228f2d.jpg','photo-1519085360753-af0119f7cbe7.jpg','images.jfif'];
 
   useEffect(() => {
     const base = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
@@ -328,12 +329,14 @@ export const PublicHome: React.FC = () => {
           <div className="workout-photos"><img src="/assets/photos/photo-1581009146145-b5ef050c2e1e.jpg" alt="Strength training with free weights" loading="lazy" /><img src="/assets/photos/photo-1518611012118-696072aa579a.jpg" alt="Guided fitness workout" loading="lazy" /></div>
         </div>
       </section>
-      <section className="home-gallery bg-[#111] py-24 text-white">
+      <section id="gallery-section" className="home-gallery bg-[#111] py-24 text-white">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <p className="section-eyebrow text-center">Inside SAREX</p>
           <h2 className="mb-10 text-center text-4xl font-black uppercase sm:text-5xl">Train. Recover. Transform.</h2>
           <div className="gallery-motion gallery-rail">
-            {['photo-1517838277536-f5f99be501cd.jpg','photo-1549060279-7e168fcee0c2.jpg','photo-1574680096145-d05b474e2155.jpg','photo-1581009146145-b5ef050c2e1e.jpg','photo-1518611012118-696072aa579a.jpg','photo-1534367507873-d2d7e24c797f.jpg','photo-1492562080023-ab3db95bfbce.jpg','photo-1500648767791-00dcc994a43e.jpg','photo-1506794778202-cad84cf45f1d.jpg','photo-1507003211169-0a1dd7228f2d.jpg','photo-1519085360753-af0119f7cbe7.jpg','images.jfif'].map((photo,index)=>{const src='/assets/photos/'+photo;return <button key={photo} type="button" onClick={()=>setPreviewImage(src)} className={'gallery-tile group relative snap-start overflow-hidden rounded-2xl focus:outline-none focus:ring-4 focus:ring-[#EF1B23]/40 '+(index%5===0?'gallery-tile-wide':'')}><img loading="lazy" src={src} alt={`SAREX Fitness Clinic gallery view ${index+1}`} className="h-full w-full object-cover transition duration-700 group-hover:scale-110"/><div className="absolute inset-0 bg-black/0 transition group-hover:bg-black/15"/></button>})}
+            <div className="gallery-auto-track">
+              {[...galleryPhotos, ...galleryPhotos].map((photo,index)=>{const src='/assets/photos/'+photo;return <button key={`${photo}-${index}`} type="button" onClick={()=>setPreviewImage(src)} className={'gallery-tile group relative overflow-hidden rounded-2xl focus:outline-none focus:ring-4 focus:ring-[#EF1B23]/40 '+(index%5===0?'gallery-tile-wide':'')}><img loading="lazy" src={src} alt={`SAREX Fitness Clinic gallery view ${index%galleryPhotos.length+1}`} className="h-full w-full object-cover transition duration-700 group-hover:scale-110"/><div className="absolute inset-0 bg-black/0 transition group-hover:bg-black/15"/></button>})}
+            </div>
           </div>
         </div>
       </section>
@@ -411,8 +414,3 @@ export const PublicHome: React.FC = () => {
     </PublicLayout>
   );
 };
-
-
-
-
-

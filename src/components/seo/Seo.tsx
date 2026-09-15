@@ -11,7 +11,7 @@ type SeoProps = {
 };
 
 const siteName = 'SAREX Fitness Clinic';
-const defaultImage = '/assets/brand/sarex-logo.png';
+const defaultImage = '/assets/fitkit/hero_1_2.png';
 
 const absoluteUrl = (path: string) => {
   const configuredOrigin = import.meta.env.VITE_PUBLIC_SITE_URL || import.meta.env.VITE_FRONTEND_URL;

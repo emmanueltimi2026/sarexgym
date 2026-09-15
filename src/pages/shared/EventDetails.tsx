@@ -26,7 +26,7 @@ export const EventDetails:React.FC<{mode:'public'|'portal'}>=({mode})=>{
  const{currentPath,navigate}=useGym();
  const id=currentPath.split('/').filter(Boolean).at(-1)||'';
  const[event,setEvent]=useState<any>(null),[message,setMessage]=useState(''),[error,setError]=useState(''),[loading,setLoading]=useState(true);
- const portalRoot=currentPath.startsWith('/admin')?'/admin/events':currentPath.startsWith('/staff')?'/staff/events':currentPath.startsWith('/member')?'/member/events':'/events';
+ const portalRoot=currentPath.startsWith('/admin')?'/admin/events':currentPath.startsWith('/staff')?'/staff/events':currentPath.startsWith('/member')?'/member/events':'/';
  const load=()=>{setLoading(true);fetch(`${BASE}/api/v1/${mode==='public'?'public/events':'events'}/${id}`,{credentials:'include',cache:'no-store'}).then(async r=>{const b=await r.json().catch(()=>({}));if(!r.ok)throw new Error(b?.error?.message||'Event was not found');setEvent(b.data);setError('')}).catch(e=>setError(e instanceof Error?e.message:'Unable to load event')).finally(()=>setLoading(false))};
  useEffect(()=>{load()},[id,mode]);
  const register=async()=>{setMessage('');const r=await fetch(`${BASE}/api/v1/events/${id}/register`,{method:'POST',credentials:'include'}),b=await r.json().catch(()=>({}));if(!r.ok)return setError(b?.error?.message||'Unable to register');if(b.data.authorizationUrl)return location.assign(b.data.authorizationUrl);setMessage('Your place is confirmed.');load()};

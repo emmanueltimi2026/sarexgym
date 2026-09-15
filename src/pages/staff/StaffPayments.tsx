@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useGym } from '../../context/GymContext';
 import { AppLayout } from '../../components/layout/AppLayout';
 import { Badge } from '../../components/ui/Badge';
@@ -32,6 +32,9 @@ export const StaffPayments: React.FC = () => {
   const [selectedReceipt, setSelectedReceipt] = useState<PaymentRecord | null>(null);
   const [quote, setQuote] = useState<{ membershipAmount: number; registrationFee: number; total: number } | null>(null);
   const [quoteLoading, setQuoteLoading] = useState(false);
+  const [recording, setRecording] = useState(false);
+  const paymentAttempt = useRef<string | null>(null);
+  const submissionLocked = useRef(false);
 
   const [newPayForm, setNewPayForm] = useState({
     memberId: members[0]?.id || '',
@@ -82,10 +85,18 @@ export const StaffPayments: React.FC = () => {
     const mem = members.find(m => m.id === newPayForm.memberId) || members[0];
     const pl = plans.find(p => p.id === newPayForm.planId) || plans[2];
 
-    if (!mem || !pl || newPayForm.method === 'Paystack') return;
-    await renewMemberMembership(mem.id, pl.id, newPayForm.method);
-
-    setIsNewPaymentModalOpen(false);
+    if (!mem || !pl || newPayForm.method === 'Paystack' || submissionLocked.current) return;
+    submissionLocked.current = true;
+    setRecording(true);
+    paymentAttempt.current ||= crypto.randomUUID();
+    try {
+      await renewMemberMembership(mem.id, pl.id, newPayForm.method, paymentAttempt.current);
+      setIsNewPaymentModalOpen(false);
+      paymentAttempt.current = null;
+    } finally {
+      submissionLocked.current = false;
+      setRecording(false);
+    }
   };
 
   return (
@@ -95,7 +106,7 @@ export const StaffPayments: React.FC = () => {
       breadcrumbs={[{ label: 'Staff Portal', path: '/staff/dashboard' }, { label: 'Payments' }]}
       actions={
         <button
-          onClick={() => setIsNewPaymentModalOpen(true)}
+          onClick={() => { paymentAttempt.current = crypto.randomUUID(); setIsNewPaymentModalOpen(true); }}
           className="px-4 py-2 bg-[#EF1B23] hover:bg-red-700 text-white font-athletic font-bold uppercase text-xs rounded transition-colors flex items-center gap-1.5 shadow-xs"
         >
           <Plus className="w-4 h-4" />
@@ -317,7 +328,7 @@ export const StaffPayments: React.FC = () => {
             </button>
             <button
               type="submit"
-              disabled={!quote || quoteLoading}
+              disabled={!quote || quoteLoading || recording}
               className="px-5 py-2 bg-[#EF1B23] hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50 text-white font-athletic font-bold uppercase text-xs rounded transition-colors"
             >
               Record

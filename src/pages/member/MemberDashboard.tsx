@@ -10,7 +10,8 @@ import {
   Dumbbell,
   Clock,
   ArrowRight,
-  ShieldCheck
+  ShieldCheck,
+  QrCode
 } from 'lucide-react';
 
 export const MemberDashboard: React.FC = () => {
@@ -42,11 +43,16 @@ export const MemberDashboard: React.FC = () => {
       pageTitle="Dashboard"
       pageSubtitle="See your membership status, assigned workout plan, and recent gym visits."
       breadcrumbs={[{ label: 'Member Portal' }, { label: 'Dashboard' }]}
-      actions={hasActiveSubscription && diffDays <= 7 && selectedPlanForRenew ? (
-        <button onClick={() => setIsPaystackOpen(true)} className="px-3.5 py-2 bg-[#EF1B23] hover:bg-red-700 text-white font-athletic font-bold uppercase text-xs rounded transition-colors flex items-center gap-1.5 shadow-xs">
-          <CreditCard className="w-4 h-4" /> Renew Membership
+      actions={<>
+        <button onClick={() => navigate('/member/check-in')} className="flex items-center gap-1.5 rounded bg-[#111111] px-3.5 py-2 font-athletic text-xs font-bold uppercase text-white shadow-xs transition-colors hover:bg-[#EF1B23]">
+          <QrCode className="h-4 w-4" /> Check in
         </button>
-      ) : undefined      }
+        {hasActiveSubscription && diffDays <= 7 && selectedPlanForRenew && (
+          <button onClick={() => setIsPaystackOpen(true)} className="px-3.5 py-2 bg-[#EF1B23] hover:bg-red-700 text-white font-athletic font-bold uppercase text-xs rounded transition-colors flex items-center gap-1.5 shadow-xs">
+            <CreditCard className="w-4 h-4" /> Renew Membership
+          </button>
+        )}
+      </>}
     >
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
         <StatCard
@@ -177,4 +183,3 @@ export const MemberDashboard: React.FC = () => {
     </AppLayout>
   );
 };
-

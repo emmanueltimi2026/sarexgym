@@ -9,6 +9,7 @@ import { hashPassword, randomToken, sha256, verifyPassword, timingSafeEqualText 
 import { installProtectedRoutes, installPublicRoutes } from './routes.js';
 import { clearSessionCookie, csrfTokenForRequest, requireCsrf, sessionCookieOptions } from './http-security.js';
 import { createSharedRateLimit } from './rate-limit.js';
+import { verifyReceptionCheckInToken } from './check-in-token.js';
 
 const asyncRoute = fn => (req,res,next)=>Promise.resolve(fn(req,res,next)).catch(next);
 const loginSchema=z.object({email:z.string().email().max(254).transform(v=>v.toLowerCase()),password:z.string().min(8).max(200),remember:z.boolean().optional().default(true)}).strict();
@@ -17,7 +18,7 @@ export function createApp({db,config}) {
  const app=express(); app.disable('x-powered-by'); app.locals.config=config;
  if(config.TRUST_PROXY==='true') app.set('trust proxy',1);
  const frontendOrigin=config.FRONTEND_URL||config.APP_ORIGIN;
- app.use(requestContext,(req,res,next)=>{const started=Date.now();res.once('finish',()=>console.log(JSON.stringify({timestamp:new Date().toISOString(),level:'info',event:'http_request',requestId:req.requestId,method:req.method,path:req.path,status:res.statusCode,durationMs:Date.now()-started})));next()},helmet({contentSecurityPolicy:false,crossOriginOpenerPolicy:{policy:'same-origin-allow-popups'}}),cors({origin:frontendOrigin,credentials:true,methods:['GET','HEAD','POST','PUT','PATCH','DELETE','OPTIONS'],allowedHeaders:['Content-Type','X-CSRF-Token','X-Request-ID'],maxAge:86400}),cookieParser());
+ app.use(requestContext,(req,res,next)=>{const started=Date.now();res.once('finish',()=>console.log(JSON.stringify({timestamp:new Date().toISOString(),level:'info',event:'http_request',requestId:req.requestId,method:req.method,path:req.path,status:res.statusCode,durationMs:Date.now()-started})));next()},helmet({contentSecurityPolicy:false,crossOriginOpenerPolicy:{policy:'same-origin-allow-popups'}}),cors({origin:frontendOrigin,credentials:true,methods:['GET','HEAD','POST','PUT','PATCH','DELETE','OPTIONS'],allowedHeaders:['Content-Type','X-CSRF-Token','X-Request-ID','Idempotency-Key'],maxAge:86400}),cookieParser());
  app.use((req,res,next)=>{const origin=req.get('origin');if(origin&&origin!==frontendOrigin)return res.status(403).json({error:{code:'INVALID_ORIGIN',message:'Request origin is not allowed',requestId:req.requestId}});next()});
 
  // Paystack requires the exact raw bytes for HMAC verification.
@@ -82,13 +83,16 @@ export function createApp({db,config}) {
  app.use('/api/v1',requireCsrf(config));
  app.post('/api/v1/auth/logout',asyncRoute(async(req,res)=>{await db.query('UPDATE sessions SET revoked_at=now() WHERE id=$1',[req.actor.session_id]);clearSessionCookie(res,config);res.sendStatus(204)}));
  app.post('/api/v1/auth/change-initial-password',asyncRoute(async(req,res)=>{const input=z.object({password:z.string().min(10).max(200)}).strict().parse(req.body);await db.transaction(async c=>{await c.query('UPDATE users SET password_hash=$1,must_change_password=false,credential_version=credential_version+1,updated_at=now() WHERE id=$2',[await hashPassword(input.password),req.actor.id]);await c.query('UPDATE sessions SET revoked_at=now() WHERE user_id=$1 AND id<>$2 AND revoked_at IS NULL',[req.actor.id,req.actor.session_id])});res.sendStatus(204)}));
+ app.post('/api/v1/auth/change-password',asyncRoute(async(req,res)=>{const input=z.object({currentPassword:z.string().min(1).max(200),newPassword:z.string().min(10).max(200)}).strict().parse(req.body);const user=(await db.query('SELECT password_hash FROM users WHERE id=$1',[req.actor.id])).rows[0];if(!user||!await verifyPassword(input.currentPassword,user.password_hash))return res.status(401).json({error:{code:'INVALID_CURRENT_PASSWORD',message:'Current password is incorrect',requestId:req.requestId}});await db.transaction(async c=>{await c.query('UPDATE users SET password_hash=$1,must_change_password=false,credential_version=credential_version+1,updated_at=now() WHERE id=$2',[await hashPassword(input.newPassword),req.actor.id]);await c.query('UPDATE sessions SET revoked_at=now() WHERE user_id=$1 AND id<>$2 AND revoked_at IS NULL',[req.actor.id,req.actor.session_id]);await c.query("INSERT INTO audit_logs(actor_user_id,action,entity_type,entity_id,new_values,ip,request_id) VALUES($1,'auth.password_changed','user',$2,$3,$4,$5)",[req.actor.id,req.actor.id,JSON.stringify({revokedOtherSessions:true}),req.ip,req.requestId])});res.sendStatus(204)}));
  app.get('/api/v1/session',asyncRoute(async(req,res)=>res.json({user:{id:req.actor.id,email:req.actor.email,roles:req.actor.roles,permissions:req.actor.permissions}})));
  app.post('/api/v1/attendance/reception-check-in',checkInLimit,asyncRoute(async(req,res)=>{
+   const token=z.object({token:z.string().min(40).max(1000)}).strict().parse(req.body).token,credential=verifyReceptionCheckInToken(token,config.CSRF_SECRET);
+   if(!credential)throw Object.assign(new Error('This reception QR code is not valid for SAREX check-in.'),{status:422,code:'INVALID_CHECK_IN_QR'});
    if(!req.actor.roles.includes('member'))throw Object.assign(new Error('A member account is required for reception check-in'),{status:403,code:'MEMBER_REQUIRED'});
    const result=await db.transaction(async c=>{
      const member=(await c.query('SELECT m.id,m.member_number,m.first_name,m.last_name,m.profile_image_url,m.home_branch_id,u.status user_status FROM members m JOIN users u ON u.id=m.user_id WHERE m.user_id=$1 FOR UPDATE',[req.actor.id])).rows[0];
      if(!member||member.user_status!=='active')throw Object.assign(new Error('Your member account is not active'),{status:403,code:'ACCESS_DENIED'});
-     const branch=(await c.query('SELECT id,name,timezone FROM branches WHERE active AND (id=$1 OR $1 IS NULL) ORDER BY (id=$1) DESC,created_at LIMIT 1',[member.home_branch_id])).rows[0]||(await c.query('SELECT id,name,timezone FROM branches WHERE active ORDER BY created_at LIMIT 1')).rows[0];
+     const branch=(await c.query('SELECT id,name,timezone FROM branches WHERE id=$1 AND active',[credential.branchId])).rows[0];
      if(!branch)throw Object.assign(new Error('No active reception branch is configured'),{status:422,code:'BRANCH_REQUIRED'});
      const access=(await c.query("SELECT s.id,p.name plan_name,s.ends_at FROM subscriptions s JOIN membership_plans p ON p.id=s.plan_id WHERE s.member_id=$1 AND s.status='active' AND s.starts_at<=now() AND s.ends_at>now() AND (p.all_branch_access OR $2=(SELECT home_branch_id FROM members WHERE id=$1) OR EXISTS(SELECT 1 FROM plan_branches pb WHERE pb.plan_id=p.id AND pb.branch_id=$2)) AND NOT EXISTS(SELECT 1 FROM subscription_freezes f WHERE f.subscription_id=s.id AND now()>=f.starts_at AND now()<f.ends_at) ORDER BY s.ends_at DESC LIMIT 1 FOR UPDATE OF s",[member.id,branch.id])).rows[0];
      if(!access)throw Object.assign(new Error('You do not have an active membership for this reception'),{status:403,code:'INACTIVE_MEMBERSHIP'});
@@ -97,7 +101,7 @@ export function createApp({db,config}) {
      if(existing)throw Object.assign(new Error('You already checked in today at '+new Date(existing.checked_in_at).toLocaleTimeString('en-NG',{timeZone:branch.timezone,hour:'2-digit',minute:'2-digit'})),{status:409,code:'ALREADY_CHECKED_IN',checkedInAt:existing.checked_in_at});
      const visit=(await c.query("INSERT INTO attendance(member_id,branch_id,checked_in_at,scanner_user_id,method,status) VALUES($1,$2,now(),$3,'reception_qr','completed') RETURNING id,checked_in_at",[member.id,branch.id,req.actor.id])).rows[0];
      await c.query("INSERT INTO audit_logs(actor_user_id,action,entity_type,entity_id,new_values,ip,request_id) VALUES($1,'attendance.reception_qr_check_in','attendance',$2,$3,$4,$5)",[req.actor.id,visit.id,JSON.stringify({memberId:member.id,branchId:branch.id}),req.ip,req.requestId]);
-     return{...visit,member:{id:member.id,memberId:member.member_number,firstName:member.first_name,lastName:member.last_name,photo:member.profile_image_url,planName:access.plan_name,membershipExpiryDate:access.ends_at},branch:{id:branch.id,name:branch.name}};
+     return{...visit,member:{id:member.id,memberId:member.member_number,firstName:member.first_name,lastName:member.last_name,photo:member.profile_image_url,planName:access.plan_name,membershipExpiryDate:access.ends_at,membershipStatus:'Active'},branch:{id:branch.id,name:branch.name}};
    },'SERIALIZABLE');res.status(201).json({data:result});
  }));
  installProtectedRoutes(app,{db,config,checkInLimit,paymentLimit});

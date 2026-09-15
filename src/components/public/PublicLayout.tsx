@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useGym } from '../../context/GymContext';
 
 import {
@@ -23,12 +23,15 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ children }) => {
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeNav, setActiveNav] = useState('HOME');
+  const mobileMenuRef = useRef<HTMLDivElement>(null);
+  const searchMenuRef = useRef<HTMLDivElement>(null);
 
   const navLinks = [
     { label: 'HOME', path: '/' },
     { label: 'ABOUT', path: '/', sectionId: 'about-section' },
     { label: 'SERVICES', path: '/', sectionId: 'classes-section' },
     { label: 'SCHEDULE', path: '/', sectionId: 'schedule-section' },
+    { label: 'GALLERY', path: '/', sectionId: 'gallery-section' },
     { label: 'PRICING', path: '/', sectionId: 'pricing-section' },
     { label: 'CONTACT', path: '/', sectionId: 'contact-section' }
   ];
@@ -64,6 +67,17 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ children }) => {
       if (frame) window.cancelAnimationFrame(frame);
     };
   }, [currentPath]);
+
+  useEffect(() => {
+    if (!mobileMenuOpen && !searchOpen) return;
+    const closeMenus = (event: MouseEvent) => {
+      const target = event.target as Node;
+      if (mobileMenuOpen && mobileMenuRef.current && !mobileMenuRef.current.contains(target)) setMobileMenuOpen(false);
+      if (searchOpen && searchMenuRef.current && !searchMenuRef.current.contains(target)) setSearchOpen(false);
+    };
+    document.addEventListener('mousedown', closeMenus);
+    return () => document.removeEventListener('mousedown', closeMenus);
+  }, [mobileMenuOpen, searchOpen]);
 
   const goToNavLink = (link: typeof navLinks[number]) => {
     setActiveNav(link.label);
@@ -109,7 +123,7 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ children }) => {
           </nav>
 
           <div className="hidden sm:flex items-center gap-4">
-            <div className="relative">
+            <div className="relative" ref={searchMenuRef}>
               <button
                 onClick={() => setSearchOpen(!searchOpen)}
                 className="p-2 text-gray-400 hover:text-white transition-colors"
@@ -171,7 +185,7 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ children }) => {
         </div>
 
         {mobileMenuOpen && (
-          <div className="lg:hidden bg-[#151515] border-b border-neutral-800 px-4 pt-3 pb-6 space-y-3">
+          <div ref={mobileMenuRef} className="lg:hidden bg-[#151515] border-b border-neutral-800 px-4 pt-3 pb-6 space-y-3">
             {navLinks.map(link => {
               const isActive = currentPath === '/' && activeNav === link.label;
               return (

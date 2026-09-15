@@ -17,7 +17,7 @@ import {
   Menu,
   X,
   Bell,
-  ClipboardList, CalendarDays
+  ClipboardList, CalendarDays, ChevronDown, ChevronRight
 } from 'lucide-react';
 
 const avatarFallback = (initials: string) => `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96"><rect width="100%" height="100%" rx="48" fill="#EF1B23"/><text x="50%" y="54%" text-anchor="middle" dominant-baseline="middle" fill="white" font-family="Arial" font-size="30" font-weight="700">${initials}</text></svg>`)}`;
@@ -41,8 +41,10 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const [showUserDropdown, setShowUserDropdown] = useState(false);
-  const [notifications, setNotifications] = useState<Array<{id:string;title:string;message:string;read_at?:string;created_at:string}>>([]);
+  const [notifications, setNotifications] = useState<Array<{id:string;type:string;title:string;message:string;metadata?:Record<string,string>;read_at?:string;created_at:string}>>([]);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const notificationMenuRef = useRef<HTMLDivElement>(null);
+  const userMenuRef = useRef<HTMLDivElement>(null);
 
   const refreshNotifications = useCallback(async () => {
     if (role === 'public' || document.visibilityState === 'hidden') return;
@@ -84,6 +86,37 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
     };
   }, [role, refreshNotifications]);
 
+  useEffect(() => {
+    if (!showNotifications && !showUserDropdown) return;
+    const closeFloatingMenus = (event: MouseEvent) => {
+      const target = event.target as Node;
+      if (showNotifications && notificationMenuRef.current && !notificationMenuRef.current.contains(target)) setShowNotifications(false);
+      if (showUserDropdown && userMenuRef.current && !userMenuRef.current.contains(target)) setShowUserDropdown(false);
+    };
+    document.addEventListener('mousedown', closeFloatingMenus);
+    return () => document.removeEventListener('mousedown', closeFloatingMenus);
+  }, [showNotifications, showUserDropdown]);
+
+  const notificationDestination = (notification: typeof notifications[number]) => {
+    const metadata = notification.metadata || {};
+    if (notification.type === 'event_booking' && metadata.eventId) return '/member/events/' + metadata.eventId;
+    if (notification.type === 'payment_receipt' || notification.type === 'subscription_expiry') return '/member/membership';
+    if (notification.type === 'trainer_assignment_required') return '/admin/members';
+    if (notification.type === 'password_reset') return role === 'member' ? '/member/profile' : role === 'super_admin' ? '/admin/settings' : null;
+    return null;
+  };
+
+  const openNotification = async (notification: typeof notifications[number]) => {
+    if (!notification.read_at) {
+      const response = await fetch((import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080') + '/api/v1/notifications/' + notification.id + '/read', { method: 'POST', credentials: 'include' });
+      if (response.ok) setNotifications(items => items.map(item => item.id === notification.id ? { ...item, read_at: new Date().toISOString() } : item));
+    }
+    const destination = notificationDestination(notification);
+    if (destination) {
+      setShowNotifications(false);
+      navigate(destination);
+    }
+  };
   const getNavItems = () => {
     switch (role) {
       case 'super_admin':
@@ -119,6 +152,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
         return [
           { label: 'Dashboard', path: '/member/dashboard', icon: LayoutDashboard },
           { label: 'Membership', path: '/member/membership', icon: CreditCard },
+          { label: 'Scan to Check In', path: '/member/check-in', icon: QrCode, highlight: true },
           { label: 'Attendance', path: '/member/attendance', icon: CalendarCheck },
           { label: 'Events', path: '/member/events', icon: CalendarDays },
           ...(currentMember.workoutPlanEnabled ? [{ label: 'Workout Plan', path: '/member/workout', icon: Dumbbell }] : []),
@@ -194,7 +228,6 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
     navigate('/login');
     }
   };
-
   return (
     <div className="management-app h-screen overflow-hidden bg-[#F7F7F8] text-[#111111] flex flex-col font-sans antialiased" data-role={role} data-path={currentPath}>
       <div className="flex-1 flex overflow-hidden">
@@ -217,8 +250,8 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
                   onClick={() => navigate(item.path)}
                   className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-colors ${
                     isActive
-                      ? 'bg-[#1a1a1a] border-l-4 border-[#EF1B23] text-white'
-                      : 'text-gray-400 hover:text-white hover:bg-[#1a1a1a] border-l-4 border-transparent'
+                      ? 'bg-[#1a1a1a] border-l-4 border-[#EF1B23] text-white font-bold uppercase tracking-wider text-sm'
+                      : 'text-gray-400 hover:text-white hover:bg-[#1a1a1a] border-l-4 border-transparent text-sm font-medium'
                   }`}
                 >
                   <Icon
@@ -226,13 +259,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
                       isActive ? 'text-[#EF1B23]' : 'text-gray-400'
                     }`}
                   />
-                  <span
-                    className={`truncate text-sm ${
-                      isActive
-                        ? 'font-bold uppercase tracking-wider'
-                        : 'font-medium'
-                    }`}
-                  >
+                  <span className="truncate">
                     {item.label}
                   </span>
                   {item.highlight && !isActive && (
@@ -245,25 +272,13 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
 
           
           <div className="p-6 border-t border-gray-800 bg-[#151515] shrink-0">
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex items-center gap-3 min-w-0">
-                <img src={userProfile.avatar || avatarFallback(userInitials)} onError={e => { e.currentTarget.src = avatarFallback(userInitials); }} alt={`${userProfile.name} profile`} className="h-10 w-10 shrink-0 rounded-full border border-white/10 object-cover"/>
-                <div className="min-w-0">
-                  <p className="text-xs font-bold text-white truncate leading-tight">
-                    {userProfile.name}
-                  </p>
-                  <p className="text-[10px] font-semibold text-gray-400 truncate">{userProfile.roleTitle}</p>
-                  <p className="text-[9px] text-gray-500 truncate">{userProfile.email}</p>
-                </div>
-              </div>
-              <button
-                onClick={() => setConfirmLogout(true)}
-                title="Log Out"
-                className="p-1.5 text-gray-400 hover:text-[#EF1B23] transition-colors shrink-0"
-              >
-                <LogOut className="w-4 h-4" />
-              </button>
-            </div>
+            <button
+              onClick={() => setConfirmLogout(true)}
+              className="flex w-full items-center justify-between rounded-lg border border-white/10 px-4 py-3 text-xs font-black uppercase tracking-wider text-gray-300 transition-colors hover:border-[#EF1B23]/50 hover:bg-[#1a1a1a] hover:text-white"
+            >
+              <span>Sign out</span>
+              <LogOut className="h-4 w-4 text-[#EF1B23]" />
+            </button>
           </div>
         </aside>
 
@@ -332,8 +347,8 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
         
         <div ref={scrollContainerRef} className="management-scroll-area h-screen flex-1 flex flex-col min-w-0 overflow-y-auto pb-16 md:pb-6">
           
-          <header className="management-topbar min-h-20 bg-white/95 backdrop-blur-xl border-b border-[#E5E7EB] sticky top-0 z-30 px-4 py-3 sm:px-8 flex flex-wrap sm:flex-nowrap items-center justify-between gap-3 shrink-0">
-            <div className="flex w-full sm:w-auto flex-1 items-center gap-3 min-w-0">
+          <header className="management-topbar min-h-20 bg-white/95 backdrop-blur-xl border-b border-[#E5E7EB] sticky top-0 z-30 px-4 py-3 sm:px-8 flex flex-nowrap items-center justify-between gap-3 shrink-0">
+            <div className="flex min-w-0 flex-1 items-center gap-3">
               
               <button
                 onClick={() => setIsMobileNavOpen(true)}
@@ -362,13 +377,13 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
                 <span>{new Intl.DateTimeFormat('en-NG', { day: '2-digit', month: 'short', year: 'numeric' }).format(new Date())}</span>
               </div>
               {actions && (
-                <div className="hidden items-center gap-2 sm:flex">
+                <div className="flex shrink-0 items-center gap-2">
                   {actions}
                 </div>
               )}
 
               
-              <div className="relative">
+              <div className="relative" ref={notificationMenuRef}>
                 <button
                   onClick={() => {
                     const willOpen = !showNotifications;
@@ -393,14 +408,14 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
                       </span>
                     </div>
                     <div className="max-h-80 divide-y divide-[#E5E7EB] overflow-y-auto text-xs">
-                      {notifications.length ? notifications.map(notification=><button key={notification.id} onClick={async()=>{if(!notification.read_at){await fetch(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080'}/api/v1/notifications/${notification.id}/read`,{method:'POST',credentials:'include'});setNotifications(items=>items.map(item=>item.id===notification.id?{...item,read_at:new Date().toISOString()}:item))}}} className={`block w-full p-3 text-left transition-colors hover:bg-gray-50 ${notification.read_at?'opacity-60':'bg-red-50/30'}`}><p className="font-bold text-[#111111]">{notification.title}</p><p className="mt-0.5 text-[11px] text-gray-500">{notification.message}</p><span className="text-[10px] text-gray-400">{new Date(notification.created_at).toLocaleString()}</span></button>):<p className="p-5 text-center text-gray-500">No notifications yet.</p>}
+                      {notifications.length ? notifications.map(notification=>{const destination=notificationDestination(notification);return <button key={notification.id} onClick={()=>void openNotification(notification)} className={'flex w-full items-center gap-3 p-3 text-left transition-colors hover:bg-gray-50 '+(notification.read_at?'opacity-60':'bg-red-50/30')}><span className="min-w-0 flex-1"><span className="block font-bold text-[#111111]">{notification.title}</span><span className="mt-0.5 block text-[11px] text-gray-500">{notification.message}</span><span className="text-[10px] text-gray-400">{new Date(notification.created_at).toLocaleString()}</span></span>{destination&&<ChevronRight className="h-4 w-4 shrink-0 text-gray-400"/>}</button>}):<p className="p-5 text-center text-gray-500">No notifications yet.</p>}
                     </div>
                   </div>
                 )}
               </div>
 
               
-              <div className="relative">
+              <div className="relative" ref={userMenuRef}>
                 <button
                   onClick={() => setShowUserDropdown(!showUserDropdown)}
                   className="flex items-center gap-2 pl-2 border-l border-gray-200 hover:opacity-90"
@@ -411,6 +426,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
                     <span className="text-[10px] text-gray-500 block">{userProfile.roleTitle}</span>
                     <span className="text-[9px] text-gray-400 block max-w-40 truncate">{userProfile.email}</span>
                   </div>
+                  <ChevronDown className={`hidden h-3.5 w-3.5 text-gray-400 transition-transform lg:block ${showUserDropdown ? 'rotate-180' : ''}`} />
                 </button>
 
                 {showUserDropdown && (
@@ -428,7 +444,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
                         className="w-full text-left px-4 py-2 text-gray-700 hover:bg-gray-50 flex items-center gap-2"
                       >
                         <Settings className="w-3.5 h-3.5" />
-                        System Settings
+                        Settings
                       </button>
                     )}
                     {role === 'member' && (
@@ -437,7 +453,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
                         className="w-full text-left px-4 py-2 text-gray-700 hover:bg-gray-50 flex items-center gap-2"
                       >
                         <User className="w-3.5 h-3.5" />
-                        Member Profile
+                        Profile
                       </button>
                     )}
                     <button
@@ -445,7 +461,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
                       className="w-full text-left px-4 py-2 text-gray-700 hover:bg-gray-50 flex items-center gap-2"
                     >
                       <Shield className="w-3.5 h-3.5" />
-                      Public Marketing Site
+                      Home
                     </button>
                     <div className="border-t border-gray-100 my-1" />
                     <button
@@ -459,7 +475,6 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
                 )}
               </div>
             </div>
-            {actions && <div className="order-3 flex w-full items-center gap-2 border-t border-gray-100 pt-3 sm:hidden">{actions}</div>}
           </header>
 
           
@@ -522,15 +537,6 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
     </div>
   );
 };
-
-
-
-
-
-
-
-
-
 
 
 

@@ -5,7 +5,7 @@ import { Badge } from '../../components/ui/Badge';
 import { InitialsAvatar } from '../../components/ui/InitialsAvatar';
 import { Modal } from '../../components/ui/Modal';
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
-import { Plus, Mail, Phone, Users, UploadCloud, KeyRound, ShieldOff, Trash2, Pencil } from 'lucide-react';
+import { Plus, Mail, Phone, Users, UploadCloud, KeyRound, ShieldOff, Trash2, Pencil, Eye, EyeOff } from 'lucide-react';
 import { StaffMember, Trainer } from '../../types';
 
 type PersonTarget = { kind: 'staff' | 'trainers'; person: StaffMember | Trainer; action: 'reset' | 'suspend' | 'reactivate' | 'delete' };
@@ -14,15 +14,18 @@ export const AdminStaff: React.FC = () => {
   const { trainers, staffList = [], refresh } = useGym();
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [resetNotice,setResetNotice]=useState('');
+  const [noticeTone,setNoticeTone]=useState<'success'|'error'>('success');
+  const notify=(message:string,tone:'success'|'error'='success')=>{setNoticeTone(tone);setResetNotice(message)};
   const [confirmTarget,setConfirmTarget]=useState<PersonTarget|null>(null);
   const [busy,setBusy]=useState(false);
+  const [showTemporaryPassword,setShowTemporaryPassword]=useState(false);
   const [editTarget,setEditTarget]=useState<{kind:'staff'|'trainers';person:StaffMember|Trainer}|null>(null);
   const [editForm,setEditForm]=useState({firstName:'',lastName:'',email:'',phone:'',specialization:''});
   const base=import.meta.env.VITE_API_BASE_URL||'http://localhost:8080';
-  const createResetLink=async(kind:'staff'|'trainers',person:StaffMember|Trainer)=>{setResetNotice('');try{const response=await fetch(`${base}/api/v1/${kind}/${person.id}/password-reset`,{method:'POST',credentials:'include'});const body=await response.json().catch(()=>({}));if(!response.ok)throw new Error(body?.error?.message||'Unable to create reset link');try{await navigator.clipboard.writeText(body.data.resetUrl)}catch{}setResetNotice(body.data.delivered?`Reset link emailed to ${body.data.email}.`:`Reset link created for ${body.data.email} and copied when clipboard access is available.`)}catch(error){setResetNotice(error instanceof Error?error.message:'Unable to create reset link')}};
-  const applyPersonnelAction=async()=>{if(!confirmTarget)return;setBusy(true);setResetNotice('');const {kind,person,action}=confirmTarget;try{if(action==='reset'){await createResetLink(kind,person);setConfirmTarget(null);return}const response=await fetch(`${base}/api/v1/${kind}/${person.id}`,{method:action==='delete'?'DELETE':'PATCH',credentials:'include',headers:action==='delete'?undefined:{'Content-Type':'application/json'},body:action==='delete'?undefined:JSON.stringify({isActive:action==='reactivate'})});if(!response.ok){const body=await response.json().catch(()=>({}));throw new Error(body?.error?.message||'Unable to update account')}await refresh();setResetNotice(`${person.firstName} ${person.lastName} was ${action==='delete'?'removed':action==='suspend'?'suspended':'reactivated'}.`);setConfirmTarget(null)}catch(error){setResetNotice(error instanceof Error?error.message:'Unable to update account')}finally{setBusy(false)}};
+  const createResetLink=async(kind:'staff'|'trainers',person:StaffMember|Trainer)=>{setResetNotice('');try{const response=await fetch(`${base}/api/v1/${kind}/${person.id}/password-reset`,{method:'POST',credentials:'include'});const body=await response.json().catch(()=>({}));if(!response.ok)throw new Error(body?.error?.message||'Unable to create reset link');try{await navigator.clipboard.writeText(body.data.resetUrl)}catch{}notify(body.data.delivered?`Reset link emailed to ${body.data.email}.`:`Reset link created for ${body.data.email} and copied when clipboard access is available.`)}catch(error){notify(error instanceof Error?error.message:'Unable to create reset link','error')}};
+  const applyPersonnelAction=async()=>{if(!confirmTarget)return;setBusy(true);setResetNotice('');const {kind,person,action}=confirmTarget;try{if(action==='reset'){await createResetLink(kind,person);setConfirmTarget(null);return}const response=await fetch(`${base}/api/v1/${kind}/${person.id}`,{method:action==='delete'?'DELETE':'PATCH',credentials:'include',headers:action==='delete'?undefined:{'Content-Type':'application/json'},body:action==='delete'?undefined:JSON.stringify({isActive:action==='reactivate'})});if(!response.ok){const body=await response.json().catch(()=>({}));throw new Error(body?.error?.message||'Unable to update account')}await refresh();notify(`${person.firstName} ${person.lastName} was ${action==='delete'?'removed':action==='suspend'?'suspended':'reactivated'}.`);setConfirmTarget(null)}catch(error){notify(error instanceof Error?error.message:'Unable to update account','error')}finally{setBusy(false)}};
   const openEditor=(kind:'staff'|'trainers',person:StaffMember|Trainer)=>{setEditTarget({kind,person});setEditForm({firstName:person.firstName,lastName:person.lastName,email:person.email,phone:person.phone||'',specialization:kind==='trainers'?(person as Trainer).specialization||'':''})};
-  const saveAccount=async(event:React.FormEvent)=>{event.preventDefault();if(!editTarget)return;setBusy(true);setResetNotice('');try{const payload=editTarget.kind==='trainers'?editForm:{firstName:editForm.firstName,lastName:editForm.lastName,email:editForm.email,phone:editForm.phone};const response=await fetch(`${base}/api/v1/${editTarget.kind}/${editTarget.person.id}`,{method:'PATCH',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});if(!response.ok){const body=await response.json().catch(()=>({}));throw new Error(body?.error?.message||'Unable to save account')}await refresh();setResetNotice(`${editForm.firstName} ${editForm.lastName}'s account was updated.`);setEditTarget(null)}catch(error){setResetNotice(error instanceof Error?error.message:'Unable to save account')}finally{setBusy(false)}};
+  const saveAccount=async(event:React.FormEvent)=>{event.preventDefault();if(!editTarget)return;setBusy(true);setResetNotice('');try{const payload=editTarget.kind==='trainers'?editForm:{firstName:editForm.firstName,lastName:editForm.lastName,email:editForm.email,phone:editForm.phone};const response=await fetch(`${base}/api/v1/${editTarget.kind}/${editTarget.person.id}`,{method:'PATCH',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});if(!response.ok){const body=await response.json().catch(()=>({}));throw new Error(body?.error?.message||'Unable to save account')}await refresh();notify(`${editForm.firstName} ${editForm.lastName}'s account was updated.`);setEditTarget(null)}catch(error){notify(error instanceof Error?error.message:'Unable to save account','error')}finally{setBusy(false)}};
 
   const [newStaff, setNewStaff] = useState({
     staffType: 'trainer' as 'trainer' | 'receptionist',
@@ -79,11 +82,11 @@ export const AdminStaff: React.FC = () => {
         throw new Error(body?.error?.message || 'Unable to create staff account');
       }
       await refresh();
-      setResetNotice(`${newStaff.firstName} ${newStaff.lastName} was added as ${isTrainer ? 'a trainer' : 'a receptionist'} and must change password on first login.`);
+      notify(`${newStaff.firstName} ${newStaff.lastName} was added as ${isTrainer ? 'a trainer' : 'a receptionist'} and must change password on first login.`);
       setIsAddModalOpen(false);
       resetNewStaff();
     } catch (error) {
-      setResetNotice(error instanceof Error ? error.message : 'Unable to create staff account');
+      notify(error instanceof Error ? error.message : 'Unable to create staff account','error');
     } finally {
       setBusy(false);
     }
@@ -110,7 +113,7 @@ export const AdminStaff: React.FC = () => {
         </button>
       }
     >
-      {resetNotice&&<div role="status" className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-xs font-semibold text-emerald-800">{resetNotice}</div>}
+      {resetNotice&&<div role={noticeTone==='error'?'alert':'status'} className={`mb-4 rounded-lg border p-3 text-xs font-semibold ${noticeTone==='error'?'border-red-200 bg-red-50 text-red-700':'border-emerald-200 bg-emerald-50 text-emerald-800'}`}>{resetNotice}</div>}
       <div className="mb-4 flex items-end justify-between"><div><h2 className="text-base font-black">Staff account</h2><p className="mt-1 text-xs text-gray-500">Manage the account responsible for member service and entrance operations.</p></div><Badge variant="neutral">{staffList.length} total</Badge></div>
       <section className="mb-8 grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
         {staffList.map(person=><div key={person.id} className="flex flex-col justify-between overflow-hidden rounded-lg border border-[#E5E7EB] bg-white shadow-xs transition-colors hover:border-gray-400"><div><div className="relative h-44 overflow-hidden"><InitialsAvatar src={person.photo} firstName={person.firstName} lastName={person.lastName} className="h-full w-full rounded-none text-4xl"/><div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent"/><div className="absolute bottom-3 left-3 right-3 flex items-end justify-between text-white"><div><h3 className="text-lg font-bold uppercase leading-tight">{person.firstName} {person.lastName}</h3><span className="mt-1 block text-[11px] font-bold text-[#EF1B23]">Staff</span></div><Badge variant={person.isActive?'success':'danger'}>{person.isActive?'Active':'Suspended'}</Badge></div></div><div className="space-y-2 p-4 text-xs text-gray-500"><div className="flex items-center gap-2"><Mail className="h-3.5 w-3.5 text-[#EF1B23]"/><span className="truncate">{person.email}</span></div><div className="flex items-center gap-2"><Phone className="h-3.5 w-3.5 text-[#EF1B23]"/><span>{person.phone||'No phone number'}</span></div></div></div><div className="grid grid-cols-4 gap-2 border-t border-gray-100 p-4 text-xs"><button onClick={()=>openEditor('staff',person)} className="rounded-lg border px-2 py-2 font-bold hover:border-[#EF1B23]"><Pencil className="mx-auto mb-1 h-3.5 w-3.5"/>Edit</button><button onClick={()=>setConfirmTarget({kind:'staff',person,action:'reset'})} className="rounded-lg border px-2 py-2 font-bold hover:border-[#EF1B23]"><KeyRound className="mx-auto mb-1 h-3.5 w-3.5"/>Reset</button><button onClick={()=>setConfirmTarget({kind:'staff',person,action:person.isActive?'suspend':'reactivate'})} className="rounded-lg border px-2 py-2 font-bold hover:border-amber-500"><ShieldOff className="mx-auto mb-1 h-3.5 w-3.5"/>{person.isActive?'Suspend':'Activate'}</button><button onClick={()=>setConfirmTarget({kind:'staff',person,action:'delete'})} className="rounded-lg border border-red-200 px-2 py-2 font-bold text-red-700 hover:bg-red-50"><Trash2 className="mx-auto mb-1 h-3.5 w-3.5"/>Delete</button></div></div>)}
@@ -181,7 +184,7 @@ export const AdminStaff: React.FC = () => {
       
       <Modal
         isOpen={isAddModalOpen}
-        onClose={() => !busy && setIsAddModalOpen(false)}
+        onClose={() => { if (!busy) { setIsAddModalOpen(false); setShowTemporaryPassword(false); } }}
         title="ADD STAFF ACCOUNT"
         subtitle="Create a trainer or receptionist account with first-login password change"
       >
@@ -256,7 +259,12 @@ export const AdminStaff: React.FC = () => {
 
           <div>
             <label className="block font-bold uppercase text-gray-700 mb-1">Temporary login password</label>
-            <input type="password" required minLength={10} autoComplete="new-password" value={newStaff.password} onChange={e=>setNewStaff({...newStaff,password:e.target.value})} className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:border-[#EF1B23] focus:outline-none" placeholder="Minimum 10 characters"/>
+            <div className="relative">
+              <input type={showTemporaryPassword ? 'text' : 'password'} required minLength={10} autoComplete="new-password" value={newStaff.password} onChange={e=>setNewStaff({...newStaff,password:e.target.value})} className="w-full rounded border border-gray-300 py-2 pl-3 pr-11 text-sm focus:border-[#EF1B23] focus:outline-none" placeholder="Minimum 10 characters"/>
+              <button type="button" onClick={()=>setShowTemporaryPassword(value=>!value)} className="absolute inset-y-0 right-0 grid w-11 place-items-center text-gray-500 hover:text-[#111]" aria-label={showTemporaryPassword ? 'Hide temporary password' : 'Show temporary password'} title={showTemporaryPassword ? 'Hide password' : 'Show password'}>
+                {showTemporaryPassword ? <EyeOff className="h-4 w-4"/> : <Eye className="h-4 w-4"/>}
+              </button>
+            </div>
             <p className="mt-1 text-[11px] text-gray-500">The staff member must replace this password immediately after the first sign-in.</p>
           </div>
 

@@ -30,6 +30,7 @@ import { MemberSettings } from './pages/member/MemberSettings';
 import { MemberAttendance } from './pages/member/MemberAttendance';
 import { MemberEvents } from './pages/member/MemberEvents';
 import { ReceptionCheckIn } from './pages/member/ReceptionCheckIn';
+import { MemberCheckInScanner } from './pages/member/MemberCheckInScanner';
 import { EventManagement } from './pages/shared/EventManagement';
 import { EventDetails } from './pages/shared/EventDetails';
 import { ErrorBoundary } from './components/ui/ErrorBoundary';
@@ -58,7 +59,7 @@ const DashboardSkeleton: React.FC = () => (
 );
 
 const AppRouter: React.FC = () => {
-  const { currentPath, settings } = useGym();
+  const { currentPath, settings, loading } = useGym();
   const [accessState, setAccessState] = useState<'public' | 'checking' | 'allowed' | 'denied'>('public');
   const [sessionRevision, setSessionRevision] = useState(0);
   const requiredRole = currentPath.startsWith('/admin') ? 'admin' : currentPath.startsWith('/staff') ? 'staff' : currentPath.startsWith('/trainer') ? 'trainer' : currentPath.startsWith('/member') || currentPath === '/check-in/reception' ? 'member' : null;
@@ -120,7 +121,7 @@ const AppRouter: React.FC = () => {
     return { title: 'SAREX Portal', description: 'Secure SAREX Fitness Clinic portal for members, staff, trainers, and administrators.', path: currentPath, noindex: true };
   })();
 
-  if (accessState === 'checking') return <><Seo {...routeSeo} /><DashboardSkeleton /></>;
+  if (accessState === 'checking' || (requiredRole && accessState === 'allowed' && loading)) return <><Seo {...routeSeo} /><DashboardSkeleton /></>;
   if (accessState === 'denied') return <><Seo {...routeSeo} /><LoginPage /></>;
 
   const renderRoute = () => {
@@ -204,6 +205,8 @@ const AppRouter: React.FC = () => {
         return <MemberMembership />;
       case '/member/attendance':
         return <MemberAttendance />;
+      case '/member/check-in':
+        return <MemberCheckInScanner />;
       case '/member/events':
         return <MemberEvents />;
       case '/member/workout':

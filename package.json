@@ -23,6 +23,8 @@
     "@tailwindcss/vite": "^4.1.14",
     "@types/qrcode": "^1.5.6",
     "@vitejs/plugin-react": "^5.0.4",
+    "@zxing/browser": "^0.1.5",
+    "@zxing/library": "0.21.3",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.6",
     "dotenv": "^17.2.3",

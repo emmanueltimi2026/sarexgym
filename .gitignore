@@ -54,3 +54,12 @@ pnpm-debug.log*
 .history/
 .env*
 !.env.example
+server\bootstrap-admin.test.js
+server\payment-idempotency.test.js
+server\check-in-token.test.js
+server\http-security.test.js
+server\security.test.js
+server\config.test.js
+server\cloudinary.test.js
+server\integration.test.js
+server\production-services.test.js

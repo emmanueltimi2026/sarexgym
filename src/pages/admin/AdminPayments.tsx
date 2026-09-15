@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useGym } from '../../context/GymContext';
 import { AppLayout } from '../../components/layout/AppLayout';
 import { Badge } from '../../components/ui/Badge';
@@ -20,16 +20,27 @@ export const AdminPayments: React.FC = () => {
   const [page, setPage] = useState(1);
   const pageSize = 15;
   const [paymentForm, setPaymentForm] = useState({ memberId: '', planId: '', method: 'Cash' as 'Cash' | 'Bank Transfer' });
+  const [recording, setRecording] = useState(false);
+  const paymentAttempt = useRef<string | null>(null);
+  const submissionLocked = useRef(false);
+  const openRecordPayment = () => { paymentAttempt.current = crypto.randomUUID(); setIsRecordOpen(true); };
   const recordPayment = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (!paymentForm.memberId || !paymentForm.planId) return;
+    if (!paymentForm.memberId || !paymentForm.planId || submissionLocked.current) return;
+    submissionLocked.current = true;
+    setRecording(true);
     setMessage('');
+    paymentAttempt.current ||= crypto.randomUUID();
     try {
-      const result = await renewMemberMembership(paymentForm.memberId, paymentForm.planId, paymentForm.method);
+      const result = await renewMemberMembership(paymentForm.memberId, paymentForm.planId, paymentForm.method, paymentAttempt.current);
       setIsRecordOpen(false);
-      setMessage(`Payment recorded successfully${result?.data?.receiptNumber ? ` · Receipt ${result.data.receiptNumber}` : ''}.`);
+      paymentAttempt.current = null;
+      setMessage('Payment recorded successfully' + (result?.data?.receiptNumber ? ' · Receipt ' + result.data.receiptNumber : '') + '.');
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Unable to record payment.');
+    } finally {
+      submissionLocked.current = false;
+      setRecording(false);
     }
   };
 
@@ -62,7 +73,7 @@ export const AdminPayments: React.FC = () => {
       pageTitle="Payment Record"
       pageSubtitle="Review successful payments, pending transactions, refunds, and payment methods."
       breadcrumbs={[{ label: 'Administration' }, { label: 'Payments' }]}
-      actions={<button onClick={() => setIsRecordOpen(true)} className="flex items-center gap-2 rounded-lg bg-[#EF1B23] px-4 py-2.5 text-xs font-black uppercase tracking-wide text-white shadow-lg shadow-red-500/20"><Plus className="h-4 w-4"/>Record payment</button>}
+      actions={<button onClick={openRecordPayment} className="flex items-center gap-2 rounded-lg bg-[#EF1B23] px-4 py-2.5 text-xs font-black uppercase tracking-wide text-white shadow-lg shadow-red-500/20"><Plus className="h-4 w-4"/>Record payment</button>}
     >
       {message && <div className="mb-5 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-bold text-emerald-700">{message}</div>}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 mb-5">
@@ -207,12 +218,12 @@ export const AdminPayments: React.FC = () => {
       </div>
 
       
-      <Modal isOpen={isRecordOpen} onClose={() => setIsRecordOpen(false)} title="RECORD PAYMENT" subtitle="Record a verified in-person payment and renew the membership.">
+      <Modal isOpen={isRecordOpen} onClose={() => { if (!recording) setIsRecordOpen(false); }} title="RECORD PAYMENT" subtitle="Record a verified in-person payment and renew the membership.">
         <form onSubmit={recordPayment} className="space-y-4 text-xs">
           <label className="block font-bold uppercase text-gray-700">Member<select required value={paymentForm.memberId} onChange={e=>setPaymentForm({...paymentForm,memberId:e.target.value})} className="mt-1 w-full rounded border border-gray-300 bg-white px-3 py-2.5 text-sm font-normal"><option value="">Select member</option>{members.map(m=><option key={m.id} value={m.id}>{m.firstName} {m.lastName} · {m.memberId}</option>)}</select></label>
           <label className="block font-bold uppercase text-gray-700">Membership plan<select required value={paymentForm.planId} onChange={e=>setPaymentForm({...paymentForm,planId:e.target.value})} className="mt-1 w-full rounded border border-gray-300 bg-white px-3 py-2.5 text-sm font-normal"><option value="">Select plan</option>{plans.filter(p=>p.isActive).map(p=><option key={p.id} value={p.id}>{p.name} · ₦{p.price.toLocaleString()}</option>)}</select></label>
           <label className="block font-bold uppercase text-gray-700">Payment method<select value={paymentForm.method} onChange={e=>setPaymentForm({...paymentForm,method:e.target.value as typeof paymentForm.method})} className="mt-1 w-full rounded border border-gray-300 bg-white px-3 py-2.5 text-sm font-normal"><option>Cash</option><option>Bank Transfer</option></select></label>
-          <div className="flex justify-end gap-2 border-t border-gray-200 pt-4"><button type="button" onClick={()=>setIsRecordOpen(false)} className="rounded border border-gray-300 px-4 py-2 font-bold uppercase">Cancel</button><button type="submit" className="rounded bg-[#EF1B23] px-5 py-2 font-bold uppercase text-white">Confirm payment</button></div>
+          <div className="flex justify-end gap-2 border-t border-gray-200 pt-4"><button type="button" onClick={()=>setIsRecordOpen(false)} className="rounded border border-gray-300 px-4 py-2 font-bold uppercase">Cancel</button><button type="submit" disabled={recording} className="rounded bg-[#EF1B23] px-5 py-2 font-bold uppercase text-white disabled:cursor-not-allowed disabled:opacity-60">{recording ? 'Recording…' : 'Confirm payment'}</button></div>
         </form>
       </Modal>
       {selectedReceipt && (
