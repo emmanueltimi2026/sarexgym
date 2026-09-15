@@ -39,8 +39,7 @@ export const StaffPayments: React.FC = () => {
   const [newPayForm, setNewPayForm] = useState({
     memberId: members[0]?.id || '',
     planId: plans[2]?.id || '',
-    method: 'Cash' as PaymentMethod,
-    notes: 'In-person staff transaction'
+    method: 'Cash' as PaymentMethod
   });
 
   useEffect(() => {
@@ -308,16 +307,6 @@ export const StaffPayments: React.FC = () => {
               </select>
           </div>
 
-          <div>
-            <label className="block text-xs font-bold uppercase text-gray-700 mb-1">Desk Notes</label>
-            <input
-              type="text"
-              value={newPayForm.notes}
-              onChange={e => setNewPayForm({ ...newPayForm, notes: e.target.value })}
-              className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:border-[#EF1B23] focus:outline-none"
-            />
-          </div>
-
           <div className="pt-3 border-t border-gray-200 flex justify-end gap-2">
             <button
               type="button"
@@ -401,5 +390,4 @@ export const StaffPayments: React.FC = () => {
     </AppLayout>
   );
 };
-
 

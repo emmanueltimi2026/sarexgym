@@ -63,16 +63,16 @@ export const MemberCheckInScanner: React.FC = () => {
   };
 
   return <AppLayout pageTitle="Scan to Check In" pageSubtitle="Scan the reception QR code to record today’s visit." breadcrumbs={[{label:'Member Portal',path:'/member/dashboard'},{label:'Check-in'}]}>
-    <div className="mx-auto max-w-xl">
+    <div className="mx-auto flex min-h-[calc(100svh-190px)] max-w-xl items-center">
       <section className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
-        <div className="relative aspect-[3/4] max-h-[620px] bg-[#111]">
+        <div className="relative aspect-[4/3] max-h-[54svh] bg-[#111] sm:aspect-[3/4] sm:max-h-[620px]">
           <video ref={videoRef} muted playsInline className="h-full w-full object-cover"/>
-          {!scanning && <div className="absolute inset-0 grid place-items-center text-center text-white"><div><QrCode className="mx-auto h-16 w-16 text-white/40"/><p className="mt-4 px-8 text-sm text-white/65">Camera preview will appear here.</p></div></div>}
+          {!scanning && <div className="absolute inset-0 grid place-items-center text-center text-white"><div><QrCode className="mx-auto h-12 w-12 text-white/40 sm:h-16 sm:w-16"/><p className="mt-3 px-6 text-xs text-white/65 sm:mt-4 sm:text-sm">Camera preview will appear here.</p></div></div>}
           {scanning && <div className="pointer-events-none absolute inset-[12%] rounded-2xl border-2 border-white/90 shadow-[0_0_0_999px_rgba(0,0,0,.35)]"><span className="absolute -left-0.5 -top-0.5 h-10 w-10 border-l-4 border-t-4 border-[#EF1B23]"/><span className="absolute -right-0.5 -top-0.5 h-10 w-10 border-r-4 border-t-4 border-[#EF1B23]"/><span className="absolute -bottom-0.5 -left-0.5 h-10 w-10 border-b-4 border-l-4 border-[#EF1B23]"/><span className="absolute -bottom-0.5 -right-0.5 h-10 w-10 border-b-4 border-r-4 border-[#EF1B23]"/></div>}
         </div>
-        <div className="p-5 sm:p-6">
-          <div className="flex items-start gap-3"><ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-[#EF1B23]"/><div><p className="text-sm font-bold text-[#111]">{message || error}</p><p className="mt-1 text-xs leading-5 text-gray-500">After check-in, show the confirmation screen to reception for visual verification.</p></div></div>
-          <button type="button" onClick={scanning ? stopScanner : ()=>void startScanner()} className="mt-5 flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#EF1B23] text-xs font-black uppercase text-white hover:bg-red-700">
+        <div className="p-4 sm:p-6">
+          <div className="flex items-start gap-3"><ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-[#EF1B23]"/><div><p className="text-sm font-bold text-[#111]">{message || error}</p><p className="mt-1 text-[11px] leading-4 text-gray-500 sm:text-xs sm:leading-5">After check-in, show the confirmation screen to reception for visual verification.</p></div></div>
+          <button type="button" onClick={scanning ? stopScanner : ()=>void startScanner()} className="mt-4 flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-[#EF1B23] text-xs font-black uppercase text-white hover:bg-red-700 sm:mt-5 sm:h-12">
             {scanning ? <><CameraOff className="h-4 w-4"/>Stop camera</> : <><Camera className="h-4 w-4"/>Open camera</>}
           </button>
         </div>

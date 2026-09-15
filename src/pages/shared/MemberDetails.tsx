@@ -41,6 +41,14 @@ export const MemberDetails: React.FC = () => {
   const member = details?.member;
   const backPath = `/${portal}/members`;
   const portalLabel = portal === 'admin' ? 'Administration' : 'Staff Portal';
+  const contactProfileItems = member ? [
+    { label: 'Email', value: member.email, icon: Mail },
+    { label: 'Phone', value: member.phone, icon: Phone },
+    { label: 'Gender', value: member.gender === 'Other' ? '' : member.gender },
+    { label: 'Date of birth', value: member.dateOfBirth },
+    { label: 'Address', value: member.address, icon: MapPin },
+    { label: 'Fitness goal', value: member.fitnessGoal, icon: Dumbbell }
+  ].filter(item => hasDisplayValue(item.value)) : [];
 
   return (
     <AppLayout
@@ -60,7 +68,7 @@ export const MemberDetails: React.FC = () => {
         </section>
 
         <div className="grid gap-5 lg:grid-cols-2">
-          <section className="rounded-lg border border-gray-200 bg-white p-5 shadow-xs"><div className="mb-5 flex items-center gap-2"><UserRound className="h-5 w-5 text-[#EF1B23]"/><h2 className="font-black uppercase">Contact and profile</h2></div><dl className="grid gap-4 text-sm sm:grid-cols-2"><Info label="Email" value={member.email} icon={Mail}/><Info label="Phone" value={member.phone} icon={Phone}/><Info label="Gender" value={member.gender}/><Info label="Date of birth" value={member.dateOfBirth || 'Not provided'}/><Info label="Address" value={member.address || 'Not provided'} icon={MapPin}/><Info label="Fitness goal" value={member.fitnessGoal || 'Not provided'} icon={Dumbbell}/></dl></section>
+          <section className="rounded-lg border border-gray-200 bg-white p-5 shadow-xs"><div className="mb-5 flex items-center gap-2"><UserRound className="h-5 w-5 text-[#EF1B23]"/><h2 className="font-black uppercase">Contact and profile</h2></div><dl className="grid gap-4 text-sm sm:grid-cols-2">{contactProfileItems.map(item => <Info key={item.label} label={item.label} value={item.value} icon={item.icon}/>)}</dl></section>
 
           <section className="rounded-lg border border-gray-200 bg-white p-5 shadow-xs"><div className="mb-5 flex items-center gap-2"><ShieldCheck className="h-5 w-5 text-[#EF1B23]"/><h2 className="font-black uppercase">Membership access</h2></div><dl className="grid gap-4 text-sm sm:grid-cols-2"><Info label="Current plan" value={member.membershipPlanName}/><Info label="Assigned trainer" value={member.assignedTrainerName || 'Not assigned'}/><Info label="Start date" value={member.membershipStartDate || 'Not active'}/><Info label="Expiry date" value={member.membershipExpiryDate || 'Not active'}/><Info label="Trainer access" value={member.trainerAccess ? 'Included' : 'Not included'}/><Info label="Workout plans" value={member.workoutPlanEnabled ? 'Included' : 'Not included'}/></dl></section>
         </div>
@@ -73,6 +81,15 @@ export const MemberDetails: React.FC = () => {
       </div>}
     </AppLayout>
   );
+};
+
+const hasDisplayValue = (value: React.ReactNode) => {
+  if (value === null || value === undefined) return false;
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase();
+    return Boolean(normalized) && normalized !== 'not provided';
+  }
+  return true;
 };
 
 const Info: React.FC<{ label: string; value: React.ReactNode; icon?: React.ComponentType<{ className?: string }> }> = ({ label, value, icon: Icon }) => <div className="min-w-0"><dt className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-gray-400">{Icon && <Icon className="h-3.5 w-3.5"/>}{label}</dt><dd className="mt-1 break-words font-semibold text-gray-800">{value}</dd></div>;
