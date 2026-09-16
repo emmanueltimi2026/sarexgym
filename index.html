@@ -18,12 +18,26 @@
     <meta name="twitter:description" content="Gym access, memberships, fitness classes, body massage, full body spa services, wellness programs, and secure online member tools." />
     <meta name="twitter:image" content="https://sarexgym-zeta.vercel.app/assets/fitkit/hero_1_2.png" />
     <link rel="icon" type="image/png" href="/assets/brand/sarex-logo.png" />
+    <style>
+      html,
+      body,
+      #root {
+        min-height: 100%;
+        margin: 0;
+        background: #111111;
+      }
+
+      .app-boot-screen {
+        min-height: 100vh;
+        background: linear-gradient(115deg, #080808 0%, #140304 54%, #111111 100%);
+      }
+    </style>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
   </head>
   <body class="bg-[#111111] text-white antialiased selection:bg-[#EF1B23] selection:text-white">
-    <div id="root"></div>
+    <div id="root"><div class="app-boot-screen" aria-hidden="true"></div></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

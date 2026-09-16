@@ -64,3 +64,4 @@ server\cloudinary.test.js
 server\integration.test.js
 server\production-services.test.js
 server\workout-batch.test.js
+server\refresh-policy.test.js

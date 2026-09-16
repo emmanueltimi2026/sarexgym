@@ -1,10 +1,12 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { ArrowLeft, CalendarCheck, Dumbbell, Mail, MapPin, Phone, ShieldCheck, UserRound } from 'lucide-react';
 import { AppLayout } from '../../components/layout/AppLayout';
 import { Badge } from '../../components/ui/Badge';
 import { InitialsAvatar } from '../../components/ui/InitialsAvatar';
 import { Pagination } from '../../components/ui/Pagination';
 import { useGym } from '../../context/GymContext';
+import { useVisibilityPolling } from '../../hooks/useVisibilityPolling';
+import { PORTAL_POLL_INTERVALS } from '../../lib/refreshPolicy';
 import type { AttendanceRecord, Member } from '../../types';
 
 const BASE = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
@@ -24,19 +26,18 @@ export const MemberDetails: React.FC = () => {
   const [error, setError] = useState('');
   const pageSize = 10;
 
-  useEffect(() => {
-    const controller = new AbortController();
-    setError('');
-    fetch(`${BASE}/api/v1/members/${encodeURIComponent(memberId)}/details?page=${page}&pageSize=${pageSize}`, { credentials: 'include', signal: controller.signal })
-      .then(async response => {
-        const body = await response.json().catch(() => ({}));
-        if (!response.ok) throw new Error(body?.error?.message || 'Member details could not be loaded.');
-        return body.data as DetailsResponse;
-      })
-      .then(setDetails)
-      .catch(reason => { if (reason.name !== 'AbortError') setError(reason.message); });
-    return () => controller.abort();
+  const loadDetails = useCallback(async (signal: AbortSignal) => {
+    try {
+      const response = await fetch(`${BASE}/api/v1/members/${encodeURIComponent(memberId)}/details?page=${page}&pageSize=${pageSize}`, { credentials: 'include', signal });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body?.error?.message || 'Member details could not be loaded.');
+      setDetails(body.data as DetailsResponse);
+      setError('');
+    } catch (reason) {
+      if (!(reason instanceof DOMException && reason.name === 'AbortError')) setError(reason instanceof Error ? reason.message : 'Member details could not be loaded.');
+    }
   }, [memberId, page]);
+  useVisibilityPolling(loadDetails, PORTAL_POLL_INTERVALS.portal, true, true);
 
   const member = details?.member;
   const backPath = `/${portal}/members`;

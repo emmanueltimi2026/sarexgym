@@ -11,10 +11,11 @@ const steps=['Details','Membership','Payment'];
 
 export const RegisterPage:React.FC=()=>{
  const{plans,setRole,navigate}=useGym();
+ const requestedPlanId=new URLSearchParams(location.search).get('plan')||'';
  const storedGoogle=(()=>{try{return JSON.parse(sessionStorage.getItem('sarex.googleRegistration')||'null')}catch{return null}})();
  const[step,setStep]=useState(1);
  const[googleRegistration,setGoogleRegistration]=useState<{token:string;profile:{firstName:string;lastName:string;email:string;picture:string}}|null>(storedGoogle);
- const[f,setF]=useState({firstName:storedGoogle?.profile?.firstName||'',lastName:storedGoogle?.profile?.lastName||'',email:storedGoogle?.profile?.email||'',phone:'',password:'',confirmPassword:'',membershipPlanId:''});
+ const[f,setF]=useState({firstName:storedGoogle?.profile?.firstName||'',lastName:storedGoogle?.profile?.lastName||'',email:storedGoogle?.profile?.email||'',phone:'',password:'',confirmPassword:'',membershipPlanId:requestedPlanId});
  const[showPassword,setShowPassword]=useState(false),[showConfirm,setShowConfirm]=useState(false),[error,setError]=useState(''),[member,setMember]=useState<{id:string;number:string}|null>(null),[checkoutOpen,setCheckoutOpen]=useState(false),[busyAction,setBusyAction]=useState<'pay'|'later'|null>(null);
  const set=(key:string,value:string|boolean)=>setF(current=>({...current,[key]:value}));
  const selectedPlan=plans.find(plan=>plan.id===f.membershipPlanId);

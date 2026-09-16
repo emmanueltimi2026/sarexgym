@@ -8,7 +8,7 @@ import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip } from 'recha
 import { Pagination } from '../../components/ui/Pagination';
 
 export const AdminAttendance: React.FC = () => {
-  const { attendance, refresh } = useGym();
+  const { attendance } = useGym();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'All' | 'Checked In' | 'Denied'>('All');
   const [page, setPage] = useState(1);
@@ -17,17 +17,6 @@ export const AdminAttendance: React.FC = () => {
   const totalScans = attendance.length;
   const grantedScans = attendance.filter(a => a.status !== 'Denied').length;
   const deniedScans = attendance.filter(a => a.status === 'Denied').length;
-
-  useEffect(() => {
-    const update = () => void refresh();
-    const timer = window.setInterval(update, 30_000);
-    const handleVisibility = () => document.visibilityState === 'visible' && update();
-    document.addEventListener('visibilitychange', handleVisibility);
-    return () => {
-      window.clearInterval(timer);
-      document.removeEventListener('visibilitychange', handleVisibility);
-    };
-  }, [refresh]);
 
   const hourlyData = useMemo(() => {
     const today = new Date();

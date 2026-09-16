@@ -1,5 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useGym } from '../../context/GymContext';
+import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
+import { PublicScrollProgress } from './PublicMotion';
 
 import {
   Menu,
@@ -7,9 +9,6 @@ import {
   Phone,
   Mail,
   MapPin,
-  Instagram,
-  Facebook,
-  Twitter,
 } from 'lucide-react';
 
 interface PublicLayoutProps {
@@ -19,50 +18,17 @@ interface PublicLayoutProps {
 export const PublicLayout: React.FC<PublicLayoutProps> = ({ children }) => {
   const { currentPath, navigate, settings, role } = useGym();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [activeNav, setActiveNav] = useState('HOME');
   const mobileMenuRef = useRef<HTMLDivElement>(null);
+  const reduceMotion = useReducedMotion();
 
   const navLinks = [
     { label: 'HOME', path: '/' },
-    { label: 'ABOUT', path: '/', sectionId: 'about-section' },
-    { label: 'SERVICES', path: '/', sectionId: 'classes-section' },
-    { label: 'EVENTS', path: '/', sectionId: 'events-section' },
-    { label: 'GALLERY', path: '/', sectionId: 'gallery-section' },
-    { label: 'PRICING', path: '/', sectionId: 'pricing-section' },
-    { label: 'CONTACT', path: '/', sectionId: 'contact-section' }
+    { label: 'MEMBERSHIP', path: '/membership' },
+    { label: 'FACILITIES', path: '/facilities' },
+    { label: 'ABOUT', path: '/about' },
+    { label: 'CONTACT', path: '/contact' }
   ];
-  const sectionLinks = navLinks.filter(link => link.sectionId);
   const portalPath = role === 'super_admin' ? '/admin/dashboard' : role === 'staff' ? '/staff/dashboard' : role === 'trainer' ? '/trainer/dashboard' : role === 'member' ? '/member/dashboard' : null;
-
-  useEffect(() => {
-    if (currentPath !== '/' && currentPath !== '/home') {
-      setActiveNav('');
-      return;
-    }
-
-    let frame = 0;
-    const updateActiveSection = () => {
-      frame = 0;
-      const current = sectionLinks.reduce((active, link) => {
-        const section = document.getElementById(link.sectionId!);
-        if (!section) return active;
-        return section.getBoundingClientRect().top <= 130 ? link.label : active;
-      }, 'HOME');
-      setActiveNav(current);
-    };
-    const queueUpdate = () => {
-      if (!frame) frame = window.requestAnimationFrame(updateActiveSection);
-    };
-
-    updateActiveSection();
-    window.addEventListener('scroll', queueUpdate, { passive: true });
-    window.addEventListener('resize', queueUpdate);
-    return () => {
-      window.removeEventListener('scroll', queueUpdate);
-      window.removeEventListener('resize', queueUpdate);
-      if (frame) window.cancelAnimationFrame(frame);
-    };
-  }, [currentPath]);
 
   useEffect(() => {
     if (!mobileMenuOpen) return;
@@ -75,23 +41,23 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ children }) => {
   }, [mobileMenuOpen]);
 
   const goToNavLink = (link: typeof navLinks[number]) => {
-    setActiveNav(link.label);
     navigate(link.path);
-    if (link.sectionId) {
-      setTimeout(() => document.getElementById(link.sectionId)?.scrollIntoView({ behavior: 'smooth' }), 100);
-    } else {
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    }
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const isNavLinkActive = (label: string) => {
-    if (label === 'EVENTS' && currentPath.startsWith('/events/')) return true;
-    return (currentPath === '/' || currentPath === '/home') && activeNav === label;
-  };
+  const isNavLinkActive = (path: string) => path === '/'
+    ? currentPath === '/' || currentPath === '/home'
+    : currentPath === path;
 
   return (
     <div className="public-site min-h-screen bg-[#111111] text-white flex flex-col font-sans antialiased selection:bg-[#EF1B23] selection:text-white">
-      <header className="fixed inset-x-0 top-0 z-50 bg-[#121212]/95 backdrop-blur-md border-b border-neutral-800/80 shadow-lg shadow-black/10">
+      <motion.header
+        className="fixed inset-x-0 top-0 z-50 bg-[#121212]/95 backdrop-blur-md border-b border-neutral-800/80 shadow-lg shadow-black/10"
+        initial={{ opacity: reduceMotion ? 1 : 0, y: reduceMotion ? 0 : -10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: reduceMotion ? 0 : 0.38, ease: [0.22, 1, 0.36, 1] }}
+      >
+        <PublicScrollProgress />
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-[76px] flex items-center justify-between">
           <button
             onClick={() => navigate('/')}
@@ -103,7 +69,7 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ children }) => {
 
           <nav className="hidden lg:flex items-center gap-5">
             {navLinks.map(link => {
-              const isActive = isNavLinkActive(link.label);
+              const isActive = isNavLinkActive(link.path);
               return (
                 <button
                   key={link.label}
@@ -115,14 +81,18 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ children }) => {
                 >
                   {link.label}
                   {isActive && (
-                    <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#EF1B23]" />
+                    <motion.span
+                      layoutId="public-active-navigation"
+                      className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#EF1B23]"
+                      transition={{ duration: reduceMotion ? 0 : 0.28, ease: [0.22, 1, 0.36, 1] }}
+                    />
                   )}
                 </button>
               );
             })}
           </nav>
 
-          <div className="hidden sm:flex items-center gap-4">
+          <div className="hidden lg:flex items-center gap-4">
             {portalPath ? (
               <button onClick={() => navigate(portalPath)} className="bg-[#EF1B23] hover:bg-red-700 text-white text-xs font-black uppercase tracking-widest px-5 py-2.5 transition-all shadow-md shadow-red-600/20">
                 Back to portal
@@ -148,10 +118,18 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ children }) => {
           </button>
         </div>
 
+        <AnimatePresence initial={false}>
         {mobileMenuOpen && (
-          <div ref={mobileMenuRef} className="lg:hidden bg-[#151515] border-b border-neutral-800 px-4 pt-3 pb-6 space-y-3">
+          <motion.div
+            ref={mobileMenuRef}
+            className="lg:hidden overflow-hidden bg-[#151515] border-b border-neutral-800 px-4 pt-3 pb-6 space-y-3"
+            initial={{ opacity: reduceMotion ? 1 : 0, height: reduceMotion ? 'auto' : 0, y: reduceMotion ? 0 : -8 }}
+            animate={{ opacity: 1, height: 'auto', y: 0 }}
+            exit={{ opacity: reduceMotion ? 1 : 0, height: reduceMotion ? 'auto' : 0, y: reduceMotion ? 0 : -6 }}
+            transition={{ duration: reduceMotion ? 0 : 0.3, ease: [0.22, 1, 0.36, 1] }}
+          >
             {navLinks.map(link => {
-              const isActive = isNavLinkActive(link.label);
+              const isActive = isNavLinkActive(link.path);
               return (
                 <button
                   key={link.label}
@@ -184,9 +162,10 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ children }) => {
                 </>
               )}
             </div>
-          </div>
+          </motion.div>
         )}
-      </header>
+        </AnimatePresence>
+      </motion.header>
 
       <main className="flex-1 pt-[76px]">
         {children}
@@ -200,17 +179,6 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ children }) => {
               <p className="text-xs text-neutral-400 leading-relaxed">
                 SAREX Fitness Clinic is a high-performance training ground built for members, clinical conditioning, and lifelong strength.
               </p>
-              <div className="flex items-center gap-3 text-neutral-400 pt-2">
-                <span className="w-8 h-8 rounded bg-neutral-900 border border-neutral-800 flex items-center justify-center hover:text-[#EF1B23] cursor-pointer transition-colors">
-                  <Instagram className="w-4 h-4" />
-                </span>
-                <span className="w-8 h-8 rounded bg-neutral-900 border border-neutral-800 flex items-center justify-center hover:text-[#EF1B23] cursor-pointer transition-colors">
-                  <Facebook className="w-4 h-4" />
-                </span>
-                <span className="w-8 h-8 rounded bg-neutral-900 border border-neutral-800 flex items-center justify-center hover:text-[#EF1B23] cursor-pointer transition-colors">
-                  <Twitter className="w-4 h-4" />
-                </span>
-              </div>
             </div>
 
             <div>
@@ -224,18 +192,23 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ children }) => {
                   </button>
                 </li>
                 <li>
-                  <button onClick={() => { navigate('/'); setTimeout(() => document.getElementById('about-section')?.scrollIntoView({ behavior: 'smooth' }), 100); }} className="hover:text-white transition-colors">
+                  <button onClick={() => navigate('/membership')} className="hover:text-white transition-colors">
+                    Membership
+                  </button>
+                </li>
+                <li>
+                  <button onClick={() => navigate('/facilities')} className="hover:text-white transition-colors">
+                    Facilities
+                  </button>
+                </li>
+                <li>
+                  <button onClick={() => navigate('/about')} className="hover:text-white transition-colors">
                     About the Clinic
                   </button>
                 </li>
                 <li>
-                  <button onClick={() => { navigate('/'); setTimeout(() => document.getElementById('pricing-section')?.scrollIntoView({ behavior: 'smooth' }), 100); }} className="hover:text-white transition-colors">
-                    Membership Plans
-                  </button>
-                </li>
-                <li>
-                  <button onClick={() => { navigate('/'); setTimeout(() => document.getElementById('contact-section')?.scrollIntoView({ behavior: 'smooth' }), 100); }} className="hover:text-white transition-colors">
-                    Contact & Directions
+                  <button onClick={() => navigate('/contact')} className="hover:text-white transition-colors">
+                    Contact
                   </button>
                 </li>
               </ul>

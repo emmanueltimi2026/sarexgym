@@ -7,6 +7,7 @@ import { PaymentSummaryCard } from '../../components/ui/PaymentSummaryCard';
 import { Search, Printer, Plus, Landmark, ArrowLeftRight, Download, BarChart3 } from 'lucide-react';
 import { PaymentRecord, PaymentMethod, PaymentStatus } from '../../types';
 import { exportPayments } from '../../utils/exportPayments';
+import { formatPaymentDateTime } from '../../utils/dateTime';
 import { Pagination } from '../../components/ui/Pagination';
 
 export const AdminPayments: React.FC = () => {
@@ -182,8 +183,8 @@ export const AdminPayments: React.FC = () => {
                     ₦{item.amount.toLocaleString()}
                   </td>
 
-                  <td className="py-3 px-4 text-gray-600">
-                    {item.date}
+                  <td className="whitespace-nowrap py-3 px-4 text-gray-600">
+                    {formatPaymentDateTime(item.date)}
                   </td>
 
                   <td className="py-3 px-4">
@@ -271,5 +272,4 @@ export const AdminPayments: React.FC = () => {
     </AppLayout>
   );
 };
-
 

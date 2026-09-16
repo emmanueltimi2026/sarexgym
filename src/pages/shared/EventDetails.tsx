@@ -1,9 +1,10 @@
-import React,{useEffect,useState}from'react';
+import React,{useCallback,useState}from'react';
 import{ArrowLeft,CalendarDays,MapPin,Users}from'lucide-react';
 import{useGym}from'../../context/GymContext';
 import{AppLayout}from'../../components/layout/AppLayout';
 import{PaymentReceipt}from'../../components/ui/PaymentReceipt';
-import{PublicLayout}from'../../components/public/PublicLayout';
+import{useVisibilityPolling}from'../../hooks/useVisibilityPolling';
+import{PORTAL_POLL_INTERVALS}from'../../lib/refreshPolicy';
 
 const BASE=(import.meta.env.VITE_API_BASE_URL||'http://localhost:8080').replace(/\/$/,'');
 
@@ -27,10 +28,10 @@ export const EventDetails:React.FC<{mode:'public'|'portal'}>=({mode})=>{
  const id=currentPath.split('/').filter(Boolean).at(-1)||'';
  const[event,setEvent]=useState<any>(null),[message,setMessage]=useState(''),[error,setError]=useState(''),[loading,setLoading]=useState(true);
  const portalRoot=currentPath.startsWith('/admin')?'/admin/events':currentPath.startsWith('/staff')?'/staff/events':currentPath.startsWith('/member')?'/member/events':'/';
- const load=()=>{setLoading(true);fetch(`${BASE}/api/v1/${mode==='public'?'public/events':'events'}/${id}`,{credentials:'include',cache:'no-store'}).then(async r=>{const b=await r.json().catch(()=>({}));if(!r.ok)throw new Error(b?.error?.message||'Event was not found');setEvent(b.data);setError('')}).catch(e=>setError(e instanceof Error?e.message:'Unable to load event')).finally(()=>setLoading(false))};
- useEffect(()=>{load()},[id,mode]);
- const register=async()=>{setMessage('');const r=await fetch(`${BASE}/api/v1/events/${id}/register`,{method:'POST',credentials:'include'}),b=await r.json().catch(()=>({}));if(!r.ok)return setError(b?.error?.message||'Unable to register');if(b.data.authorizationUrl)return location.assign(b.data.authorizationUrl);setMessage('Your place is confirmed.');load()};
- const content=loading?<div className="rounded-2xl border border-gray-200 bg-white p-10 text-center text-sm text-gray-500">Loading event details...</div>:error?<div className="rounded-2xl border border-red-200 bg-white p-10 text-center text-sm font-bold text-red-600">{error}</div>:<EventBody event={event} message={message} onBack={()=>navigate(portalRoot)} onRegister={mode==='portal'&&currentPath.startsWith('/member')?register:undefined}/>;
- if(mode==='public')return <PublicLayout><section className="bg-[#f7f7f5] px-4 py-28 text-[#111] sm:px-6 lg:px-8">{content}</section></PublicLayout>;
+ const load=useCallback(async(signal?:AbortSignal)=>{try{const r=await fetch(`${BASE}/api/v1/${mode==='public'?'public/events':'events'}/${id}`,{credentials:'include',cache:'no-store',signal});const b=await r.json().catch(()=>({}));if(!r.ok)throw new Error(b?.error?.message||'Event was not found');setEvent(b.data);setError('')}catch(reason){if(!(reason instanceof DOMException&&reason.name==='AbortError'))setError(reason instanceof Error?reason.message:'Unable to load event')}finally{setLoading(false)}},[id,mode]);
+ const refreshEvent=useVisibilityPolling(signal=>load(signal),mode==='portal'?PORTAL_POLL_INTERVALS.portal:null,true,true);
+ const register=async()=>{setMessage('');const r=await fetch(`${BASE}/api/v1/events/${id}/register`,{method:'POST',credentials:'include'}),b=await r.json().catch(()=>({}));if(!r.ok)return setError(b?.error?.message||'Unable to register');if(b.data.authorizationUrl)return location.assign(b.data.authorizationUrl);setMessage('Your place is confirmed.');await refreshEvent()};
+ const content=loading&&!event?<div className="h-96 animate-pulse rounded-2xl bg-white" role="status" aria-label="Loading event details"/>:!event&&error?<div className="rounded-2xl border border-red-200 bg-white p-10 text-center text-sm font-bold text-red-600">{error}</div>:<>{error&&<div role="alert" className="mb-4 rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-bold text-red-700">{error}</div>}<EventBody event={event} message={message} onBack={()=>navigate(portalRoot)} onRegister={mode==='portal'&&currentPath.startsWith('/member')?register:undefined}/></>;
+ if(mode==='public')return <section className="bg-[#f7f7f5] px-4 py-28 text-[#111] sm:px-6 lg:px-8">{content}</section>;
  return <><PaymentReceipt/><AppLayout pageTitle="Event Details" pageSubtitle="Review the complete event description, date, location, capacity, and booking status." breadcrumbs={[{label:'Events',path:portalRoot},{label:'Details'}]}>{content}</AppLayout></>;
 };

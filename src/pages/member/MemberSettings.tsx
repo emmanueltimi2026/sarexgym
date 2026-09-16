@@ -20,7 +20,7 @@ export const MemberSettings: React.FC = () => {
       address: currentMember.address || '',
       photo: currentMember.photo || ''
     });
-  }, [currentMember]);
+  }, [currentMember.id]);
 
   const upload = (file?: File) => {
     if (!file) return;

@@ -6,6 +6,24 @@ import { QrCodeDisplay } from '../../components/ui/QrCodeDisplay';
 import { useGym } from '../../context/GymContext';
 import type { Member } from '../../types';
 
+let cachedReceptionUrl = '';
+let receptionQrRequest: Promise<string> | null = null;
+
+const getReceptionQr = () => {
+  if (cachedReceptionUrl) return Promise.resolve(cachedReceptionUrl);
+  if (!receptionQrRequest) {
+    receptionQrRequest = fetch((import.meta.env.VITE_API_BASE_URL || '') + '/api/v1/attendance/reception-qr', { credentials: 'include' })
+      .then(async response => {
+        const body = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(body?.error?.message || 'Reception QR is unavailable.');
+        cachedReceptionUrl = body.data.url;
+        return cachedReceptionUrl;
+      })
+      .finally(() => { receptionQrRequest = null; });
+  }
+  return receptionQrRequest;
+};
+
 export const StaffCheckIn: React.FC = () => {
   const { members, attendance, refresh } = useGym();
   const [manualQuery, setManualQuery] = useState('');
@@ -16,17 +34,15 @@ export const StaffCheckIn: React.FC = () => {
   const todayLogs = attendance.filter(item => item.date === today).slice(0, 10);
   const normalizedQuery = manualQuery.trim().toLowerCase();
   const manualMatches = members.filter(member => `${member.firstName} ${member.lastName} ${member.memberId}`.toLowerCase().includes(normalizedQuery)).slice(0, 8);
-  const [receptionUrl, setReceptionUrl] = useState('');
+  const [receptionUrl, setReceptionUrl] = useState(cachedReceptionUrl);
   const [qrError, setQrError] = useState('');
 
   useEffect(() => {
     let active = true;
     const loadQr = async () => {
       try {
-        const response = await fetch((import.meta.env.VITE_API_BASE_URL || '') + '/api/v1/attendance/reception-qr', { credentials: 'include' });
-        const body = await response.json().catch(() => ({}));
-        if (!response.ok) throw new Error(body?.error?.message || 'Reception QR is unavailable.');
-        if (active) { setReceptionUrl(body.data.url); setQrError(''); }
+        const url = await getReceptionQr();
+        if (active) { setReceptionUrl(url); setQrError(''); }
       } catch (error) {
         if (active) { setReceptionUrl(''); setQrError(error instanceof Error ? error.message : 'Reception QR is unavailable.'); }
       }

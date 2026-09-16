@@ -1,5 +1,8 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useGym } from '../../context/GymContext';
+import { useVisibilityPolling } from '../../hooks/useVisibilityPolling';
+import { PORTAL_POLL_INTERVALS } from '../../lib/refreshPolicy';
+import { preloadPortalRoute } from '../../lib/preloadPortalRoute';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
 import {
   LayoutDashboard,
@@ -30,7 +33,7 @@ interface AppLayoutProps {
   breadcrumbs?: Array<{ label: string; path?: string }>;
 }
 
-export const AppLayout: React.FC<AppLayoutProps> = ({
+const AppLayoutFrame: React.FC<AppLayoutProps> = ({
   children,
   pageTitle,
   pageSubtitle,
@@ -46,14 +49,11 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
   const notificationMenuRef = useRef<HTMLDivElement>(null);
   const userMenuRef = useRef<HTMLDivElement>(null);
 
-  const refreshNotifications = useCallback(async () => {
+  const refreshNotifications = useCallback(async (signal: AbortSignal) => {
     if (role === 'public' || document.visibilityState === 'hidden') return;
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080'}/api/v1/notifications`, { credentials: 'include' });
-      if (!response.ok) {
-        if (response.status === 401) setNotifications([]);
-        return;
-      }
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080'}/api/v1/notifications`, { credentials: 'include', signal });
+      if (!response.ok) return;
       const body = await response.json();
       setNotifications(body.data || []);
     } catch {
@@ -67,24 +67,8 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
     setShowUserDropdown(false);
   }, [currentPath]);
 
-  useEffect(() => {
-    if (role === 'public') {
-      setNotifications([]);
-      return;
-    }
-    void refreshNotifications();
-    const timer = window.setInterval(() => void refreshNotifications(), 60_000);
-    const refreshWhenActive = () => {
-      if (document.visibilityState === 'visible') void refreshNotifications();
-    };
-    window.addEventListener('focus', refreshWhenActive);
-    document.addEventListener('visibilitychange', refreshWhenActive);
-    return () => {
-      window.clearInterval(timer);
-      window.removeEventListener('focus', refreshWhenActive);
-      document.removeEventListener('visibilitychange', refreshWhenActive);
-    };
-  }, [role, refreshNotifications]);
+  useEffect(() => { if (role === 'public') setNotifications([]); }, [role]);
+  const runNotificationRefresh = useVisibilityPolling(refreshNotifications, PORTAL_POLL_INTERVALS.notifications, role !== 'public', true);
 
   useEffect(() => {
     if (!showNotifications && !showUserDropdown) return;
@@ -109,7 +93,10 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
   const openNotification = async (notification: typeof notifications[number]) => {
     if (!notification.read_at) {
       const response = await fetch((import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080') + '/api/v1/notifications/' + notification.id + '/read', { method: 'POST', credentials: 'include' });
-      if (response.ok) setNotifications(items => items.map(item => item.id === notification.id ? { ...item, read_at: new Date().toISOString() } : item));
+      if (response.ok) {
+        setNotifications(items => items.map(item => item.id === notification.id ? { ...item, read_at: new Date().toISOString() } : item));
+        void runNotificationRefresh();
+      }
     }
     const destination = notificationDestination(notification);
     if (destination) {
@@ -248,6 +235,8 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
                 <button
                   key={item.path}
                   onClick={() => navigate(item.path)}
+                  onMouseEnter={() => preloadPortalRoute(item.path)}
+                  onFocus={() => preloadPortalRoute(item.path)}
                   className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-colors ${
                     isActive
                       ? 'bg-[#1a1a1a] border-l-4 border-[#EF1B23] text-white font-bold uppercase tracking-wider text-sm'
@@ -307,6 +296,8 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
                   return (
                     <button
                       key={item.path}
+                      onMouseEnter={() => preloadPortalRoute(item.path)}
+                      onFocus={() => preloadPortalRoute(item.path)}
                       onClick={() => {
                         navigate(item.path);
                         setIsMobileNavOpen(false);
@@ -538,6 +529,53 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
   );
 };
 
+type AppLayoutChrome = Omit<AppLayoutProps, 'children'>;
+type RegisteredAppLayoutChrome = AppLayoutChrome & { path: string };
 
+const PortalLayoutContext = React.createContext<((chrome: RegisteredAppLayoutChrome) => void) | null>(null);
 
+export const PortalLayoutHost: React.FC<React.PropsWithChildren<{ fallbackTitle: string }>> = ({
+  children,
+  fallbackTitle
+}) => {
+  const { currentPath } = useGym();
+  const [registeredChrome, setRegisteredChrome] = useState<RegisteredAppLayoutChrome | null>(null);
 
+  const registerChrome = useCallback((nextChrome: RegisteredAppLayoutChrome) => {
+    setRegisteredChrome(previous => (
+      previous?.path === nextChrome.path
+      && previous.pageTitle === nextChrome.pageTitle
+      && previous.pageSubtitle === nextChrome.pageSubtitle
+      && previous.actions === nextChrome.actions
+      && previous.breadcrumbs === nextChrome.breadcrumbs
+        ? previous
+        : nextChrome
+    ));
+  }, []);
+  const chrome: AppLayoutChrome = registeredChrome?.path === currentPath
+    ? registeredChrome
+    : { pageTitle: fallbackTitle };
+
+  return (
+    <PortalLayoutContext.Provider value={registerChrome}>
+      <AppLayoutFrame {...chrome}>{children}</AppLayoutFrame>
+    </PortalLayoutContext.Provider>
+  );
+};
+
+export const AppLayout: React.FC<AppLayoutProps> = ({ children, pageTitle, pageSubtitle, actions, breadcrumbs }) => {
+  const registerChrome = React.useContext(PortalLayoutContext);
+  const { currentPath } = useGym();
+
+  React.useLayoutEffect(() => {
+    if (registerChrome) registerChrome({ path: currentPath, pageTitle, pageSubtitle, actions, breadcrumbs });
+  }, [actions, breadcrumbs, currentPath, pageSubtitle, pageTitle, registerChrome]);
+
+  if (registerChrome) return <>{children}</>;
+
+  return (
+    <AppLayoutFrame pageTitle={pageTitle} pageSubtitle={pageSubtitle} actions={actions} breadcrumbs={breadcrumbs}>
+      {children}
+    </AppLayoutFrame>
+  );
+};
