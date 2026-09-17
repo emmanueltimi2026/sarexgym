@@ -6,8 +6,7 @@ import{ConfirmDialog}from'../../components/ui/ConfirmDialog';
 import{useGym}from'../../context/GymContext';
 import{useVisibilityPolling}from'../../hooks/useVisibilityPolling';
 import{PORTAL_POLL_INTERVALS}from'../../lib/refreshPolicy';
-
-const BASE=(import.meta.env.VITE_API_BASE_URL||'http://localhost:8080').replace(/\/$/,'');
+import{apiBase as BASE}from'../../lib/secureFetch';
 const empty={title:'',description:'',location:'',startsAt:'',endsAt:'',capacity:40,price:0,audience:'members',status:'draft',imageUrl:''};
 
 const toFormDate=(value:string)=>value?new Date(value).toISOString().slice(0,16):'';

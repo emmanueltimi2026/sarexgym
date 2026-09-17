@@ -7,6 +7,7 @@ import { Modal } from '../../components/ui/Modal';
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
 import { Plus, Mail, Phone, Users, UploadCloud, KeyRound, ShieldOff, Trash2, Pencil, Eye, EyeOff } from 'lucide-react';
 import { StaffMember, Trainer } from '../../types';
+import { apiBase } from '../../lib/secureFetch';
 
 type PersonTarget = { kind: 'staff' | 'trainers'; person: StaffMember | Trainer; action: 'reset' | 'suspend' | 'reactivate' | 'delete' };
 
@@ -21,7 +22,7 @@ export const AdminStaff: React.FC = () => {
   const [showTemporaryPassword,setShowTemporaryPassword]=useState(false);
   const [editTarget,setEditTarget]=useState<{kind:'staff'|'trainers';person:StaffMember|Trainer}|null>(null);
   const [editForm,setEditForm]=useState({firstName:'',lastName:'',email:'',phone:'',specialization:''});
-  const base=import.meta.env.VITE_API_BASE_URL||'http://localhost:8080';
+  const base=apiBase;
   const createResetLink=async(kind:'staff'|'trainers',person:StaffMember|Trainer)=>{setResetNotice('');try{const response=await fetch(`${base}/api/v1/${kind}/${person.id}/password-reset`,{method:'POST',credentials:'include'});const body=await response.json().catch(()=>({}));if(!response.ok)throw new Error(body?.error?.message||'Unable to create reset link');try{await navigator.clipboard.writeText(body.data.resetUrl)}catch{}notify(body.data.delivered?`Reset link emailed to ${body.data.email}.`:`Reset link created for ${body.data.email} and copied when clipboard access is available.`)}catch(error){notify(error instanceof Error?error.message:'Unable to create reset link','error')}};
   const applyPersonnelAction=async()=>{if(!confirmTarget)return;setBusy(true);setResetNotice('');const {kind,person,action}=confirmTarget;try{if(action==='reset'){await createResetLink(kind,person);setConfirmTarget(null);return}const response=await fetch(`${base}/api/v1/${kind}/${person.id}`,{method:action==='delete'?'DELETE':'PATCH',credentials:'include',headers:action==='delete'?undefined:{'Content-Type':'application/json'},body:action==='delete'?undefined:JSON.stringify({isActive:action==='reactivate'})});if(!response.ok){const body=await response.json().catch(()=>({}));throw new Error(body?.error?.message||'Unable to update account')}await refresh();notify(`${person.firstName} ${person.lastName} was ${action==='delete'?'removed':action==='suspend'?'suspended':'reactivated'}.`);setConfirmTarget(null)}catch(error){notify(error instanceof Error?error.message:'Unable to update account','error')}finally{setBusy(false)}};
   const openEditor=(kind:'staff'|'trainers',person:StaffMember|Trainer)=>{setEditTarget({kind,person});setEditForm({firstName:person.firstName,lastName:person.lastName,email:person.email,phone:person.phone||'',specialization:kind==='trainers'?(person as Trainer).specialization||'':''})};

@@ -5,8 +5,7 @@ import{AppLayout}from'../../components/layout/AppLayout';
 import{PaymentReceipt}from'../../components/ui/PaymentReceipt';
 import{useVisibilityPolling}from'../../hooks/useVisibilityPolling';
 import{PORTAL_POLL_INTERVALS}from'../../lib/refreshPolicy';
-
-const BASE=(import.meta.env.VITE_API_BASE_URL||'http://localhost:8080').replace(/\/$/,'');
+import{apiBase as BASE}from'../../lib/secureFetch';
 
 const EventBody:React.FC<{event:any;onBack:()=>void;onRegister?:()=>void;message?:string}>=({event,onBack,onRegister,message})=><div className="mx-auto max-w-5xl">
  <button onClick={onBack} className="mb-5 inline-flex items-center gap-2 text-xs font-black uppercase text-[#EF1B23]"><ArrowLeft className="h-4 w-4"/>Back to events</button>

@@ -4,9 +4,9 @@ import { csrfTokenForRequest, requireCsrf, sessionCookieOptions } from './http-s
 
 const config={SESSION_COOKIE_NAME:'sarex_session',COOKIE_SAME_SITE:'none',secureCookies:true,FRONTEND_URL:'https://sarex.vercel.app',CSRF_SECRET:'test-secret-that-is-at-least-thirty-two-characters'};
 
-test('temporary cross-site cookie is Secure, HttpOnly and SameSite=None',()=>{
+test('session cookie is secure and compatible with the same-origin proxy',()=>{
  const expires=new Date(Date.now()+60_000),options=sessionCookieOptions(config,expires);
- assert.equal(options.httpOnly,true);assert.equal(options.secure,true);assert.equal(options.sameSite,'none');assert.equal(options.path,'/');assert.ok(options.maxAge>0);
+ assert.equal(options.httpOnly,true);assert.equal(options.secure,true);assert.equal(options.sameSite,'none');assert.equal(options.path,'/');assert.equal(options.domain,undefined);assert.ok(options.maxAge>0);
 });
 
 test('state-changing request without CSRF token is rejected',()=>{

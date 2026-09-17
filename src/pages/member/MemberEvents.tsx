@@ -5,8 +5,7 @@ import{PaymentReceipt}from'../../components/ui/PaymentReceipt';
 import{useGym}from'../../context/GymContext';
 import{useVisibilityPolling}from'../../hooks/useVisibilityPolling';
 import{PORTAL_POLL_INTERVALS}from'../../lib/refreshPolicy';
-
-const BASE=(import.meta.env.VITE_API_BASE_URL||'http://localhost:8080').replace(/\/$/,'');
+import{apiBase as BASE}from'../../lib/secureFetch';
 
 export const MemberEvents:React.FC=()=>{
  const{navigate}=useGym();

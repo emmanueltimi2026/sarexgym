@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { CreditCard, Loader2, ExternalLink } from 'lucide-react';
 import { Modal } from './Modal';
 import type { MembershipPlan } from '../../types';
+import { apiUrl } from '../../lib/secureFetch';
 
 interface Props {
   isOpen: boolean;
@@ -12,8 +13,6 @@ interface Props {
   onSuccess: () => void;
   isNewMember?: boolean;
 }
-
-const BASE = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
 
 export const PaystackModal: React.FC<Props> = ({ isOpen, onClose, plan, memberName, memberId, isNewMember = false }) => {
   const [busy, setBusy] = useState(false);
@@ -32,7 +31,7 @@ export const PaystackModal: React.FC<Props> = ({ isOpen, onClose, plan, memberNa
     setBusy(true);
     setError('');
     try {
-      const response = await fetch(`${BASE}/api/v1/payments/orders`, {
+      const response = await fetch(apiUrl('/api/v1/payments/orders'), {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },

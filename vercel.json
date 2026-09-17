@@ -1,6 +1,10 @@
 {
   "rewrites": [
     {
+      "source": "/api/:path*",
+      "destination": "https://sarexgym.onrender.com/api/:path*"
+    },
+    {
       "source": "/((?!api/|assets/|robots.txt|sitemap.xml|favicon.ico).*)",
       "destination": "/index.html"
     }

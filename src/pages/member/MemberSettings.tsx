@@ -3,8 +3,7 @@ import { Camera, Save } from 'lucide-react';
 import { AppLayout } from '../../components/layout/AppLayout';
 import { useGym } from '../../context/GymContext';
 import { InitialsAvatar } from '../../components/ui/InitialsAvatar';
-
-const BASE = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080').replace(/\/$/, '');
+import { apiBase as BASE } from '../../lib/secureFetch';
 
 export const MemberSettings: React.FC = () => {
   const { currentMember, refresh } = useGym();

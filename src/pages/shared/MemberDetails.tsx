@@ -7,9 +7,8 @@ import { Pagination } from '../../components/ui/Pagination';
 import { useGym } from '../../context/GymContext';
 import { useVisibilityPolling } from '../../hooks/useVisibilityPolling';
 import { PORTAL_POLL_INTERVALS } from '../../lib/refreshPolicy';
+import { apiBase as BASE } from '../../lib/secureFetch';
 import type { AttendanceRecord, Member } from '../../types';
-
-const BASE = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
 
 type DetailsResponse = {
   member: Member;

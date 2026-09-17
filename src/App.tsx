@@ -7,6 +7,7 @@ import { AnimatePresence } from 'motion/react';
 import { PageTransition } from './components/public/PublicMotion';
 import { PortalLayoutHost } from './components/layout/AppLayout';
 import { logAuthDiagnostic } from './lib/authDiagnostics';
+import { apiUrl } from './lib/secureFetch';
 
 const lazyPage = (loader: () => Promise<Record<string, unknown>>, exportName: string) =>
   lazy(async () => ({ default: (await loader())[exportName] as React.ComponentType<any> }));
@@ -120,7 +121,7 @@ const AppRouter: React.FC = () => {
   useEffect(() => {
     if (!requiredRole) { setAccessState('public'); return; }
     const controller = new AbortController(); setAccessState('checking');
-    fetch(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080'}/api/v1/session`, { credentials: 'include', signal: controller.signal })
+    fetch(apiUrl('/api/v1/session'), { credentials: 'include', signal: controller.signal })
       .then(async response => ({ ok: response.ok, status: response.status, requestId: response.headers.get('x-request-id'), body: await response.json().catch(() => ({})) }))
       .then(({ ok, status, requestId, body }) => {
         const allowed = ok && body.user?.roles?.includes(requiredRole);

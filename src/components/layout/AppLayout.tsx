@@ -3,6 +3,7 @@ import { useGym } from '../../context/GymContext';
 import { useVisibilityPolling } from '../../hooks/useVisibilityPolling';
 import { PORTAL_POLL_INTERVALS } from '../../lib/refreshPolicy';
 import { preloadPortalRoute } from '../../lib/preloadPortalRoute';
+import { apiUrl } from '../../lib/secureFetch';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
 import {
   LayoutDashboard,
@@ -52,7 +53,7 @@ const AppLayoutFrame: React.FC<AppLayoutProps> = ({
   const refreshNotifications = useCallback(async (signal: AbortSignal) => {
     if (role === 'public' || document.visibilityState === 'hidden') return;
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080'}/api/v1/notifications`, { credentials: 'include', signal });
+      const response = await fetch(apiUrl('/api/v1/notifications'), { credentials: 'include', signal });
       if (!response.ok) return;
       const body = await response.json();
       setNotifications(body.data || []);
@@ -92,7 +93,7 @@ const AppLayoutFrame: React.FC<AppLayoutProps> = ({
 
   const openNotification = async (notification: typeof notifications[number]) => {
     if (!notification.read_at) {
-      const response = await fetch((import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080') + '/api/v1/notifications/' + notification.id + '/read', { method: 'POST', credentials: 'include' });
+      const response = await fetch(apiUrl('/api/v1/notifications/' + notification.id + '/read'), { method: 'POST', credentials: 'include' });
       if (response.ok) {
         setNotifications(items => items.map(item => item.id === notification.id ? { ...item, read_at: new Date().toISOString() } : item));
         void runNotificationRefresh();
@@ -210,7 +211,7 @@ const AppLayoutFrame: React.FC<AppLayoutProps> = ({
     .toUpperCase();
 
   const handleLogout = async () => {
-    try { await fetch(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080'}/api/v1/auth/logout`, { method: 'POST', credentials: 'include' }); } finally {
+    try { await fetch(apiUrl('/api/v1/auth/logout'), { method: 'POST', credentials: 'include' }); } finally {
     setRole('public');
     navigate('/login');
     }

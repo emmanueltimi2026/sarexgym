@@ -4,6 +4,7 @@ import { AppLayout } from '../../components/layout/AppLayout';
 import { Badge } from '../../components/ui/Badge';
 import { QrCodeDisplay } from '../../components/ui/QrCodeDisplay';
 import { useGym } from '../../context/GymContext';
+import { apiUrl } from '../../lib/secureFetch';
 import type { Member } from '../../types';
 
 let cachedReceptionUrl = '';
@@ -12,7 +13,7 @@ let receptionQrRequest: Promise<string> | null = null;
 const getReceptionQr = () => {
   if (cachedReceptionUrl) return Promise.resolve(cachedReceptionUrl);
   if (!receptionQrRequest) {
-    receptionQrRequest = fetch((import.meta.env.VITE_API_BASE_URL || '') + '/api/v1/attendance/reception-qr', { credentials: 'include' })
+    receptionQrRequest = fetch(apiUrl('/api/v1/attendance/reception-qr'), { credentials: 'include' })
       .then(async response => {
         const body = await response.json().catch(() => ({}));
         if (!response.ok) throw new Error(body?.error?.message || 'Reception QR is unavailable.');
@@ -54,7 +55,7 @@ export const StaffCheckIn: React.FC = () => {
   const recordManualCheckIn = async (member: Member) => {
     setBusy(true);
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || ''}/api/v1/attendance/manual`, { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ memberId: member.id }) });
+      const response = await fetch(apiUrl('/api/v1/attendance/manual'), { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ memberId: member.id }) });
       const body = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(body?.error?.message || 'Check-in could not be recorded.');
       setResult({ member, success: true, message: 'Manual check-in was recorded successfully.' });

@@ -1,8 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { CheckCircle2, Clock3, IdCard, Loader2, QrCode, ShieldAlert } from 'lucide-react';
 import { useGym } from '../../context/GymContext';
-
-const BASE = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
+import { apiBase as BASE } from '../../lib/secureFetch';
 
 type CheckInResult = {
   checked_in_at: string;
