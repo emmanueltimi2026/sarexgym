@@ -22,8 +22,10 @@ export const StaffDashboard: React.FC = () => {
 
   const [isRenewModalOpen, setIsRenewModalOpen] = useState(false);
   const [selectedMemberForRenew, setSelectedMemberForRenew] = useState<Member | null>(null);
-  const [selectedPlanForRenew, setSelectedPlanForRenew] = useState(plans.find(plan => plan.isActive !== false) || plans[0]);
+  const [selectedPlanForRenew, setSelectedPlanForRenew] = useState<(typeof plans)[number] | null>(null);
   const [isPaystackOpen, setIsPaystackOpen] = useState(false);
+  const [renewalError, setRenewalError] = useState('');
+  const activePlans = plans.filter(plan => plan.isActive !== false);
 
   const lagosDate = (value: string | Date) => new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Lagos', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(value));
   const todayStr = lagosDate(new Date());
@@ -54,6 +56,11 @@ export const StaffDashboard: React.FC = () => {
         </div>
       }
     >
+      {renewalError && (
+        <div role="alert" className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-xs font-semibold text-amber-900">
+          {renewalError}
+        </div>
+      )}
       
       <div className="mb-4 grid grid-cols-1 gap-3 min-[430px]:grid-cols-2 xl:grid-cols-5">
         <StatCard label="Today's Check-ins" value={todayCheckIns.length} subtext="Successful entries" icon={CalendarCheck}/>
@@ -209,7 +216,14 @@ export const StaffDashboard: React.FC = () => {
 
                 <button
                   onClick={() => {
+                    const renewalPlan = activePlans.find(plan => plan.id === member.membershipPlanId) || activePlans[0] || null;
+                    if (!renewalPlan) {
+                      setRenewalError('No active membership plan is available. Ask an administrator to activate a plan before recording a renewal.');
+                      return;
+                    }
+                    setRenewalError('');
                     setSelectedMemberForRenew(member);
+                    setSelectedPlanForRenew(renewalPlan);
                     setIsRenewModalOpen(true);
                   }}
                   className="px-3 py-1.5 bg-[#EF1B23] hover:bg-red-700 text-white font-bold uppercase text-[10px] tracking-wider transition-colors"
@@ -225,7 +239,7 @@ export const StaffDashboard: React.FC = () => {
       
 
       
-      {selectedMemberForRenew && (
+      {selectedMemberForRenew && selectedPlanForRenew && (
         <Modal
           isOpen={isRenewModalOpen}
           onClose={() => setIsRenewModalOpen(false)}
@@ -258,7 +272,7 @@ export const StaffDashboard: React.FC = () => {
                 }}
                 className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:border-[#EF1B23] focus:outline-none bg-white"
               >
-                {plans.map(p => (
+                {activePlans.map(p => (
                   <option key={p.id} value={p.id}>
                     {p.name} - ₦{p.price.toLocaleString()} ({p.durationDays} Days)
                   </option>
@@ -303,7 +317,7 @@ export const StaffDashboard: React.FC = () => {
       )}
 
       
-      {selectedMemberForRenew && (
+      {selectedMemberForRenew && selectedPlanForRenew && (
         <PaystackModal
           isOpen={isPaystackOpen}
           onClose={() => setIsPaystackOpen(false)}
@@ -318,4 +332,3 @@ export const StaffDashboard: React.FC = () => {
     </AppLayout>
   );
 };
-

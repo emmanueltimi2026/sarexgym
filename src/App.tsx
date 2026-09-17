@@ -300,7 +300,7 @@ const AppRouter: React.FC = () => {
   return (
     <div className="min-h-screen">
       <Seo {...routeSeo} />
-      <ErrorBoundary>
+      <ErrorBoundary resetKey={currentPath}>
         {isMarketingRoute ? (
           <PublicLayout>
             <Suspense fallback={<PublicPageSkeleton />}>

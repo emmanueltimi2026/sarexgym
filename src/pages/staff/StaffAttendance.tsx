@@ -34,7 +34,7 @@ export const StaffAttendance: React.FC = () => {
           className="px-4 py-2 bg-[#EF1B23] hover:bg-red-700 text-white font-athletic font-bold uppercase text-xs rounded transition-colors flex items-center gap-1.5 shadow-xs"
         >
           <QrCode className="w-4 h-4" />
-          Open Scanner
+          Check in
         </button>
       }
     >

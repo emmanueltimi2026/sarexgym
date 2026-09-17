@@ -4,6 +4,7 @@ import { AlertTriangle, RefreshCw, Home } from 'lucide-react';
 interface Props {
   children: React.ReactNode;
   fallbackTitle?: string;
+  resetKey?: string;
   key?: React.Key;
 }
 
@@ -28,6 +29,12 @@ export class ErrorBoundary extends React.Component<Props, State> {
 
   public componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
     console.error('Uncaught error caught by ErrorBoundary:', error, errorInfo);
+  }
+
+  public componentDidUpdate(previousProps: Props) {
+    if (this.state.hasError && previousProps.resetKey !== this.props.resetKey) {
+      this.setState({ hasError: false, error: undefined });
+    }
   }
 
   private handleReset = () => {
@@ -76,5 +83,4 @@ export class ErrorBoundary extends React.Component<Props, State> {
     return this.props.children;
   }
 }
-
 

@@ -10,6 +10,7 @@ import { installProtectedRoutes, installPublicRoutes } from './routes.js';
 import { clearSessionCookie, csrfTokenForRequest, requireCsrf, sessionCookieOptions } from './http-security.js';
 import { createSharedRateLimit } from './rate-limit.js';
 import { verifyReceptionCheckInToken } from './check-in-token.js';
+import { recordDeniedAttendance } from './attendance.js';
 
 const asyncRoute = fn => (req,res,next)=>Promise.resolve(fn(req,res,next)).catch(next);
 const loginSchema=z.object({email:z.string().email().max(254).transform(v=>v.toLowerCase()),password:z.string().min(8).max(200),remember:z.boolean().optional().default(true)}).strict();
@@ -91,18 +92,26 @@ export function createApp({db,config}) {
    if(!req.actor.roles.includes('member'))throw Object.assign(new Error('A member account is required for reception check-in'),{status:403,code:'MEMBER_REQUIRED'});
    const result=await db.transaction(async c=>{
      const member=(await c.query('SELECT m.id,m.member_number,m.first_name,m.last_name,m.profile_image_url,m.home_branch_id,u.status user_status FROM members m JOIN users u ON u.id=m.user_id WHERE m.user_id=$1 FOR UPDATE',[req.actor.id])).rows[0];
-     if(!member||member.user_status!=='active')throw Object.assign(new Error('Your member account is not active'),{status:403,code:'ACCESS_DENIED'});
+     if(!member)throw Object.assign(new Error('A registered member profile is required for reception check-in'),{status:403,code:'MEMBER_REQUIRED'});
      const branch=(await c.query('SELECT id,name,timezone FROM branches WHERE id=$1 AND active',[credential.branchId])).rows[0];
      if(!branch)throw Object.assign(new Error('Reception check-in is not configured'),{status:422,code:'RECEPTION_REQUIRED'});
+     const deny=async(message,code,httpStatus)=>{
+       const visit=await recordDeniedAttendance(c,{memberId:member.id,branchId:branch.id,scannerUserId:req.actor.id,method:'reception_qr',reason:message});
+       await c.query("INSERT INTO audit_logs(actor_user_id,action,entity_type,entity_id,new_values,ip,request_id) VALUES($1,'attendance.reception_qr_denied','attendance',$2,$3,$4,$5)",[req.actor.id,visit.id,JSON.stringify({memberId:member.id,branchId:branch.id,reason:message,code}),req.ip,req.requestId]);
+       return{denied:true,httpStatus,code,message};
+     };
+     if(member.user_status!=='active')return deny('Your member account is not active','ACCESS_DENIED',403);
      const access=(await c.query("SELECT s.id,p.name plan_name,s.ends_at FROM subscriptions s JOIN membership_plans p ON p.id=s.plan_id WHERE s.member_id=$1 AND s.status='active' AND s.starts_at<=now() AND s.ends_at>now() AND NOT EXISTS(SELECT 1 FROM subscription_freezes f WHERE f.subscription_id=s.id AND now()>=f.starts_at AND now()<f.ends_at) ORDER BY s.ends_at DESC LIMIT 1 FOR UPDATE OF s",[member.id])).rows[0];
-     if(!access)throw Object.assign(new Error('You do not have an active membership'),{status:403,code:'INACTIVE_MEMBERSHIP'});
+     if(!access)return deny('You do not have an active membership','INACTIVE_MEMBERSHIP',403);
      await c.query('SELECT pg_advisory_xact_lock(hashtext($1))',[member.id]);
      const existing=(await c.query("SELECT checked_in_at FROM attendance WHERE member_id=$1 AND status='completed' AND (checked_in_at AT TIME ZONE $2)::date=(now() AT TIME ZONE $2)::date ORDER BY checked_in_at DESC LIMIT 1",[member.id,branch.timezone])).rows[0];
-     if(existing)throw Object.assign(new Error('You already checked in today at '+new Date(existing.checked_in_at).toLocaleTimeString('en-NG',{timeZone:branch.timezone,hour:'2-digit',minute:'2-digit'})),{status:409,code:'ALREADY_CHECKED_IN',checkedInAt:existing.checked_in_at});
+     if(existing)return deny('You already checked in today at '+new Date(existing.checked_in_at).toLocaleTimeString('en-NG',{timeZone:branch.timezone,hour:'2-digit',minute:'2-digit'}),'ALREADY_CHECKED_IN',409);
      const visit=(await c.query("INSERT INTO attendance(member_id,branch_id,checked_in_at,scanner_user_id,method,status) VALUES($1,$2,now(),$3,'reception_qr','completed') RETURNING id,checked_in_at",[member.id,branch.id,req.actor.id])).rows[0];
      await c.query("INSERT INTO audit_logs(actor_user_id,action,entity_type,entity_id,new_values,ip,request_id) VALUES($1,'attendance.reception_qr_check_in','attendance',$2,$3,$4,$5)",[req.actor.id,visit.id,JSON.stringify({memberId:member.id,branchId:branch.id}),req.ip,req.requestId]);
      return{...visit,member:{id:member.id,memberId:member.member_number,firstName:member.first_name,lastName:member.last_name,photo:member.profile_image_url,planName:access.plan_name,membershipExpiryDate:access.ends_at,membershipStatus:'Active'},branch:{id:branch.id,name:branch.name}};
-   },'SERIALIZABLE');res.status(201).json({data:result});
+   },'SERIALIZABLE');
+   if(result.denied)return res.status(result.httpStatus).json({error:{code:result.code,message:result.message,requestId:req.requestId}});
+   res.status(201).json({data:result});
  }));
  installProtectedRoutes(app,{db,config,checkInLimit,paymentLimit});
  app.get('/api/v1/members',requirePermission('members.view'),asyncRoute(async(req,res)=>{

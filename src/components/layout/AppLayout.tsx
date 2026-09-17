@@ -383,13 +383,15 @@ const AppLayoutFrame: React.FC<AppLayoutProps> = ({
                   }}
                   className="p-2 text-gray-600 hover:text-black hover:bg-gray-100 rounded-full transition-colors relative"
                   aria-label="Notifications"
+                  aria-expanded={showNotifications}
+                  aria-controls="portal-notifications"
                 >
                   <Bell className="w-4 h-4" />
                   {notifications.some(n=>!n.read_at) && <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-[#EF1B23] rounded-full ring-2 ring-white" />}
                 </button>
 
                 {showNotifications && (
-                  <div className="absolute right-0 mt-2 w-80 bg-white border border-[#E5E7EB] rounded-sm shadow-xl py-2 z-50 text-left">
+                  <div id="portal-notifications" role="dialog" aria-label="Notifications" className="fixed inset-x-3 top-[4.75rem] z-50 w-auto overflow-hidden rounded-lg border border-[#E5E7EB] bg-white py-2 text-left shadow-xl sm:absolute sm:inset-x-auto sm:top-auto sm:right-0 sm:mt-2 sm:w-80 sm:rounded-sm">
                     <div className="px-4 py-2 border-b border-[#E5E7EB] flex items-center justify-between bg-[#FDFDFD]">
                       <span className="text-[10px] font-black uppercase tracking-widest text-[#6B7280]">
                         Gym Activity Alerts
@@ -398,7 +400,7 @@ const AppLayoutFrame: React.FC<AppLayoutProps> = ({
                         {notifications.filter(n=>!n.read_at).length} New
                       </span>
                     </div>
-                    <div className="max-h-80 divide-y divide-[#E5E7EB] overflow-y-auto text-xs">
+                    <div className="max-h-[min(24rem,calc(100svh-7rem))] divide-y divide-[#E5E7EB] overflow-y-auto overscroll-contain text-xs">
                       {notifications.length ? notifications.map(notification=>{const destination=notificationDestination(notification);return <button key={notification.id} onClick={()=>void openNotification(notification)} className={'flex w-full items-center gap-3 p-3 text-left transition-colors hover:bg-gray-50 '+(notification.read_at?'opacity-60':'bg-red-50/30')}><span className="min-w-0 flex-1"><span className="block font-bold text-[#111111]">{notification.title}</span><span className="mt-0.5 block text-[11px] text-gray-500">{notification.message}</span><span className="text-[10px] text-gray-400">{new Date(notification.created_at).toLocaleString()}</span></span>{destination&&<ChevronRight className="h-4 w-4 shrink-0 text-gray-400"/>}</button>}):<p className="p-5 text-center text-gray-500">No notifications yet.</p>}
                     </div>
                   </div>

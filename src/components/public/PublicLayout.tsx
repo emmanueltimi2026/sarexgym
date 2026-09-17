@@ -266,11 +266,11 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ children }) => {
             </div>
           </div>
 
-          <div className="mt-12 pt-6 border-t border-neutral-900 flex flex-col sm:flex-row items-center justify-between text-xs text-neutral-500 gap-4">
-            <p>© {new Date().getFullYear()} SAREX Fitness Clinic. All rights reserved.</p>
-            <div className="flex items-center gap-6">
-              <span>Zero-compromise Fitness Clinic</span>
-              <span className="text-[#EF1B23] font-bold font-athletic uppercase">BUILD YOUR STRONGEST SELF</span>
+          <div className="mt-12 flex flex-col items-center gap-4 border-t border-neutral-900 pt-6 text-center text-xs text-neutral-500 sm:flex-row sm:justify-between sm:text-left">
+            <p className="leading-5">© {new Date().getFullYear()} SAREX Fitness Clinic. All rights reserved.</p>
+            <div className="flex flex-col items-center gap-1.5 sm:flex-row sm:gap-6">
+              <span className="leading-5">Zero-compromise Fitness Clinic</span>
+              <span className="whitespace-nowrap font-athletic font-bold uppercase leading-5 text-[#EF1B23]">Build your strongest self</span>
             </div>
           </div>
         </div>

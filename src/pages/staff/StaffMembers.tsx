@@ -21,11 +21,12 @@ export const StaffMembers: React.FC = () => {
   const pageSize = 12;
 
   const [selectedMemberForRenew, setSelectedMemberForRenew] = useState<Member | null>(null);
-  const [selectedPlanForRenew, setSelectedPlanForRenew] = useState(plans[2]);
+  const [selectedPlanForRenew, setSelectedPlanForRenew] = useState<(typeof plans)[number] | null>(null);
   const [isPaystackOpen, setIsPaystackOpen] = useState(false);
   const [selectedMemberForTrainer, setSelectedMemberForTrainer] = useState<Member | null>(null);
   const [trainerId, setTrainerId] = useState('');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const activePlans = plans.filter(plan => plan.isActive !== false);
 
   const filteredMembers = members.filter(m => {
     const matchesSearch =
@@ -167,9 +168,13 @@ export const StaffMembers: React.FC = () => {
                         <button
                           onClick={event => {
                             event.stopPropagation();
+                            const renewalPlan = activePlans.find(plan => plan.id === member.membershipPlanId) || activePlans[0] || null;
+                            if (!renewalPlan) {
+                              setToastMessage('No active membership plan is available. Ask an administrator to activate a plan before recording a renewal.');
+                              return;
+                            }
+                            setSelectedPlanForRenew(renewalPlan);
                             setSelectedMemberForRenew(member);
-                            const pl = plans.find(p => p.id === member.membershipPlanId) || plans[2];
-                            setSelectedPlanForRenew(pl);
                           }}
                           className="px-2.5 py-1 bg-[#EF1B23] hover:bg-red-700 text-white font-athletic font-bold uppercase text-[11px] rounded transition-colors tracking-wide"
                         >
@@ -202,7 +207,7 @@ export const StaffMembers: React.FC = () => {
       )}
 
       
-      {selectedMemberForRenew && (
+      {selectedMemberForRenew && selectedPlanForRenew && (
         <Modal
           isOpen={!!selectedMemberForRenew}
           onClose={() => setSelectedMemberForRenew(null)}
@@ -235,7 +240,7 @@ export const StaffMembers: React.FC = () => {
                 }}
                 className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:border-[#EF1B23] focus:outline-none bg-white"
               >
-                {plans.map(p => (
+                {activePlans.map(p => (
                   <option key={p.id} value={p.id}>
                     {p.name} - ₦{p.price.toLocaleString()} ({p.durationDays} Days)
                   </option>
@@ -269,7 +274,7 @@ export const StaffMembers: React.FC = () => {
       )}
 
       
-      {selectedMemberForRenew && (
+      {selectedMemberForRenew && selectedPlanForRenew && (
         <PaystackModal
           isOpen={isPaystackOpen}
           onClose={() => {
@@ -290,6 +295,5 @@ export const StaffMembers: React.FC = () => {
     </AppLayout>
   );
 };
-
 
 
