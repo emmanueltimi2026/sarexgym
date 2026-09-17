@@ -11,6 +11,7 @@ import { clearSessionCookie, csrfTokenForRequest, requireCsrf, sessionCookieOpti
 import { createSharedRateLimit } from './rate-limit.js';
 import { verifyReceptionCheckInToken } from './check-in-token.js';
 import { recordDeniedAttendance } from './attendance.js';
+import { attachAuthDiagnostic, setAuthDiagnostic } from './auth-diagnostics.js';
 
 const asyncRoute = fn => (req,res,next)=>Promise.resolve(fn(req,res,next)).catch(next);
 const loginSchema=z.object({email:z.string().email().max(254).transform(v=>v.toLowerCase()),password:z.string().min(8).max(200),remember:z.boolean().optional().default(true)}).strict();
@@ -63,6 +64,12 @@ export function createApp({db,config}) {
  }));
 
  app.use(express.json({limit:'3mb'}));
+ app.use((req,res,next)=>{
+   if(['/api/v1/auth/login','/api/v1/auth/google','/api/v1/auth/google/register','/api/v1/auth/register','/api/v1/session','/api/v1/csrf','/api/v1/attendance/reception-check-in'].includes(req.path)) {
+     attachAuthDiagnostic(req,res);
+   }
+   next();
+ });
  
  app.get('/health',(_req,res)=>res.json({status:'ok'}));
  app.get('/health/live',(_req,res)=>res.json({status:'ok'}));
@@ -74,9 +81,13 @@ export function createApp({db,config}) {
  app.post('/api/v1/auth/login',loginLimit,asyncRoute(async(req,res)=>{
    const input=loginSchema.parse(req.body); const result=await db.query(`SELECT u.id,u.email,u.password_hash,u.status,u.must_change_password,COALESCE(array_agg(r.code) FILTER (WHERE r.code IS NOT NULL),'{}') roles FROM users u LEFT JOIN user_roles ur ON ur.user_id=u.id LEFT JOIN roles r ON r.id=ur.role_id WHERE lower(u.email)=$1 GROUP BY u.id`,[input.email]); const user=result.rows[0];
    const valid=user&&await verifyPassword(input.password,user.password_hash);
-   if(!valid||user.status!=='active') return res.status(401).json({error:{code:'INVALID_CREDENTIALS',message:'Invalid email or password',requestId:req.requestId}});
+   if(!valid||user.status!=='active') {
+     setAuthDiagnostic(req,{authenticationSucceeded:false});
+     return res.status(401).json({error:{code:'INVALID_CREDENTIALS',message:'Invalid email or password',requestId:req.requestId}});
+   }
    const token=randomToken(); const sessionHours=input.remember?config.SESSION_TTL_HOURS:12; const expires=new Date(Date.now()+sessionHours*3_600_000);
    await db.query(`INSERT INTO sessions(user_id,token_hash,expires_at,ip,user_agent) VALUES($1,$2,$3,$4,$5)`,[user.id,sha256(token),expires,req.ip,req.get('user-agent')?.slice(0,500)]);
+   setAuthDiagnostic(req,{authenticationSucceeded:true});
    res.cookie(config.SESSION_COOKIE_NAME,token,sessionCookieOptions(config,expires)); res.json({user:{id:user.id,email:user.email,roles:user.roles,mustChangePassword:user.must_change_password}});
  }));
  app.use('/api/v1',requireAuth(db));

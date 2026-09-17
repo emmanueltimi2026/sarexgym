@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { sha256 } from './security.js';
 import { sessionCookieOptions } from './http-security.js';
+import { attachAuthDiagnostic, setAuthDiagnostic } from './auth-diagnostics.js';
 
 export const requestContext = (req, res, next) => {
   req.requestId = req.get('x-request-id')?.slice(0, 100) || randomUUID();
@@ -10,8 +11,14 @@ export const requestContext = (req, res, next) => {
 
 export const requireAuth = db => async (req, res, next) => {
   try {
+    if (req.path === '/session' || req.path === '/csrf' || req.path.startsWith('/auth/') || req.path.startsWith('/attendance/reception-check-in')) {
+      attachAuthDiagnostic(req, res);
+    }
     const raw = req.cookies?.[req.app.locals.config.SESSION_COOKIE_NAME];
-    if (!raw) return res.status(401).json({ error: { code: 'UNAUTHENTICATED', message: 'Authentication required', requestId: req.requestId } });
+    if (!raw) {
+      setAuthDiagnostic(req, { authenticationSucceeded: false });
+      return res.status(401).json({ error: { code: 'UNAUTHENTICATED', message: 'Authentication required', requestId: req.requestId } });
+    }
     const { rows } = await db.query(`SELECT s.id session_id, u.id, u.email, u.status, COALESCE(array_agg(DISTINCT p.code) FILTER (WHERE p.code IS NOT NULL), '{}') permissions, COALESCE(array_agg(DISTINCT r.code) FILTER (WHERE r.code IS NOT NULL), '{}') roles
       FROM sessions s JOIN users u ON u.id=s.user_id LEFT JOIN user_roles ur ON ur.user_id=u.id LEFT JOIN roles r ON r.id=ur.role_id LEFT JOIN role_permissions rp ON rp.role_id=ur.role_id LEFT JOIN permissions p ON p.id=rp.permission_id
       WHERE s.token_hash=$1 AND s.revoked_at IS NULL AND s.expires_at>now()
@@ -19,11 +26,13 @@ export const requireAuth = db => async (req, res, next) => {
       GROUP BY s.id,u.id,u.email,u.status`, [sha256(raw), req.app.locals.config.SESSION_IDLE_TIMEOUT_HOURS]);
     const actor = rows[0];
     if (!actor || actor.status !== 'active') {
+      setAuthDiagnostic(req, { authenticationSucceeded: false });
       res.clearCookie(req.app.locals.config.SESSION_COOKIE_NAME, sessionCookieOptions(req.app.locals.config));
       return res.status(401).json({ error: { code: 'INVALID_SESSION', message: 'Session is no longer valid', requestId: req.requestId } });
     }
     await db.query('UPDATE sessions SET last_seen_at=now() WHERE id=$1', [actor.session_id]);
     req.actor = actor;
+    setAuthDiagnostic(req, { authenticationSucceeded: true });
     if (req.method !== 'GET' && actor.roles.some(role => ['admin','staff','trainer'].includes(role))) {
       res.once('finish', () => {
         if (res.statusCode < 400) void db.query("INSERT INTO audit_logs(actor_user_id,action,entity_type,new_values,ip,request_id) VALUES($1,$2,'request',$3,$4,$5)", [actor.id, req.method.toLowerCase()+'.'+req.path, JSON.stringify({ statusCode: res.statusCode }), req.ip, req.requestId]).catch(() => {});

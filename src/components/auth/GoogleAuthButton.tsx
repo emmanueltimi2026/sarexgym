@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { apiUrl } from '../../lib/secureFetch';
+import { logAuthDiagnostic } from '../../lib/authDiagnostics';
 
 declare global { interface Window { google?: { accounts: { id: { initialize(options: { client_id: string; callback: (response: { credential: string }) => void; auto_select?: boolean }): void; renderButton(element: HTMLElement, options: Record<string, unknown>): void } } } } }
 
@@ -25,6 +26,7 @@ export const GoogleAuthButton: React.FC<{ onResult: (result: GoogleResult) => vo
         try {
           const response = await fetch(apiUrl('/api/v1/auth/google'), { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ credential }) });
           const body = await response.json().catch(() => ({}));
+          logAuthDiagnostic('login', { requestId: response.headers.get('x-request-id'), route: '/api/v1/auth/google', authenticationSucceeded: response.ok && Boolean(body.user), statusCode: response.status });
           if (!response.ok) throw new Error(body?.error?.message || 'Google authentication failed.');
           resultHandler.current(body);
         } catch (error) { errorHandler.current(error instanceof Error ? error.message : 'Google authentication failed.'); }

@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
 import { sha256, timingSafeEqualText } from './security.js';
+import { attachAuthDiagnostic, setAuthDiagnostic } from './auth-diagnostics.js';
 
 const unsafe=new Set(['POST','PUT','PATCH','DELETE']);
 
@@ -22,13 +23,21 @@ export const csrfTokenForRequest=(req,config)=>{
 
 export const requireCsrf=config=>(req,res,next)=>{
   if(!unsafe.has(req.method))return next();
+  attachAuthDiagnostic(req,res);
   const origin=req.get('origin');
   const referer=req.get('referer');
   const expectedOrigin=config.FRONTEND_URL||config.APP_ORIGIN;
-  if(origin!==expectedOrigin&&(!origin&&(!referer||!referer.startsWith(expectedOrigin+'/'))))return res.status(403).json({error:{code:'INVALID_ORIGIN',message:'Request origin is not allowed',requestId:req.requestId}});
+  if(origin!==expectedOrigin&&(!origin&&(!referer||!referer.startsWith(expectedOrigin+'/')))){
+    setAuthDiagnostic(req,{authenticationSucceeded:false});
+    return res.status(403).json({error:{code:'INVALID_ORIGIN',message:'Request origin is not allowed',requestId:req.requestId}});
+  }
   const supplied=req.get('x-csrf-token')||'';
   const expected=csrfTokenForRequest(req,config)||'';
-  if(!supplied||!expected||!timingSafeEqualText(supplied,expected))return res.status(403).json({error:{code:'CSRF_REJECTED',message:'Security token is missing or invalid',requestId:req.requestId}});
+  if(!supplied||!expected||!timingSafeEqualText(supplied,expected)){
+    setAuthDiagnostic(req,{authenticationSucceeded:false});
+    return res.status(403).json({error:{code:'CSRF_REJECTED',message:'Security token is missing or invalid',requestId:req.requestId}});
+  }
+  setAuthDiagnostic(req,{authenticationSucceeded:true});
   next();
 };
 
