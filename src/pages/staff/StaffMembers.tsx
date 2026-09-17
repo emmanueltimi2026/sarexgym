@@ -3,30 +3,20 @@ import { InitialsAvatar } from '../../components/ui/InitialsAvatar';
 import { useGym } from '../../context/GymContext';
 import { AppLayout } from '../../components/layout/AppLayout';
 import { Badge } from '../../components/ui/Badge';
-import { Modal } from '../../components/ui/Modal';
-import { PaystackModal } from '../../components/ui/PaystackModal';
 import {
   Search,
   CheckCircle2,
-  Eye
 } from 'lucide-react';
-import { Member } from '../../types';
 import { Pagination } from '../../components/ui/Pagination';
 
 export const StaffMembers: React.FC = () => {
-  const { members, plans, trainers, updateMember, renewMemberMembership, navigate } = useGym();
+  const { members, navigate } = useGym();
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'All' | 'Active' | 'Expiring' | 'Expired' | 'Inactive'>('All');
   const [page, setPage] = useState(1);
   const pageSize = 12;
 
-  const [selectedMemberForRenew, setSelectedMemberForRenew] = useState<Member | null>(null);
-  const [selectedPlanForRenew, setSelectedPlanForRenew] = useState<(typeof plans)[number] | null>(null);
-  const [isPaystackOpen, setIsPaystackOpen] = useState(false);
-  const [selectedMemberForTrainer, setSelectedMemberForTrainer] = useState<Member | null>(null);
-  const [trainerId, setTrainerId] = useState('');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
-  const activePlans = plans.filter(plan => plan.isActive !== false);
 
   const filteredMembers = members.filter(m => {
     const matchesSearch =
@@ -98,11 +88,11 @@ export const StaffMembers: React.FC = () => {
             <thead className="bg-gray-50 border-b border-[#E5E7EB] font-athletic uppercase tracking-wider text-gray-600">
               <tr>
                 <th className="py-3 px-4">Member</th>
+                <th className="py-3 px-4">Email</th>
                 <th className="py-3 px-4">Member ID</th>
                 <th className="py-3 px-4">Plan</th>
                 <th className="py-3 px-4">Expiry Date</th>
                 <th className="py-3 px-4">Status</th>
-                <th className="py-3 px-4 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -125,6 +115,10 @@ export const StaffMembers: React.FC = () => {
                           <span className="text-[10px] text-gray-500">{member.phone}</span>
                         </div>
                       </div>
+                    </td>
+
+                    <td className="py-3 px-4 text-gray-600">
+                      {member.email}
                     </td>
 
                     <td className="py-3 px-4 font-mono font-bold text-gray-700">
@@ -153,35 +147,6 @@ export const StaffMembers: React.FC = () => {
                       </Badge>
                     </td>
 
-                    <td className="py-3 px-4 text-right">
-                      <div className="flex items-center justify-end gap-1.5">
-
-                        <button onClick={event => { event.stopPropagation(); navigate(`/staff/members/${member.id}`); }} className="p-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded transition-colors" title="View member details"><Eye className="w-3.5 h-3.5"/></button>
-
-                        <button
-                          onClick={event => { event.stopPropagation(); setSelectedMemberForTrainer(member); setTrainerId(member.assignedTrainerId || ''); }}
-                          className="px-2.5 py-1 border border-gray-300 hover:border-[#EF1B23] text-gray-700 font-bold uppercase text-[10px] rounded transition-colors"
-                        >
-                          Assign Trainer
-                        </button>
-
-                        <button
-                          onClick={event => {
-                            event.stopPropagation();
-                            const renewalPlan = activePlans.find(plan => plan.id === member.membershipPlanId) || activePlans[0] || null;
-                            if (!renewalPlan) {
-                              setToastMessage('No active membership plan is available. Ask an administrator to activate a plan before recording a renewal.');
-                              return;
-                            }
-                            setSelectedPlanForRenew(renewalPlan);
-                            setSelectedMemberForRenew(member);
-                          }}
-                          className="px-2.5 py-1 bg-[#EF1B23] hover:bg-red-700 text-white font-athletic font-bold uppercase text-[11px] rounded transition-colors tracking-wide"
-                        >
-                          Renew
-                        </button>
-                      </div>
-                    </td>
                   </tr>
                 ))
               )}
@@ -191,109 +156,6 @@ export const StaffMembers: React.FC = () => {
         <Pagination page={page} pageSize={pageSize} total={filteredMembers.length} onPageChange={setPage} />
       </div>
 
-      {selectedMemberForTrainer && (
-        <Modal isOpen onClose={() => setSelectedMemberForTrainer(null)} title="ASSIGN TRAINER" subtitle={`Choose a trainer for ${selectedMemberForTrainer.firstName} ${selectedMemberForTrainer.lastName}`} maxWidth="sm">
-          <form onSubmit={e => { e.preventDefault(); updateMember(selectedMemberForTrainer.id, { assignedTrainerId: (trainerId || null) as any }); setSelectedMemberForTrainer(null); setToastMessage(trainerId ? 'Trainer assigned successfully.' : 'Trainer assignment removed.'); setTimeout(() => setToastMessage(null), 3500); }} className="space-y-4">
-            <div>
-              <label className="block text-xs font-bold uppercase text-gray-700 mb-1">Trainer</label>
-              <select value={trainerId} onChange={e => setTrainerId(e.target.value)} className="w-full px-3 py-2.5 text-sm border border-gray-300 rounded bg-white focus:border-[#EF1B23] focus:outline-none">
-                <option value="">No trainer assigned</option>
-                {trainers.filter(t => t.isActive).map(t => <option key={t.id} value={t.id}>{t.firstName} {t.lastName} - {t.specialization}</option>)}
-              </select>
-            </div>
-            <div className="flex justify-end gap-2 pt-3 border-t border-gray-200"><button type="button" onClick={() => setSelectedMemberForTrainer(null)} className="px-4 py-2 border border-gray-300 rounded text-xs font-bold uppercase">Cancel</button><button type="submit" className="px-5 py-2 bg-[#EF1B23] text-white rounded text-xs font-bold uppercase">Save assignment</button></div>
-          </form>
-        </Modal>
-      )}
-
-      
-      {selectedMemberForRenew && selectedPlanForRenew && (
-        <Modal
-          isOpen={!!selectedMemberForRenew}
-          onClose={() => setSelectedMemberForRenew(null)}
-          title="RENEW MEMBERSHIP"
-          subtitle={`Extend membership for ${selectedMemberForRenew.firstName} ${selectedMemberForRenew.lastName}`}
-        >
-          <div className="space-y-4 text-xs">
-            <div className="p-3 bg-gray-50 border border-gray-200 rounded">
-              <div className="flex justify-between">
-                <span className="text-gray-500">Member ID:</span>
-                <span className="font-bold text-gray-900">{selectedMemberForRenew.memberId}</span>
-              </div>
-              <div className="flex justify-between mt-1">
-                <span className="text-gray-500">Current Expiration:</span>
-                <span className="font-bold text-red-600 font-mono">
-                  {selectedMemberForRenew.membershipExpiryDate}
-                </span>
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold uppercase text-gray-700 mb-1">
-                Select Renewal Tier
-              </label>
-              <select
-                value={selectedPlanForRenew.id}
-                onChange={e => {
-                  const p = plans.find(pl => pl.id === e.target.value);
-                  if (p) setSelectedPlanForRenew(p);
-                }}
-                className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:border-[#EF1B23] focus:outline-none bg-white"
-              >
-                {activePlans.map(p => (
-                  <option key={p.id} value={p.id}>
-                    {p.name} - ₦{p.price.toLocaleString()} ({p.durationDays} Days)
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="grid grid-cols-2 gap-2 pt-2">
-              <button
-                onClick={() => {
-                  renewMemberMembership(selectedMemberForRenew.id, selectedPlanForRenew.id, 'Cash');
-                  setSelectedMemberForRenew(null);
-                  setToastMessage('Cash membership renewal recorded successfully.');
-                }}
-                className="py-2.5 bg-neutral-800 hover:bg-neutral-900 text-white font-athletic font-bold uppercase text-xs rounded transition-colors"
-              >
-                Record Cash
-              </button>
-
-              <button
-                onClick={() => {
-                  setIsPaystackOpen(true);
-                }}
-                className="py-2.5 bg-[#EF1B23] hover:bg-red-700 text-white font-athletic font-bold uppercase text-xs rounded transition-colors"
-              >
-                Online Paystack
-              </button>
-            </div>
-          </div>
-        </Modal>
-      )}
-
-      
-      {selectedMemberForRenew && selectedPlanForRenew && (
-        <PaystackModal
-          isOpen={isPaystackOpen}
-          onClose={() => {
-            setIsPaystackOpen(false);
-            setSelectedMemberForRenew(null);
-          }}
-          plan={selectedPlanForRenew}
-          memberName={`${selectedMemberForRenew.firstName} ${selectedMemberForRenew.lastName}`}
-          memberId={selectedMemberForRenew.id}
-          onSuccess={() => {
-            renewMemberMembership(selectedMemberForRenew.id, selectedPlanForRenew.id, 'Paystack');
-            setToastMessage(`Paystack renewal confirmed for ${selectedMemberForRenew.firstName}!`);
-          }}
-        />
-      )}
-
-      
     </AppLayout>
   );
 };
-
-

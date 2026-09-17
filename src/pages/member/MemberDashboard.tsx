@@ -30,6 +30,7 @@ export const MemberDashboard: React.FC = () => {
   }
 
   const memberAttendance = attendance.filter(a => a.memberId === currentMember.memberId);
+  const successfulAttendance = memberAttendance.filter(a => a.status !== 'Denied');
   const canViewWorkoutPlan = Boolean(currentMember.workoutPlanEnabled);
   const myWorkoutPlan = canViewWorkoutPlan ? workoutPlans.find(plan => plan.memberId === currentMember.id || plan.memberId === currentMember.memberId) || null : null;
   const expiry = new Date(currentMember.membershipExpiryDate);
@@ -69,8 +70,8 @@ export const MemberDashboard: React.FC = () => {
         />
         <StatCard
           label="Facility Visits"
-          value={`${memberAttendance.length} Sessions`}
-          subtext="check-in entries logged"
+          value={`${successfulAttendance.length} Sessions`}
+          subtext="successful check-ins logged"
           icon={Clock}
         />
       </div>
@@ -149,7 +150,7 @@ export const MemberDashboard: React.FC = () => {
             </h3>
 
             <div className="divide-y divide-gray-100 text-xs">
-              {(memberAttendance || []).slice(0, 4).map(att => (
+              {(successfulAttendance || []).slice(0, 4).map(att => (
                 <div key={att.id} className="py-2.5 flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <CalendarCheck className="w-4 h-4 text-emerald-600" />
@@ -160,7 +161,7 @@ export const MemberDashboard: React.FC = () => {
                   </Badge>
                 </div>
               ))}
-              {(!memberAttendance || memberAttendance.length === 0) && (
+              {(!successfulAttendance || successfulAttendance.length === 0) && (
                 <div className="py-4 text-center text-gray-400 text-xs">
                   No check-ins logged yet. Scan the permanent QR code displayed at reception.
                 </div>

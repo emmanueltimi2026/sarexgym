@@ -14,15 +14,16 @@ export const AdminAttendance: React.FC = () => {
   const [page, setPage] = useState(1);
   const pageSize = 15;
 
-  const totalScans = attendance.length;
-  const grantedScans = attendance.filter(a => a.status !== 'Denied').length;
-  const deniedScans = attendance.filter(a => a.status === 'Denied').length;
+  const attendanceSource = useMemo(() => attendance.filter(a => !/already checked in/i.test(a.denialReason || '')), [attendance]);
+  const totalScans = attendanceSource.length;
+  const grantedScans = attendanceSource.filter(a => a.status !== 'Denied').length;
+  const deniedScans = attendanceSource.filter(a => a.status === 'Denied').length;
 
   const hourlyData = useMemo(() => {
     const today = new Date();
     return Array.from({ length: 12 }, (_, bucket) => {
       const hour = bucket * 2;
-      const checkIns = attendance.filter(item => {
+      const checkIns = attendanceSource.filter(item => {
         if (item.status === 'Denied') return false;
         const value = item.checkInTime || item.time || item.date;
         if (!value) return false;
@@ -38,12 +39,14 @@ export const AdminAttendance: React.FC = () => {
         checkIns
       };
     });
-  }, [attendance]);
+  }, [attendanceSource]);
 
-  const filtered = attendance.filter(item => {
+  const filtered = attendanceSource.filter(item => {
     const matchesSearch =
       item.memberName.toLowerCase().includes(search.toLowerCase()) ||
-      item.memberId.toLowerCase().includes(search.toLowerCase());
+      item.memberId.toLowerCase().includes(search.toLowerCase()) ||
+      (item.memberEmail || '').toLowerCase().includes(search.toLowerCase()) ||
+      (item.memberPhone || '').includes(search);
     const matchesStatus = statusFilter === 'All' || item.status === statusFilter;
     return matchesSearch && matchesStatus;
   });
@@ -106,7 +109,7 @@ export const AdminAttendance: React.FC = () => {
             type="text"
             value={search}
             onChange={e => setSearch(e.target.value)}
-            placeholder="Search member name or ID..."
+            placeholder="Search name, ID, email, phone..."
             className="w-full pl-9 pr-3 py-2 bg-gray-50 border border-gray-300 rounded text-xs text-[#111111] focus:bg-white focus:border-[#EF1B23] focus:outline-none"
           />
           <Search className="w-4 h-4 text-gray-400 absolute left-3 top-2.5" />
@@ -132,10 +135,11 @@ export const AdminAttendance: React.FC = () => {
       
       <div className="bg-white border border-[#E5E7EB] rounded-lg shadow-xs overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
+          <table className="w-full min-w-[920px] text-left text-xs">
             <thead className="bg-gray-50 border-b border-[#E5E7EB] font-athletic uppercase tracking-wider text-gray-600">
               <tr>
                 <th className="py-3 px-4">Member Name</th>
+                <th className="py-3 px-4">Email</th>
                 <th className="py-3 px-4">Member ID</th>
                 <th className="py-3 px-4">Date</th>
                 <th className="py-3 px-4">Time</th>
@@ -146,7 +150,8 @@ export const AdminAttendance: React.FC = () => {
             <tbody className="divide-y divide-gray-100">
               {visibleAttendance.map(item => (
                 <tr key={item.id} className="hover:bg-gray-50 transition-colors">
-                  <td className="py-3 px-4 font-bold text-[#111111]">{item.memberName}</td>
+                  <td className="py-3 px-4"><span className="block font-bold text-[#111111]">{item.memberName}</span><span className="mt-0.5 block text-[10px] text-gray-500">{item.memberPhone || 'No phone recorded'}</span></td>
+                  <td className="py-3 px-4 text-gray-600">{item.memberEmail || 'No email recorded'}</td>
                   <td className="py-3 px-4 font-mono text-gray-600">{item.memberId}</td>
                   <td className="py-3 px-4 text-gray-600">{item.date}</td>
                   <td className="py-3 px-4 font-mono font-bold text-gray-800">{item.time}</td>

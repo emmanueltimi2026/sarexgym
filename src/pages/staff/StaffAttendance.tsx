@@ -12,10 +12,13 @@ export const StaffAttendance: React.FC = () => {
   const [page, setPage] = useState(1);
   const pageSize = 15;
 
-  const filteredLogs = attendance.filter(log => {
+  const visibleAttendanceSource = attendance.filter(log => !/already checked in/i.test(log.denialReason || ''));
+  const filteredLogs = visibleAttendanceSource.filter(log => {
     const matchesSearch =
       log.memberName.toLowerCase().includes(search.toLowerCase()) ||
-      log.memberId.toLowerCase().includes(search.toLowerCase());
+      log.memberId.toLowerCase().includes(search.toLowerCase()) ||
+      (log.memberEmail || '').toLowerCase().includes(search.toLowerCase()) ||
+      (log.memberPhone || '').includes(search);
 
     const matchesStatus = statusFilter === 'All' || log.status === statusFilter;
     return matchesSearch && matchesStatus;
@@ -45,7 +48,7 @@ export const StaffAttendance: React.FC = () => {
             type="text"
             value={search}
             onChange={e => setSearch(e.target.value)}
-            placeholder="Search member name or ID..."
+            placeholder="Search name, ID, email, phone..."
             className="w-full pl-9 pr-3 py-2 bg-gray-50 border border-gray-300 rounded text-xs text-[#111111] focus:bg-white focus:border-[#EF1B23] focus:outline-none"
           />
           <Search className="w-4 h-4 text-gray-400 absolute left-3 top-2.5" />
@@ -71,10 +74,11 @@ export const StaffAttendance: React.FC = () => {
       
       <div className="bg-white border border-[#E5E7EB] rounded-lg shadow-xs overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
+          <table className="w-full min-w-[920px] text-left text-xs">
             <thead className="bg-gray-50 border-b border-[#E5E7EB] font-athletic uppercase tracking-wider text-gray-600">
               <tr>
                 <th className="py-3 px-4">Member Name</th>
+                <th className="py-3 px-4">Email</th>
                 <th className="py-3 px-4">Member ID</th>
                 <th className="py-3 px-4">Date</th>
                 <th className="py-3 px-4">Time</th>
@@ -85,15 +89,20 @@ export const StaffAttendance: React.FC = () => {
             <tbody className="divide-y divide-gray-100">
               {filteredLogs.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="py-8 text-center text-gray-500">
+                  <td colSpan={7} className="py-8 text-center text-gray-500">
                     No attendance logs match your filter criteria.
                   </td>
                 </tr>
               ) : (
                 visibleLogs.map(item => (
                   <tr key={item.id} className="hover:bg-gray-50 transition-colors">
-                    <td className="py-3 px-4 font-bold text-[#111111]">
-                      {item.memberName}
+                    <td className="py-3 px-4">
+                      <span className="block font-bold text-[#111111]">{item.memberName}</span>
+                      <span className="mt-0.5 block text-[10px] text-gray-500">{item.memberPhone || 'No phone recorded'}</span>
+                    </td>
+
+                    <td className="py-3 px-4 text-gray-600">
+                      {item.memberEmail || 'No email recorded'}
                     </td>
 
                     <td className="py-3 px-4 font-mono text-gray-600">

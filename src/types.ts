@@ -60,6 +60,8 @@ export interface AttendanceRecord {
   id: string;
   memberId: string;
   memberName: string;
+  memberEmail?: string;
+  memberPhone?: string;
   memberPhoto?: string;
   membershipPlan?: string;
   checkInTime?: string;

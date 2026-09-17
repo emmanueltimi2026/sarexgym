@@ -2,9 +2,11 @@ import React, { useEffect, useRef, useState } from 'react';
 import { CheckCircle2, Clock3, IdCard, Loader2, QrCode, ShieldAlert } from 'lucide-react';
 import { useGym } from '../../context/GymContext';
 import { apiBase as BASE } from '../../lib/secureFetch';
+import { InitialsAvatar } from '../../components/ui/InitialsAvatar';
 
 type CheckInResult = {
   checked_in_at: string;
+  duplicate?: boolean;
   member: { memberId: string; firstName: string; lastName: string; photo?: string; planName: string; membershipExpiryDate: string; membershipStatus?: string };
   branch?: { name: string };
 };
@@ -32,7 +34,7 @@ export const ReceptionCheckIn: React.FC = () => {
         if (!body?.data?.member) throw new Error('Check-in was recorded, but the confirmation details could not be displayed. Open your dashboard to confirm today’s visit.');
         setResult(body.data);
         setStatus('success');
-        setMessage('Show this screen to reception so they can verify your member details.');
+        setMessage(body.data.duplicate ? 'Your earlier check-in is still valid. Show this screen to reception if needed.' : 'Show this screen to reception so they can verify your member details.');
       } catch (error) {
         setStatus('denied');
         setMessage(error instanceof Error ? error.message : 'Check-in could not be completed.');
@@ -51,10 +53,10 @@ export const ReceptionCheckIn: React.FC = () => {
         {status === 'checking' && <><Loader2 className="mx-auto h-9 w-9 animate-spin text-[#EF1B23] sm:h-12 sm:w-12"/><h1 className="mt-3 text-lg font-black sm:mt-5 sm:text-2xl">Checking you in</h1></>}
         {status === 'success' && result && <>
           <CheckCircle2 className="mx-auto h-9 w-9 text-emerald-500 sm:h-14 sm:w-14"/>
-          <h1 className="mt-2 text-lg font-black text-[#111] sm:mt-4 sm:text-2xl">Check-in successful</h1>
+          <h1 className="mt-2 text-lg font-black text-[#111] sm:mt-4 sm:text-2xl">{result.duplicate ? 'Already checked in' : 'Check-in successful'}</h1>
           <div className="mt-3 rounded-xl border border-emerald-100 bg-emerald-50 p-3 text-left text-[#111] sm:mt-6 sm:rounded-2xl sm:p-5">
             <div className="flex items-center gap-3 sm:gap-4">
-              <img src={result.member.photo || '/assets/brand/sarex-logo.png'} alt={`${result.member.firstName} ${result.member.lastName}`} className="h-12 w-12 rounded-xl border border-white bg-white object-cover sm:h-16 sm:w-16 sm:rounded-2xl"/>
+              <InitialsAvatar src={result.member.photo} firstName={result.member.firstName} lastName={result.member.lastName} className="h-12 w-12 rounded-xl border-white text-sm sm:h-16 sm:w-16 sm:rounded-2xl sm:text-lg"/>
               <div className="min-w-0"><strong className="block truncate text-sm font-black text-[#111] sm:text-lg">{result.member.firstName} {result.member.lastName}</strong><span className="mt-1 inline-flex items-center gap-1 rounded-full bg-white px-2 py-0.5 text-[9px] font-black uppercase text-emerald-700 sm:px-2.5 sm:py-1 sm:text-[10px]"><IdCard className="h-3 w-3 sm:h-3.5 sm:w-3.5"/>{result.member.memberId}</span></div>
             </div>
             <dl className="mt-3 grid grid-cols-2 gap-x-3 gap-y-1.5 text-[10px] sm:mt-5 sm:gap-3 sm:text-xs">

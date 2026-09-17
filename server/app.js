@@ -115,14 +115,14 @@ export function createApp({db,config}) {
      const access=(await c.query("SELECT s.id,p.name plan_name,s.ends_at FROM subscriptions s JOIN membership_plans p ON p.id=s.plan_id WHERE s.member_id=$1 AND s.status='active' AND s.starts_at<=now() AND s.ends_at>now() AND NOT EXISTS(SELECT 1 FROM subscription_freezes f WHERE f.subscription_id=s.id AND now()>=f.starts_at AND now()<f.ends_at) ORDER BY s.ends_at DESC LIMIT 1 FOR UPDATE OF s",[member.id])).rows[0];
      if(!access)return deny('You do not have an active membership','INACTIVE_MEMBERSHIP',403);
      await c.query('SELECT pg_advisory_xact_lock(hashtext($1))',[member.id]);
-     const existing=(await c.query("SELECT checked_in_at FROM attendance WHERE member_id=$1 AND status='completed' AND (checked_in_at AT TIME ZONE $2)::date=(now() AT TIME ZONE $2)::date ORDER BY checked_in_at DESC LIMIT 1",[member.id,branch.timezone])).rows[0];
-     if(existing)return deny('You already checked in today at '+new Date(existing.checked_in_at).toLocaleTimeString('en-NG',{timeZone:branch.timezone,hour:'2-digit',minute:'2-digit'}),'ALREADY_CHECKED_IN',409);
+     const existing=(await c.query("SELECT id,checked_in_at FROM attendance WHERE member_id=$1 AND status='completed' AND (checked_in_at AT TIME ZONE $2)::date=(now() AT TIME ZONE $2)::date ORDER BY checked_in_at DESC LIMIT 1",[member.id,branch.timezone])).rows[0];
+     if(existing)return{...existing,duplicate:true,member:{id:member.id,memberId:member.member_number,firstName:member.first_name,lastName:member.last_name,photo:member.profile_image_url,planName:access.plan_name,membershipExpiryDate:access.ends_at,membershipStatus:'Active'},branch:{id:branch.id,name:branch.name}};
      const visit=(await c.query("INSERT INTO attendance(member_id,branch_id,checked_in_at,scanner_user_id,method,status) VALUES($1,$2,now(),$3,'reception_qr','completed') RETURNING id,checked_in_at",[member.id,branch.id,req.actor.id])).rows[0];
      await c.query("INSERT INTO audit_logs(actor_user_id,action,entity_type,entity_id,new_values,ip,request_id) VALUES($1,'attendance.reception_qr_check_in','attendance',$2,$3,$4,$5)",[req.actor.id,visit.id,JSON.stringify({memberId:member.id,branchId:branch.id}),req.ip,req.requestId]);
      return{...visit,member:{id:member.id,memberId:member.member_number,firstName:member.first_name,lastName:member.last_name,photo:member.profile_image_url,planName:access.plan_name,membershipExpiryDate:access.ends_at,membershipStatus:'Active'},branch:{id:branch.id,name:branch.name}};
    },'SERIALIZABLE');
    if(result.denied)return res.status(result.httpStatus).json({error:{code:result.code,message:result.message,requestId:req.requestId}});
-   res.status(201).json({data:result});
+   res.status(result.duplicate?200:201).json({data:result});
  }));
  installProtectedRoutes(app,{db,config,checkInLimit,paymentLimit});
  app.get('/api/v1/members',requirePermission('members.view'),asyncRoute(async(req,res)=>{

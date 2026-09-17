@@ -1,8 +1,10 @@
 import React, { useCallback, useState } from 'react';
-import { ArrowLeft, CalendarCheck, Dumbbell, Mail, MapPin, Phone, ShieldCheck, UserRound } from 'lucide-react';
+import { ArrowLeft, CalendarCheck, CreditCard, Dumbbell, Mail, MapPin, Phone, ShieldCheck, UserPlus, UserRound } from 'lucide-react';
 import { AppLayout } from '../../components/layout/AppLayout';
 import { Badge } from '../../components/ui/Badge';
 import { InitialsAvatar } from '../../components/ui/InitialsAvatar';
+import { Modal } from '../../components/ui/Modal';
+import { PaystackModal } from '../../components/ui/PaystackModal';
 import { Pagination } from '../../components/ui/Pagination';
 import { useGym } from '../../context/GymContext';
 import { useVisibilityPolling } from '../../hooks/useVisibilityPolling';
@@ -17,13 +19,20 @@ type DetailsResponse = {
 };
 
 export const MemberDetails: React.FC = () => {
-  const { currentPath, navigate } = useGym();
+  const { currentPath, navigate, plans, trainers, updateMember, renewMemberMembership } = useGym();
   const portal = currentPath.startsWith('/admin/') ? 'admin' : 'staff';
   const memberId = currentPath.split('/').filter(Boolean).at(-1) || '';
   const [page, setPage] = useState(1);
   const [details, setDetails] = useState<DetailsResponse | null>(null);
   const [error, setError] = useState('');
+  const [selectedPlanForRenew, setSelectedPlanForRenew] = useState<(typeof plans)[number] | null>(null);
+  const [isRenewOpen, setIsRenewOpen] = useState(false);
+  const [isPaystackOpen, setIsPaystackOpen] = useState(false);
+  const [isAssignOpen, setIsAssignOpen] = useState(false);
+  const [trainerId, setTrainerId] = useState('');
+  const [message, setMessage] = useState('');
   const pageSize = 10;
+  const activePlans = plans.filter(plan => plan.isActive !== false);
 
   const loadDetails = useCallback(async (signal: AbortSignal) => {
     try {
@@ -39,6 +48,7 @@ export const MemberDetails: React.FC = () => {
   useVisibilityPolling(loadDetails, PORTAL_POLL_INTERVALS.portal, true, true);
 
   const member = details?.member;
+  const canAssignTrainer = Boolean(member?.trainerAccess);
   const backPath = `/${portal}/members`;
   const portalLabel = portal === 'admin' ? 'Administration' : 'Staff Portal';
   const contactProfileItems = member ? [
@@ -55,8 +65,10 @@ export const MemberDetails: React.FC = () => {
       pageTitle="Member Details"
       pageSubtitle="Review profile, membership access, and check-in history."
       breadcrumbs={[{ label: portalLabel, path: `/${portal}/dashboard` }, { label: 'Members', path: backPath }, { label: member?.memberId || 'Details' }]}
-      actions={<button type="button" onClick={() => navigate(backPath)} className="flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-bold text-gray-700 transition hover:border-gray-500"><ArrowLeft className="h-4 w-4"/>Back to members</button>}
+      actions={<div className="flex flex-wrap items-center gap-2">{member && canAssignTrainer && <button type="button" onClick={() => { setTrainerId(member.assignedTrainerId || ''); setIsAssignOpen(true); }} className="flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-bold text-gray-700 transition hover:border-[#EF1B23]"><UserPlus className="h-4 w-4"/>Assign trainer</button>}{member && <button type="button" onClick={() => { const plan = activePlans.find(item => item.id === member.membershipPlanId) || activePlans[0] || null; setSelectedPlanForRenew(plan); setIsRenewOpen(true); }} className="flex items-center gap-2 rounded-lg bg-[#EF1B23] px-3 py-2 text-xs font-bold text-white transition hover:bg-red-700"><CreditCard className="h-4 w-4"/>Renew</button>}<button type="button" onClick={() => navigate(backPath)} className="flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-bold text-gray-700 transition hover:border-gray-500"><ArrowLeft className="h-4 w-4"/>Back to members</button></div>}
     >
+      {message && <div className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-xs font-semibold text-emerald-800">{message}</div>}
+
       {!details && !error && <div className="space-y-5" role="status" aria-label="Loading member details"><div className="h-40 animate-pulse rounded-lg bg-white"/><div className="grid gap-4 md:grid-cols-2"><div className="h-56 animate-pulse rounded-lg bg-white"/><div className="h-56 animate-pulse rounded-lg bg-white"/></div><div className="h-72 animate-pulse rounded-lg bg-white"/></div>}
 
       {error && <div className="rounded-lg border border-red-200 bg-red-50 p-8 text-center"><h2 className="font-bold text-red-800">Unable to open this member</h2><p className="mt-2 text-sm text-red-700">{error}</p><button type="button" onClick={() => navigate(backPath)} className="mt-5 rounded-lg bg-[#151515] px-4 py-2 text-xs font-bold text-white">BACK TO MEMBERS</button></div>}
@@ -79,6 +91,46 @@ export const MemberDetails: React.FC = () => {
           <Pagination page={page} pageSize={pageSize} total={details.pagination.total} onPageChange={setPage}/>
         </section>
       </div>}
+
+      {member && isAssignOpen && canAssignTrainer && (
+        <Modal isOpen onClose={() => setIsAssignOpen(false)} title="ASSIGN TRAINER" subtitle={`Choose a trainer for ${member.firstName} ${member.lastName}`} maxWidth="sm">
+          <form onSubmit={event => { event.preventDefault(); updateMember(member.id, { assignedTrainerId: (trainerId || null) as any }); setIsAssignOpen(false); setMessage(trainerId ? 'Trainer assigned successfully.' : 'Trainer assignment removed.'); window.setTimeout(() => setMessage(''), 3500); }} className="space-y-4">
+            <div>
+              <label className="mb-1 block text-xs font-bold uppercase text-gray-700">Trainer</label>
+              <select value={trainerId} onChange={event => setTrainerId(event.target.value)} className="w-full rounded border border-gray-300 bg-white px-3 py-2.5 text-sm focus:border-[#EF1B23] focus:outline-none">
+                <option value="">No trainer assigned</option>
+                {trainers.filter(trainer => trainer.isActive).map(trainer => <option key={trainer.id} value={trainer.id}>{trainer.firstName} {trainer.lastName} - {trainer.specialization}</option>)}
+              </select>
+            </div>
+            <div className="flex justify-end gap-2 border-t border-gray-200 pt-3"><button type="button" onClick={() => setIsAssignOpen(false)} className="rounded border border-gray-300 px-4 py-2 text-xs font-bold uppercase">Cancel</button><button type="submit" className="rounded bg-[#EF1B23] px-5 py-2 text-xs font-bold uppercase text-white">Save assignment</button></div>
+          </form>
+        </Modal>
+      )}
+
+      {member && isRenewOpen && selectedPlanForRenew && (
+        <Modal isOpen onClose={() => setIsRenewOpen(false)} title="RENEW MEMBERSHIP" subtitle={`Extend membership for ${member.firstName} ${member.lastName}`}>
+          <div className="space-y-4 text-xs">
+            <div className="rounded border border-gray-200 bg-gray-50 p-3">
+              <div className="flex justify-between gap-4"><span className="text-gray-500">Member ID:</span><span className="font-bold text-gray-900">{member.memberId}</span></div>
+              <div className="mt-1 flex justify-between gap-4"><span className="text-gray-500">Current expiration:</span><span className="font-mono font-bold text-[#EF1B23]">{member.membershipExpiryDate || 'Not active'}</span></div>
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-bold uppercase text-gray-700">Select renewal tier</label>
+              <select value={selectedPlanForRenew.id} onChange={event => { const plan = plans.find(item => item.id === event.target.value); if (plan) setSelectedPlanForRenew(plan); }} className="w-full rounded border border-gray-300 bg-white px-3 py-2 text-sm focus:border-[#EF1B23] focus:outline-none">
+                {activePlans.map(plan => <option key={plan.id} value={plan.id}>{plan.name} - ₦{plan.price.toLocaleString()} ({plan.durationDays} Days)</option>)}
+              </select>
+            </div>
+            <div className="grid grid-cols-2 gap-2 pt-2">
+              <button type="button" onClick={() => { void renewMemberMembership(member.id, selectedPlanForRenew.id, 'Cash'); setIsRenewOpen(false); setMessage('Cash membership renewal recorded successfully.'); window.setTimeout(() => setMessage(''), 3500); }} className="rounded bg-neutral-800 py-2.5 font-athletic text-xs font-bold uppercase text-white transition hover:bg-neutral-900">Record cash</button>
+              <button type="button" onClick={() => setIsPaystackOpen(true)} className="rounded bg-[#EF1B23] py-2.5 font-athletic text-xs font-bold uppercase text-white transition hover:bg-red-700">Online Paystack</button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {member && selectedPlanForRenew && (
+        <PaystackModal isOpen={isPaystackOpen} onClose={() => { setIsPaystackOpen(false); setIsRenewOpen(false); }} plan={selectedPlanForRenew} memberName={`${member.firstName} ${member.lastName}`} memberId={member.id} onSuccess={() => { void renewMemberMembership(member.id, selectedPlanForRenew.id, 'Paystack'); }}/>
+      )}
     </AppLayout>
   );
 };
