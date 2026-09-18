@@ -97,13 +97,13 @@ export function installProtectedRoutes(app,{db,config,checkInLimit=(req,res,next
  db.query("SELECT *,COALESCE(features,'[]'::jsonb) features FROM membership_plans ORDER BY active DESC,price_minor"),
  db.query(`SELECT a.*,m.member_number,concat(m.first_name,' ',m.last_name) member_name,m.phone member_phone,u.email member_email,m.profile_image_url,p.name plan_name FROM attendance a JOIN members m ON m.id=a.member_id JOIN users u ON u.id=m.user_id LEFT JOIN LATERAL(SELECT plan_id FROM subscriptions WHERE member_id=m.id ORDER BY ends_at DESC LIMIT 1)s ON true LEFT JOIN membership_plans p ON p.id=s.plan_id WHERE ${scope.sql} ORDER BY a.created_at DESC LIMIT 500`,scope.params),
  db.query(`SELECT * FROM (
-  SELECT py.id,py.receipt_number,py.provider_reference,m.member_number,concat(m.first_name,' ',m.last_name) member_name,py.plan_id,p.name plan_name,py.amount_minor,py.currency,py.method,py.status,py.paid_at,py.created_at,py.notes,'Membership' kind
+  SELECT py.id,py.receipt_number,py.provider_reference,m.member_number,concat(m.first_name,' ',m.last_name) member_name,py.plan_id,p.name plan_name,py.amount_minor,py.currency,py.method::text method,py.status::text status,py.paid_at,py.created_at,py.notes::text notes,'Membership'::text kind
   FROM payments py
   JOIN members m ON m.id=py.member_id
   JOIN membership_plans p ON p.id=py.plan_id
   WHERE ${scope.sql}
   UNION ALL
-  SELECT r.id,r.receipt_number,r.provider_reference,m.member_number,concat(m.first_name,' ',m.last_name) member_name,e.id plan_id,e.title plan_name,r.amount_minor,e.currency,'Paystack' method,r.status,r.registered_at paid_at,r.registered_at created_at,NULL notes,'Event' kind
+  SELECT r.id,r.receipt_number,r.provider_reference,m.member_number,concat(m.first_name,' ',m.last_name) member_name,e.id plan_id,e.title plan_name,r.amount_minor,e.currency,'paystack'::text method,r.status::text status,r.registered_at paid_at,r.registered_at created_at,NULL::text notes,'Event'::text kind
   FROM event_registrations r
   JOIN members m ON m.id=r.member_id
   JOIN events e ON e.id=r.event_id

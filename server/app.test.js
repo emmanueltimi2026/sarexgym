@@ -43,3 +43,55 @@ test('duplicate reception scan returns the existing successful check-in idempote
   assert.equal(transactionQueries.some(text=>text.startsWith('INSERT INTO attendance')),false);
  }finally{await new Promise(resolve=>server.close(resolve));}
 });
+
+test('bootstrap returns mixed membership and event payments with UNION-compatible text statuses',async()=>{
+ const captured=[];
+ const now=new Date('2026-09-18T12:00:00.000Z');
+ const bootstrapDb={
+  async transaction(work){return work(this);},
+  async query(text){
+   captured.push(text);
+   if(text.includes('FROM sessions s'))return{rows:[{session_id:'session-1',id:'user-1',email:'member@sarex.test',status:'active',permissions:[],roles:['member']}],rowCount:1};
+   if(text.startsWith('UPDATE sessions SET last_seen_at'))return{rows:[],rowCount:1};
+   if(text==='SELECT now() now')return{rows:[{now}],rowCount:1};
+   if(text.includes("UPDATE subscriptions SET status='expired',updated_at=now() WHERE status='active'"))return{rows:[],rowCount:0};
+   if(text.includes("SELECT DISTINCT member_id FROM subscriptions WHERE status='scheduled'"))return{rows:[],rowCount:0};
+   if(text.includes('SELECT m.*,u.email'))return{rows:[{
+    id:'member-1',user_id:'user-1',member_number:'GYM-000001',first_name:'Ada',last_name:'Member',email:'member@sarex.test',phone:'08000000000',
+    gender:null,date_of_birth:null,address:null,profile_image_url:null,joined_at:now,user_status:'active',
+    subscription_status:'active',starts_at:new Date('2026-09-01T00:00:00.000Z'),ends_at:new Date('2026-10-01T00:00:00.000Z'),amount_minor:2500000,
+    plan_id:'plan-1',plan_name:'Standard Plan',trainer_access:false,workout_plan_access:false,registration_fee_paid_at:now,
+    next_subscription_id:'sub-next',next_plan_id:'plan-2',next_subscription_status:'scheduled',next_starts_at:new Date('2026-10-01T00:00:00.000Z'),next_ends_at:new Date('2026-10-31T00:00:00.000Z'),next_plan_name:'Premium',
+    trainer_id:null,trainer_name:null,last_check_in:null
+   }],rowCount:1};
+   if(text.includes("SELECT *,COALESCE(features,'[]'::jsonb) features FROM membership_plans"))return{rows:[{id:'plan-1',name:'Standard Plan',description:'Standard',price_minor:2500000,duration_days:30,active:true,features:[],trainer_access:false,workout_plan_access:false,registration_fee_minor:0}],rowCount:1};
+   if(text.includes('FROM attendance a JOIN members'))return{rows:[],rowCount:0};
+   if(text.includes('SELECT * FROM (')&&text.includes('UNION ALL')&&text.includes('event_registrations')) {
+    assert.match(text,/py\.status::text status/);
+    assert.match(text,/r\.status::text status/);
+    assert.match(text,/NULL::text notes/);
+    assert.match(text,/'Event'::text kind/);
+    return{rows:[
+     {id:'payment-1',receipt_number:'SRX-M-1',provider_reference:'sarex_member_ref',member_number:'GYM-000001',member_name:'Ada Member',plan_id:'plan-1',plan_name:'Standard Plan',amount_minor:2500000,currency:'NGN',method:'paystack',status:'successful',paid_at:now,created_at:now,notes:null,kind:'Membership'},
+     {id:'registration-1',receipt_number:'SRX-E-1',provider_reference:'sarex_event_ref',member_number:'GYM-000001',member_name:'Ada Member',plan_id:'event-1',plan_name:'Open Adventure',amount_minor:1500000,currency:'NGN',method:'paystack',status:'confirmed',paid_at:now,created_at:now,notes:null,kind:'Event'}
+    ],rowCount:2};
+   }
+   if(text.includes('FROM trainers t JOIN users'))return{rows:[],rowCount:0};
+   if(text.includes('FROM workout_plans'))return{rows:[],rowCount:0};
+   if(text.includes('FROM member_progress'))return{rows:[],rowCount:0};
+   if(text.includes('SELECT * FROM gym_settings'))return{rows:[{id:true,gym_name:'SAREX Fitness Clinic'}],rowCount:1};
+   return{rows:[],rowCount:0};
+  }
+ };
+ const app=createApp({db:bootstrapDb,config:{...config,SESSION_IDLE_TIMEOUT_HOURS:24,COOKIE_SAME_SITE:'lax',CSRF_SECRET:'test-bootstrap-secret-with-enough-entropy'}}),server=app.listen(0);
+ try{
+  await new Promise(resolve=>server.once('listening',resolve));
+  const response=await fetch(`http://127.0.0.1:${server.address().port}/api/v1/bootstrap`,{headers:{cookie:'session=session-token'}});
+  const body=await response.json();
+  assert.equal(response.status,200);
+  assert.equal(body.data.payments.length,2);
+  assert.equal(body.data.payments[0].status,'Successful');
+  assert.equal(body.data.payments[1].planName,'Event: Open Adventure');
+  assert.ok(captured.some(text=>text.includes('py.status::text status')&&text.includes('r.status::text status')));
+ }finally{await new Promise(resolve=>server.close(resolve));}
+});
