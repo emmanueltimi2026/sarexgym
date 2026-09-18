@@ -38,6 +38,7 @@ export const MemberDashboard: React.FC = () => {
   const diffTime = expiry.getTime() - now.getTime();
   const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
   const hasActiveSubscription = currentMember.membershipStatus === 'Active' && Number.isFinite(diffDays) && diffDays > 0;
+  const hasScheduledSubscription = Boolean(currentMember.nextSubscriptionId && currentMember.nextPlanName && currentMember.nextPlanStartDate);
 
   return (
     <AppLayout
@@ -55,7 +56,7 @@ export const MemberDashboard: React.FC = () => {
         )}
       </>}
     >
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-3 mb-4">
+      <div className={`grid grid-cols-1 gap-3 mb-4 sm:grid-cols-2 ${hasScheduledSubscription ? 'xl:grid-cols-5' : 'xl:grid-cols-3'}`}>
         <StatCard
           label="Days Remaining"
           value={hasActiveSubscription ? `${diffDays} Days Left` : '—'}
@@ -68,18 +69,22 @@ export const MemberDashboard: React.FC = () => {
           subtext={hasActiveSubscription ? 'Full facility clearance' : 'Choose a plan and complete payment'}
           icon={ShieldCheck}
         />
-        <StatCard
-          label="Next Plan"
-          value={currentMember.nextPlanName || 'None Scheduled'}
-          subtext={currentMember.nextPlanName ? 'Purchased renewal queued' : 'No future plan selected'}
-          icon={CreditCard}
-        />
-        <StatCard
-          label="Scheduled Start"
-          value={currentMember.nextPlanStartDate || '—'}
-          subtext={currentMember.nextPlanName ? 'Starts after current plan ends' : 'No scheduled start'}
-          icon={CalendarCheck}
-        />
+        {hasScheduledSubscription && (
+          <>
+            <StatCard
+              label="Next Plan"
+              value={currentMember.nextPlanName}
+              subtext="Purchased renewal queued"
+              icon={CreditCard}
+            />
+            <StatCard
+              label="Scheduled Start"
+              value={currentMember.nextPlanStartDate}
+              subtext="Starts after current plan ends"
+              icon={CalendarCheck}
+            />
+          </>
+        )}
         <StatCard
           label="Facility Visits"
           value={`${successfulAttendance.length} Sessions`}

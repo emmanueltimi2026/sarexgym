@@ -3,6 +3,7 @@ import { useGym } from '../../context/GymContext';
 import { AppLayout } from '../../components/layout/AppLayout';
 import { Badge } from '../../components/ui/Badge';
 import { Modal } from '../../components/ui/Modal';
+import { OfficialReceipt } from '../../components/ui/OfficialReceipt';
 import { PaymentSummaryCard } from '../../components/ui/PaymentSummaryCard';
 import {
   CreditCard,
@@ -18,7 +19,7 @@ import {
 } from 'lucide-react';
 import { PaymentRecord, PaymentMethod, PaymentStatus } from '../../types';
 import { exportPayments } from '../../utils/exportPayments';
-import { formatPaymentDateTime } from '../../utils/dateTime';
+import { formatPaymentDateParts } from '../../utils/dateTime';
 import { Pagination } from '../../components/ui/Pagination';
 
 export const StaffPayments: React.FC = () => {
@@ -191,7 +192,9 @@ export const StaffPayments: React.FC = () => {
                   </td>
                 </tr>
               ) : (
-                visiblePayments.map(item => (
+                visiblePayments.map(item => {
+                  const paidAt = formatPaymentDateParts(item.date);
+                  return (
                   <tr key={item.id} className="hover:bg-gray-50 transition-colors">
                     <td className="py-3 px-4 font-mono font-bold text-gray-700">
                       {item.transactionReference}
@@ -220,7 +223,8 @@ export const StaffPayments: React.FC = () => {
                     </td>
 
                     <td className="whitespace-nowrap py-3 px-4 text-gray-600">
-                      {formatPaymentDateTime(item.date)}
+                      <span className="block font-semibold text-gray-800">{paidAt.date}</span>
+                      <span className="mt-0.5 block text-[10px] text-gray-400">{paidAt.time}</span>
                     </td>
 
                     <td className="py-3 px-4">
@@ -247,7 +251,7 @@ export const StaffPayments: React.FC = () => {
                       </button>
                     </td>
                   </tr>
-                ))
+                )})
               )}
             </tbody>
           </table>
@@ -336,66 +340,7 @@ export const StaffPayments: React.FC = () => {
       </Modal>
 
       
-      {selectedReceipt && (
-        <Modal
-          isOpen={!!selectedReceipt}
-          onClose={() => setSelectedReceipt(null)}
-          title="OFFICIAL RECEIPT"
-          subtitle="SAREX Fitness Clinic"
-          maxWidth="sm"
-        >
-          <div className="p-4 bg-gray-50 border border-gray-200 rounded font-mono text-xs space-y-3">
-            <div className="text-center pb-3 border-b border-gray-200">
-              <div className="font-bold text-sm text-[#111111]">SAREX FITNESS CLINIC</div>
-              <div className="text-[10px] text-gray-500">Magboro, Ogun State</div>
-              <div className="text-[10px] text-gray-500">SAREX FITNESS CLINIC Performance</div>
-            </div>
-
-            <div className="flex justify-between">
-              <span className="text-gray-500">Receipt Ref:</span>
-              <span className="font-bold text-[#111111]">{selectedReceipt.transactionReference}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-gray-500">Date:</span>
-              <span>{selectedReceipt.date}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-gray-500">Member:</span>
-              <span className="font-bold">{selectedReceipt.memberName}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-gray-500">Member ID:</span>
-              <span>{selectedReceipt.memberId}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-gray-500">Item:</span>
-              <span>{selectedReceipt.planName}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-gray-500">Method:</span>
-              <span>{selectedReceipt.paymentMethod}</span>
-            </div>
-
-            <div className="flex justify-between text-sm font-bold pt-2 border-t border-gray-200">
-              <span>Amount Paid:</span>
-              <span className="text-[#EF1B23]">₦{selectedReceipt.amount.toLocaleString()}</span>
-            </div>
-
-            <div className="text-center text-[10px] text-gray-400 pt-3 border-t border-gray-200">
-              Thank you for training with SAREX FITNESS CLINIC!
-            </div>
-          </div>
-
-          <div className="mt-4 flex gap-2">
-            <button
-              onClick={() => setSelectedReceipt(null)}
-              className="w-full py-2.5 bg-[#EF1B23] text-white font-athletic font-bold uppercase text-xs rounded hover:bg-red-700 transition-colors"
-            >
-              Close Receipt
-            </button>
-          </div>
-        </Modal>
-      )}
+      {selectedReceipt && <Modal isOpen={!!selectedReceipt} onClose={() => setSelectedReceipt(null)} title="OFFICIAL RECEIPT" subtitle="SAREX Fitness Clinic" maxWidth="sm"><OfficialReceipt receipt={selectedReceipt} onClose={() => setSelectedReceipt(null)}/></Modal>}
     </AppLayout>
   );
 };

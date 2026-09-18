@@ -3,11 +3,12 @@ import { useGym } from '../../context/GymContext';
 import { AppLayout } from '../../components/layout/AppLayout';
 import { Badge } from '../../components/ui/Badge';
 import { Modal } from '../../components/ui/Modal';
+import { OfficialReceipt } from '../../components/ui/OfficialReceipt';
 import { PaymentSummaryCard } from '../../components/ui/PaymentSummaryCard';
 import { Search, Printer, Plus, Landmark, ArrowLeftRight, Download, BarChart3 } from 'lucide-react';
 import { PaymentRecord, PaymentMethod, PaymentStatus } from '../../types';
 import { exportPayments } from '../../utils/exportPayments';
-import { formatPaymentDateTime } from '../../utils/dateTime';
+import { formatPaymentDateParts } from '../../utils/dateTime';
 import { Pagination } from '../../components/ui/Pagination';
 
 export const AdminPayments: React.FC = () => {
@@ -163,7 +164,9 @@ export const AdminPayments: React.FC = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {filtered.length === 0 ? <tr><td colSpan={8} className="px-5 py-12 text-center text-sm text-gray-500">No transactions match your search or filters.</td></tr> : visiblePayments.map(item => (
+              {filtered.length === 0 ? <tr><td colSpan={8} className="px-5 py-12 text-center text-sm text-gray-500">No transactions match your search or filters.</td></tr> : visiblePayments.map(item => {
+                const paidAt = formatPaymentDateParts(item.date);
+                return (
                 <tr key={item.id} className="hover:bg-gray-50 transition-colors">
                   <td className="py-3 px-4 font-mono font-bold text-gray-700">
                     {item.transactionReference}
@@ -187,7 +190,8 @@ export const AdminPayments: React.FC = () => {
                   </td>
 
                   <td className="whitespace-nowrap py-3 px-4 text-gray-600">
-                    {formatPaymentDateTime(item.date)}
+                    <span className="block font-semibold text-gray-800">{paidAt.date}</span>
+                    <span className="mt-0.5 block text-[10px] text-gray-400">{paidAt.time}</span>
                   </td>
 
                   <td className="py-3 px-4">
@@ -214,7 +218,7 @@ export const AdminPayments: React.FC = () => {
                     </button>
                   </td>
                 </tr>
-              ))}
+              )})}
             </tbody>
           </table>
         </div>
@@ -231,48 +235,7 @@ export const AdminPayments: React.FC = () => {
           <div className="flex justify-end gap-2 border-t border-gray-200 pt-4"><button type="button" onClick={()=>setIsRecordOpen(false)} className="rounded border border-gray-300 px-4 py-2 font-bold uppercase">Cancel</button><button type="submit" disabled={recording} className="rounded bg-[#EF1B23] px-5 py-2 font-bold uppercase text-white disabled:cursor-not-allowed disabled:opacity-60">{recording ? 'Recording…' : 'Confirm payment'}</button></div>
         </form>
       </Modal>
-      {selectedReceipt && (
-        <Modal
-          isOpen={!!selectedReceipt}
-          onClose={() => setSelectedReceipt(null)}
-          title="SETTLEMENT VOUCHER"
-          subtitle="SAREX FITNESS CLINIC Central Accounting"
-          maxWidth="sm"
-        >
-          <div className="p-4 bg-gray-50 border border-gray-200 rounded font-mono text-xs space-y-2.5">
-            <div className="text-center pb-2 border-b border-gray-200">
-              <div className="font-bold text-sm text-[#111111]">SAREX FITNESS CLINIC</div>
-              <div className="text-[10px] text-gray-500">Official Settlement Record</div>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-gray-500">Txn Ref:</span>
-              <span className="font-bold">{selectedReceipt.transactionReference}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-gray-500">Member:</span>
-              <span>{selectedReceipt.memberName} ({selectedReceipt.memberId})</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-gray-500">Plan:</span>
-              <span>{selectedReceipt.planName}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-gray-500">Method:</span>
-              <span>{selectedReceipt.paymentMethod}</span>
-            </div>
-            <div className="flex justify-between font-bold text-sm pt-2 border-t border-gray-200">
-              <span>Settled Sum:</span>
-              <span className="text-[#EF1B23]">₦{selectedReceipt.amount.toLocaleString()}</span>
-            </div>
-          </div>
-          <button
-            onClick={() => setSelectedReceipt(null)}
-            className="w-full mt-4 py-2.5 bg-[#EF1B23] text-white font-athletic font-bold uppercase text-xs rounded"
-          >
-            Close Voucher
-          </button>
-        </Modal>
-      )}
+      {selectedReceipt && <Modal isOpen={!!selectedReceipt} onClose={() => setSelectedReceipt(null)} title="OFFICIAL RECEIPT" subtitle="SAREX Fitness Clinic" maxWidth="sm"><OfficialReceipt receipt={selectedReceipt} onClose={() => setSelectedReceipt(null)}/></Modal>}
     </AppLayout>
   );
 };

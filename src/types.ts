@@ -82,6 +82,7 @@ export interface AttendanceRecord {
 
 export interface PaymentRecord {
   id: string;
+  receiptNumber?: string;
   reference?: string;
   transactionReference?: string;
   memberId: string;
