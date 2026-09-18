@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 import { createSharedRateLimit } from './rate-limit.js';
 import { createExpiryNotifications } from './expiry-notifications.js';
 
@@ -39,4 +40,36 @@ test('failed expiry email does not duplicate the in-app notification',async()=>{
   assert.equal(second.emailFailed,0);
   assert.equal(fetchCalls,1);
  }finally{global.fetch=originalFetch;}
+});
+
+test('bootstrap payment feed includes Paystack event payments and normalizes methods',async()=>{
+ const routes=await readFile(new URL('./routes.js',import.meta.url),'utf8');
+ assert.match(routes,/UNION ALL\s+SELECT r\.id,r\.receipt_number,r\.provider_reference/s);
+ assert.match(routes,/FROM event_registrations r\s+JOIN members m ON m\.id=r\.member_id\s+JOIN events e ON e\.id=r\.event_id/s);
+ assert.match(routes,/r\.status='confirmed' AND r\.amount_minor>0/);
+ assert.match(routes,/const paymentMethodLabel=method=>method==='paystack'\?'Paystack':method/);
+});
+
+test('membership checkout validates the queued subscription window before Paystack initialization',async()=>{
+ const routes=await readFile(new URL('./routes.js',import.meta.url),'utf8');
+ const ordersRoute=routes.slice(routes.indexOf("app.post('/api/v1/payments/orders'"),routes.indexOf("app.get('/api/v1/payments/confirm/:reference'"));
+ assert.match(ordersRoute,/latestQueued=.*status IN \('active','scheduled','frozen'\).*ORDER BY ends_at DESC LIMIT 1 FOR UPDATE/s);
+ assert.match(ordersRoute,/decideRenewalPeriod\(\{current,latestSamePlan,latestQueued,planId:plan\.id,durationDays:plan\.duration_days\}\)/);
+ assert.ok(ordersRoute.indexOf('tstzrange(starts_at,ends_at') < ordersRoute.indexOf("fetch('https://api.paystack.co/transaction/initialize'"));
+});
+
+test('shared payment confirmation route dispatches event references to the event finalizer',async()=>{
+ const routes=await readFile(new URL('./routes.js',import.meta.url),'utf8');
+ const confirmRoute=routes.slice(routes.indexOf("app.get('/api/v1/payments/confirm/:reference'"),routes.indexOf("app.get('/api/v1/events'"));
+ assert.match(confirmRoute,/findConfirmedEventPayment\(db,\{reference,memberId\}\)/);
+ assert.match(confirmRoute,/reference\.startsWith\('sarex_event_'\)\|\|verified\.metadata\?\.kind==='event'/);
+ assert.match(confirmRoute,/finalizePaystackEventPayment/);
+ assert.match(confirmRoute,/finalizePaystackMembershipPayment/);
+});
+
+test('payment receipt stops polling on terminal backend errors',async()=>{
+ const receipt=await readFile(new URL('../src/components/ui/PaymentReceipt.tsx',import.meta.url),'utf8');
+ assert.match(receipt,/else if\(r\.status===202&&tries<40\)/);
+ assert.match(receipt,/setError\(r\.status===202\?'':body\?\.error\?\.message/);
+ assert.match(receipt,/Payment needs review/);
 });

@@ -29,7 +29,7 @@ const normalize = (receipt: PaymentRecord | ApiReceipt) => {
     reference: api.reference || payment.transactionReference || payment.reference || payment.id || 'Not recorded',
     memberName: api.member_name || payment.memberName || 'Member',
     item: api.item || payment.planName || 'Payment',
-    kind: api.kind || 'Membership',
+    kind: api.kind || payment.kind || 'Membership',
     method: payment.paymentMethod || payment.method || 'Paystack',
     issuedAt: api.issued_at || payment.date,
     amount,

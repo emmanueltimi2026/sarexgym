@@ -516,15 +516,17 @@ const AppLayoutFrame: React.FC<AppLayoutProps> = ({
             <CalendarCheck className="w-4 h-4" />
             <span className="text-[10px]">Log</span>
           </button>
-          <button
-            onClick={() => navigate('/member/workout')}
-            className={`flex flex-col items-center gap-1 p-1 text-xs font-semibold ${
-              currentPath === '/member/workout' ? 'text-[#EF1B23]' : 'text-neutral-400'
-            }`}
-          >
-            <Dumbbell className="w-4 h-4" />
-            <span className="text-[10px]">Workout</span>
-          </button>
+          {currentMember.workoutPlanEnabled && (
+            <button
+              onClick={() => navigate('/member/workout')}
+              className={`flex flex-col items-center gap-1 p-1 text-xs font-semibold ${
+                currentPath === '/member/workout' ? 'text-[#EF1B23]' : 'text-neutral-400'
+              }`}
+            >
+              <Dumbbell className="w-4 h-4" />
+              <span className="text-[10px]">Workout</span>
+            </button>
+          )}
         </nav>
       )}
       <ConfirmDialog open={confirmLogout} title="Sign out?" message="You will need to sign in again to access this portal." confirmLabel="Sign out" tone="danger" onClose={() => setConfirmLogout(false)} onConfirm={() => { setConfirmLogout(false); void handleLogout(); }} />

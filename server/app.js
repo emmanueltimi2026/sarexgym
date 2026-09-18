@@ -15,6 +15,7 @@ import { attachAuthDiagnostic, setAuthDiagnostic } from './auth-diagnostics.js';
 import { activateDueScheduledSubscriptions } from './subscriptions.js';
 import { requireCronSecret, runActivateSubscriptionsJob, runExpiryNotificationsJob, runWithTimeout } from './jobs.js';
 import { finalizePaystackMembershipPayment } from './paystack-membership.js';
+import { finalizePaystackEventPayment } from './paystack-events.js';
 
 const asyncRoute = fn => (req,res,next)=>Promise.resolve(fn(req,res,next)).catch(next);
 const loginSchema=z.object({email:z.string().email().max(254).transform(v=>v.toLowerCase()),password:z.string().min(8).max(200),remember:z.boolean().optional().default(true)}).strict();
@@ -38,13 +39,10 @@ export function createApp({db,config}) {
      const eventKey=`charge.success:${reference}`; const payloadHash=sha256(req.body);
      const inserted=await c.query(`INSERT INTO webhook_events(provider,event_key,payload_hash) VALUES('paystack',$1,$2) ON CONFLICT DO NOTHING RETURNING id`,[eventKey,payloadHash]);
      if(!inserted.rowCount) return;
-     const eventRegistration=(await c.query("SELECT r.*,e.title,e.currency FROM event_registrations r JOIN events e ON e.id=r.event_id WHERE r.provider_reference=$1 FOR UPDATE",[reference])).rows[0];
+     const eventRegistration=(await c.query("SELECT id FROM event_registrations WHERE provider_reference=$1",[reference])).rows[0];
      if(eventRegistration){
-       if(event.data.status!=='success'||Number(event.data.amount)!==Number(eventRegistration.amount_minor)||event.data.currency!==eventRegistration.currency)throw Object.assign(new Error('Event payment verification mismatch'),{status:422,code:'PAYMENT_MISMATCH'});
-       await c.query("UPDATE event_registrations SET status='confirmed',receipt_number=COALESCE(receipt_number,'SRX-E-' || upper(substr(replace(gen_random_uuid()::text,'-',''),1,12))) WHERE id=$1",[eventRegistration.id]);
-       await c.query("INSERT INTO notifications(recipient_user_id,type,title,message,metadata) SELECT user_id,'event_booking','Event booking confirmed',$1,$2 FROM members WHERE id=$3",[`Your payment and place for ${eventRegistration.title} are confirmed.`,JSON.stringify({eventId:eventRegistration.event_id}),eventRegistration.member_id]);
+       await finalizePaystackEventPayment(c,{reference,providerStatus:event.data.status,amount:event.data.amount,currency:event.data.currency,metadata:event.data.metadata||{},requestId:req.requestId,ip:req.ip});
        await c.query(`UPDATE webhook_events SET status='processed',processed_at=now() WHERE id=$1`,[inserted.rows[0].id]);
-       await c.query(`INSERT INTO audit_logs(action,entity_type,entity_id,new_values,request_id,ip) VALUES('event.payment_verified','event_registration',$1,$2,$3,$4)`,[eventRegistration.id,JSON.stringify({provider:'paystack',reference}),req.requestId,req.ip]);
        return;
      }
      await finalizePaystackMembershipPayment(c,{reference,providerStatus:event.data.status,amount:event.data.amount,currency:event.data.currency,requestId:req.requestId,ip:req.ip});

@@ -1,13 +1,14 @@
-export function decideRenewalPeriod({ current, latestSamePlan, planId, durationDays, now = new Date() }) {
+export function decideRenewalPeriod({ current, latestSamePlan, latestQueued, planId, durationDays, now = new Date() }) {
   const hasCurrent = Boolean(current);
   const currentEnds = current ? new Date(current.ends_at) : null;
   const latestSameEnds = latestSamePlan ? new Date(latestSamePlan.ends_at) : null;
+  const latestQueuedEnds = latestQueued ? new Date(latestQueued.ends_at) : null;
   const isPlanChange = Boolean(current && current.plan_id !== planId);
-  const startsAt = isPlanChange
-    ? currentEnds
+  const startsAt = latestQueuedEnds && latestQueuedEnds > now
+    ? latestQueuedEnds
     : latestSameEnds && latestSameEnds > now
       ? latestSameEnds
-      : currentEnds && currentEnds > now && current?.plan_id === planId
+      : currentEnds && currentEnds > now
         ? currentEnds
         : now;
   const endsAt = new Date(startsAt);

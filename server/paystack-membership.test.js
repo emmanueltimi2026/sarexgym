@@ -22,6 +22,7 @@ test('different-plan Paystack renewal confirms after creating a scheduled subscr
   assert.equal(db.activeSubscription.plan_id, 'standard-plan');
   assert.equal(db.createdPayment.status, 'successful');
   assert.equal(db.createdPayment.subscription_id, db.createdSubscription.id);
+  assert.equal(db.createdSubscription.starts_at.toISOString(), '2026-10-18T00:00:00.000Z');
 });
 
 test('same-plan Paystack renewal still confirms successfully', async () => {
@@ -44,7 +45,35 @@ test('same-plan Paystack renewal still confirms successfully', async () => {
   assert.equal(db.createdPayment.status, 'successful');
 });
 
-function fakePaystackDb({ orderPlanId, currentPlanId }) {
+test('Paystack membership purchase queues after existing scheduled subscriptions', async () => {
+  const db = fakePaystackDb({
+    orderPlanId: 'premium-plan',
+    currentPlanId: 'standard-plan',
+    latestQueued: {
+      id: 'queued-subscription',
+      member_id: 'member-1',
+      plan_id: 'foundation-plan',
+      status: 'scheduled',
+      starts_at: new Date('2026-10-18T00:00:00.000Z'),
+      ends_at: new Date('2026-11-17T00:00:00.000Z')
+    }
+  });
+
+  await finalizePaystackMembershipPayment(db, {
+    reference: 'sarex_test_reference',
+    providerStatus: 'success',
+    amount: 3000000,
+    currency: 'NGN',
+    requestId: 'request-3',
+    ip: '127.0.0.1',
+    memberId: 'member-1'
+  });
+
+  assert.equal(db.createdSubscription.starts_at.toISOString(), '2026-11-17T00:00:00.000Z');
+  assert.equal(db.createdSubscription.ends_at.toISOString(), '2026-12-17T00:00:00.000Z');
+});
+
+function fakePaystackDb({ orderPlanId, currentPlanId, latestQueued = null }) {
   const planNames = { 'standard-plan': 'Standard Plan', 'premium-plan': 'Premium' };
   const db = {
     activeSubscription: {
@@ -99,10 +128,13 @@ function fakePaystackDb({ orderPlanId, currentPlanId }) {
       }
       if (/pg_advisory_xact_lock/.test(sql)) return { rows: [] };
       if (/status='active' AND starts_at<=now\(\)/.test(sql)) return { rows: [this.activeSubscription] };
+      if (/tstzrange/.test(sql)) return { rows: [] };
+      if (/status IN \('active','scheduled','frozen'\)/.test(sql)) {
+        return { rows: [latestQueued || this.activeSubscription] };
+      }
       if (/status IN \('active','scheduled'\)/.test(sql)) {
         return { rows: orderPlanId === currentPlanId ? [this.activeSubscription] : [] };
       }
-      if (/tstzrange/.test(sql)) return { rows: [] };
       if (/INSERT INTO subscriptions/.test(sql)) {
         this.createdSubscription = {
           id: 'scheduled-subscription',

@@ -92,9 +92,15 @@ export async function finalizePaystackMembershipPayment(db, { reference, provide
     WHERE member_id=$1 AND plan_id=$2 AND status IN ('active','scheduled') AND ends_at>now()
     ORDER BY ends_at DESC LIMIT 1 FOR UPDATE
   `, [order.member_id, order.plan_id]);
+  const latestQueued = await db.query(`
+    SELECT * FROM subscriptions
+    WHERE member_id=$1 AND status IN ('active','scheduled','frozen') AND ends_at>now()
+    ORDER BY ends_at DESC LIMIT 1 FOR UPDATE
+  `, [order.member_id]);
   const renewal = decideRenewalPeriod({
     current: current.rows[0],
     latestSamePlan: latestSamePlan.rows[0],
+    latestQueued: latestQueued.rows[0],
     planId: order.plan_id,
     durationDays: order.duration_days
   });
@@ -156,6 +162,8 @@ export async function verifyPaystackTransaction(config, reference) {
   return {
     status: body.data?.status,
     amount: body.data?.amount,
-    currency: body.data?.currency
+    currency: body.data?.currency,
+    reference: body.data?.reference,
+    metadata: body.data?.metadata || {}
   };
 }

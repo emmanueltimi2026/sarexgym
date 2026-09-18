@@ -91,6 +91,73 @@ test('additional same-plan renewal chains after the latest scheduled same-plan p
   assert.equal(renewal.endsAt.toISOString(), '2026-11-30T00:00:00.000Z');
 });
 
+test('new renewal queues after one existing scheduled subscription', () => {
+  const latestQueued = {
+    id: 'scheduled-performance',
+    member_id: 'member-1',
+    plan_id: 'performance',
+    starts_at: '2026-10-01T00:00:00.000Z',
+    ends_at: '2026-10-31T00:00:00.000Z'
+  };
+  const renewal = decideRenewalPeriod({
+    current,
+    latestSamePlan: null,
+    latestQueued,
+    planId: 'elite',
+    durationDays: 30,
+    now
+  });
+
+  assert.equal(renewal.startsAt.toISOString(), '2026-10-31T00:00:00.000Z');
+  assert.equal(renewal.endsAt.toISOString(), '2026-11-30T00:00:00.000Z');
+});
+
+test('new renewal queues after multiple existing scheduled subscriptions', () => {
+  const latestQueued = {
+    id: 'scheduled-2',
+    member_id: 'member-1',
+    plan_id: 'elite',
+    starts_at: '2026-11-17T00:00:00.000Z',
+    ends_at: '2026-12-17T00:00:00.000Z'
+  };
+  const renewal = decideRenewalPeriod({
+    current,
+    latestSamePlan: null,
+    latestQueued,
+    planId: 'foundation',
+    durationDays: 30,
+    now
+  });
+
+  assert.equal(renewal.startsAt.toISOString(), '2026-12-17T00:00:00.000Z');
+  assert.equal(renewal.endsAt.toISOString(), '2027-01-16T00:00:00.000Z');
+});
+
+test('same-plan queueing also respects the latest queued subscription', () => {
+  const latestSamePlan = {
+    ...current,
+    ends_at: '2026-10-31T00:00:00.000Z'
+  };
+  const latestQueued = {
+    id: 'later-different-plan',
+    member_id: 'member-1',
+    plan_id: 'performance',
+    starts_at: '2026-10-31T00:00:00.000Z',
+    ends_at: '2026-11-30T00:00:00.000Z'
+  };
+  const renewal = decideRenewalPeriod({
+    current,
+    latestSamePlan,
+    latestQueued,
+    planId: 'foundation',
+    durationDays: 30,
+    now
+  });
+
+  assert.equal(renewal.startsAt.toISOString(), '2026-11-30T00:00:00.000Z');
+  assert.equal(renewal.endsAt.toISOString(), '2026-12-30T00:00:00.000Z');
+});
+
 test('scheduled activation skips members who still have a current active subscription', async () => {
   const db = fakeActivationDb({
     activeRow: { id: 'active-subscription', ends_at: '2026-10-01T00:00:00.000Z' },

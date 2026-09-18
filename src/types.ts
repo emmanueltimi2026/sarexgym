@@ -89,6 +89,7 @@ export interface PaymentRecord {
   memberName: string;
   planId: string;
   planName: string;
+  kind?: 'Membership' | 'Event' | string;
   amount: number;
   currency?: string;
   method?: PaymentMethod;
