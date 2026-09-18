@@ -100,7 +100,7 @@ test('scheduled activation skips members who still have a current active subscri
 
   const result = await activateDueScheduledSubscriptions(db);
 
-  assert.deepEqual(result, { activated: 0, expired: 0 });
+  assert.deepEqual(result, { activated: 0, expired: 0, scanned: 1, skipped: 1 });
   assert.equal(db.updatesToActive, 0);
 });
 
@@ -115,7 +115,7 @@ test('scheduled activation activates the next due subscription after current exp
 
   const result = await activateDueScheduledSubscriptions(db);
 
-  assert.deepEqual(result, { activated: 1, expired: 1 });
+  assert.deepEqual(result, { activated: 1, expired: 1, scanned: 1, skipped: 0 });
   assert.equal(db.updatesToActive, 1);
 });
 

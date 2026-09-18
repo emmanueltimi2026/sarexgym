@@ -12,7 +12,9 @@ import { createSharedRateLimit } from './rate-limit.js';
 import { verifyReceptionCheckInToken } from './check-in-token.js';
 import { recordDeniedAttendance } from './attendance.js';
 import { attachAuthDiagnostic, setAuthDiagnostic } from './auth-diagnostics.js';
-import { activateDueScheduledSubscriptions, decideRenewalPeriod } from './subscriptions.js';
+import { activateDueScheduledSubscriptions } from './subscriptions.js';
+import { requireCronSecret, runActivateSubscriptionsJob, runExpiryNotificationsJob, runWithTimeout } from './jobs.js';
+import { finalizePaystackMembershipPayment } from './paystack-membership.js';
 
 const asyncRoute = fn => (req,res,next)=>Promise.resolve(fn(req,res,next)).catch(next);
 const loginSchema=z.object({email:z.string().email().max(254).transform(v=>v.toLowerCase()),password:z.string().min(8).max(200),remember:z.boolean().optional().default(true)}).strict();
@@ -36,7 +38,6 @@ export function createApp({db,config}) {
      const eventKey=`charge.success:${reference}`; const payloadHash=sha256(req.body);
      const inserted=await c.query(`INSERT INTO webhook_events(provider,event_key,payload_hash) VALUES('paystack',$1,$2) ON CONFLICT DO NOTHING RETURNING id`,[eventKey,payloadHash]);
      if(!inserted.rowCount) return;
-     await activateDueScheduledSubscriptions(c);
      const eventRegistration=(await c.query("SELECT r.*,e.title,e.currency FROM event_registrations r JOIN events e ON e.id=r.event_id WHERE r.provider_reference=$1 FOR UPDATE",[reference])).rows[0];
      if(eventRegistration){
        if(event.data.status!=='success'||Number(event.data.amount)!==Number(eventRegistration.amount_minor)||event.data.currency!==eventRegistration.currency)throw Object.assign(new Error('Event payment verification mismatch'),{status:422,code:'PAYMENT_MISMATCH'});
@@ -46,22 +47,8 @@ export function createApp({db,config}) {
        await c.query(`INSERT INTO audit_logs(action,entity_type,entity_id,new_values,request_id,ip) VALUES('event.payment_verified','event_registration',$1,$2,$3,$4)`,[eventRegistration.id,JSON.stringify({provider:'paystack',reference}),req.requestId,req.ip]);
        return;
      }
-     const orderResult=await c.query(`SELECT o.*,p.duration_days,p.trainer_access,p.workout_plan_access FROM payment_orders o JOIN membership_plans p ON p.id=o.plan_id WHERE o.provider='paystack' AND o.provider_reference=$1 FOR UPDATE`,[reference]);
-     const order=orderResult.rows[0];
-     if(!order||event.data.status!=='success'||Number(event.data.amount)!==Number(order.amount_minor)||event.data.currency!==order.currency) throw Object.assign(new Error('Payment verification mismatch'),{status:422,code:'PAYMENT_MISMATCH'});
-     const current=await c.query(`SELECT * FROM subscriptions WHERE member_id=$1 AND status='active' AND starts_at<=now() AND ends_at>now() ORDER BY ends_at DESC LIMIT 1 FOR UPDATE`,[order.member_id]);
-     const latestSamePlan=await c.query(`SELECT * FROM subscriptions WHERE member_id=$1 AND plan_id=$2 AND status IN ('active','scheduled') AND ends_at>now() ORDER BY ends_at DESC LIMIT 1 FOR UPDATE`,[order.member_id,order.plan_id]);
-     const renewal=decideRenewalPeriod({current:current.rows[0],latestSamePlan:latestSamePlan.rows[0],planId:order.plan_id,durationDays:order.duration_days});
-     const membershipAmount=Number(order.membership_amount_minor||order.amount_minor),registrationFee=Number(order.registration_fee_minor||0);
-     const overlap=(await c.query("SELECT id FROM subscriptions WHERE member_id=$1 AND status IN ('active','scheduled','frozen') AND tstzrange(starts_at,ends_at,'[)') && tstzrange($2::timestamptz,$3::timestamptz,'[)') LIMIT 1",[order.member_id,renewal.startsAt,renewal.endsAt])).rows[0];
-     if(overlap)throw Object.assign(new Error('This member already has a subscription scheduled for that period'),{status:409,code:'SUBSCRIPTION_OVERLAP'});
-     const subscription=await c.query(`INSERT INTO subscriptions(member_id,plan_id,starts_at,ends_at,status,amount_minor,currency) VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING id`,[order.member_id,order.plan_id,renewal.startsAt,renewal.endsAt,renewal.status,membershipAmount,order.currency]);
-     await c.query(`INSERT INTO payments(order_id,member_id,subscription_id,plan_id,amount_minor,membership_amount_minor,registration_fee_minor,currency,method,provider,provider_reference,status,paid_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,'paystack','paystack',$9,'successful',now())`,[order.id,order.member_id,subscription.rows[0].id,order.plan_id,order.amount_minor,membershipAmount,registrationFee,order.currency,reference]);
-     if(registrationFee>0)await c.query('UPDATE members SET registration_fee_paid_at=COALESCE(registration_fee_paid_at,now()) WHERE id=$1',[order.member_id]);
-     if(order.trainer_access)await c.query("INSERT INTO notifications(recipient_user_id,type,title,message,metadata) SELECT u.id,'trainer_assignment_required','Trainer assignment requested',$1,$2 FROM users u JOIN user_roles ur ON ur.user_id=u.id JOIN roles r ON r.id=ur.role_id WHERE r.code='admin'",['A paid membership with trainer access needs a trainer assignment.',JSON.stringify({memberId:order.member_id,subscriptionId:subscription.rows[0].id})]);
-     await c.query(`UPDATE payment_orders SET status='successful' WHERE id=$1`,[order.id]);
+     await finalizePaystackMembershipPayment(c,{reference,providerStatus:event.data.status,amount:event.data.amount,currency:event.data.currency,requestId:req.requestId,ip:req.ip});
      await c.query(`UPDATE webhook_events SET status='processed',processed_at=now() WHERE id=$1`,[inserted.rows[0].id]);
-     await c.query(`INSERT INTO audit_logs(action,entity_type,entity_id,new_values,request_id,ip) VALUES('payment.verified','payment_order',$1,$2,$3,$4)`,[order.id,JSON.stringify({provider:'paystack',reference,subscriptionStatus:renewal.status,planChange:renewal.planChange}),req.requestId,req.ip]);
    },'SERIALIZABLE'); res.sendStatus(200);
  }));
 
@@ -79,6 +66,10 @@ export function createApp({db,config}) {
  const loginLimit=createSharedRateLimit({db,config,name:'authentication',windowMs:15*60_000,limit:15});
  const checkInLimit=createSharedRateLimit({db,config,name:'check-in',windowMs:60_000,limit:30,key:req=>sha256(req.actor?.id||req.ip||'unknown')});
  const paymentLimit=createSharedRateLimit({db,config,name:'payment',windowMs:10*60_000,limit:20,key:req=>sha256(req.actor?.id||req.ip||'unknown')});
+ const cronLimit=createSharedRateLimit({db,config,name:'internal-cron',windowMs:60_000,limit:10,key:req=>sha256(req.ip||'unknown')});
+ const sendJobResult=(res,result)=>res.status(result.alreadyRunning?202:200).json({ok:true,job:result.job,alreadyRunning:Boolean(result.alreadyRunning),scanned:result.scanned||0,activated:result.activated||0,expired:result.expired||0,created:result.created||0,skipped:result.skipped||0,emailSent:result.emailSent||0,emailFailed:result.emailFailed||0,failures:result.failures||0,durationMs:result.durationMs});
+ app.post('/api/internal/jobs/activate-subscriptions',cronLimit,requireCronSecret,asyncRoute(async(req,res)=>sendJobResult(res,await runWithTimeout(()=>runActivateSubscriptionsJob({db,config,requestId:req.requestId})))));
+ app.post('/api/internal/jobs/expiry-notifications',cronLimit,requireCronSecret,asyncRoute(async(req,res)=>sendJobResult(res,await runWithTimeout(()=>runExpiryNotificationsJob({db,config,requestId:req.requestId})))));
  installPublicRoutes(app,{db,config,loginLimit});
  app.post('/api/v1/auth/login',loginLimit,asyncRoute(async(req,res)=>{
    const input=loginSchema.parse(req.body); const result=await db.query(`SELECT u.id,u.email,u.password_hash,u.status,u.must_change_password,COALESCE(array_agg(r.code) FILTER (WHERE r.code IS NOT NULL),'{}') roles FROM users u LEFT JOIN user_roles ur ON ur.user_id=u.id LEFT JOIN roles r ON r.id=ur.role_id WHERE lower(u.email)=$1 GROUP BY u.id`,[input.email]); const user=result.rows[0];

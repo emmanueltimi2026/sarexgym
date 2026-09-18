@@ -1,4 +1,9 @@
 export async function createExpiryNotifications(db, config = {}) {
+  const scanned = await db.query(`
+    SELECT count(*) count
+    FROM subscriptions s
+    WHERE s.status='active' AND (s.ends_at::date-current_date) IN (7,1)
+  `);
   const result = await db.query(`
     INSERT INTO notifications(recipient_user_id,type,title,message,metadata)
     SELECT m.user_id,
@@ -27,10 +32,20 @@ export async function createExpiryNotifications(db, config = {}) {
       WHERE n.type='subscription_expiry'
         AND (n.metadata->>'daysRemaining')::int IN (7,1)
         AND n.metadata->>'emailSentAt' IS NULL
+        AND n.metadata->>'emailAttemptedAt' IS NULL
         AND n.created_at > now()-interval '8 days'
       ORDER BY n.created_at LIMIT 100
     `);
     for (const notice of pending.rows) {
+      const claim = await db.query(`
+        UPDATE notifications
+        SET metadata=metadata||jsonb_build_object('emailAttemptedAt',now())
+        WHERE id=$1
+          AND metadata->>'emailSentAt' IS NULL
+          AND metadata->>'emailAttemptedAt' IS NULL
+        RETURNING id
+      `, [notice.id]);
+      if (!claim.rowCount) continue;
       try {
         const response = await fetch('https://api.resend.com/emails', {
           method: 'POST',
@@ -42,10 +57,12 @@ export async function createExpiryNotifications(db, config = {}) {
         emailSent++;
       } catch (error) {
         emailFailed++;
+        await db.query("UPDATE notifications SET metadata=metadata||jsonb_build_object('emailFailedAt',now()) WHERE id=$1", [notice.id]);
         console.error(JSON.stringify({ level:'error', event:'expiry_email_failed', notificationId:notice.id, message:error.message }));
       }
     }
   }
-  return {created:result.rowCount,emailSent,emailFailed};
+  const scannedCount = Number(scanned.rows?.[0]?.count || 0);
+  return {scanned:scannedCount,created:result.rowCount,skipped:Math.max(0,scannedCount-result.rowCount),emailSent,emailFailed};
 }
 

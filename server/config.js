@@ -14,6 +14,7 @@ const schema = z.object({
   SESSION_IDLE_TIMEOUT_HOURS: z.coerce.number().int().min(1).max(720).default(720),
   COOKIE_SAME_SITE: z.enum(['lax','strict','none']).optional(),
   CSRF_SECRET: z.preprocess(value => typeof value === 'string' && value.trim() === '' ? undefined : value, z.string().min(32).optional()),
+  CRON_SECRET: z.preprocess(value => typeof value === 'string' && value.trim() === '' ? undefined : value, z.string().min(32).optional()),
   GOOGLE_CLIENT_ID: z.preprocess(value => typeof value === 'string' && value.trim() === '' ? undefined : value, z.string().min(20).optional()),
   PAYSTACK_SECRET_KEY: z.preprocess(
     value => typeof value === 'string' && value.trim() === '' ? undefined : value,
