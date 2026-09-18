@@ -56,11 +56,11 @@ export const MemberDashboard: React.FC = () => {
         )}
       </>}
     >
-      <div className={`grid grid-cols-1 gap-3 mb-4 sm:grid-cols-2 ${hasScheduledSubscription ? 'xl:grid-cols-5' : 'xl:grid-cols-3'}`}>
+      <div className={`mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2 ${hasScheduledSubscription ? 'xl:grid-cols-3' : 'xl:grid-cols-4'}`}>
         <StatCard
           label="Days Remaining"
           value={hasActiveSubscription ? `${diffDays} Days Left` : '—'}
-          trend={hasActiveSubscription ? { value: currentMember.membershipExpiryDate, isPositive: diffDays > 5 } : undefined}
+          subtext={hasActiveSubscription ? 'active subscription' : 'no active subscription'}
           icon={CalendarCheck}
         />
         <StatCard
@@ -68,6 +68,12 @@ export const MemberDashboard: React.FC = () => {
           value={hasActiveSubscription ? currentMember.membershipPlanName : 'Inactive'}
           subtext={hasActiveSubscription ? 'Full facility clearance' : 'Choose a plan and complete payment'}
           icon={ShieldCheck}
+        />
+        <StatCard
+          label="Subscription Expires"
+          value={hasActiveSubscription ? currentMember.membershipExpiryDate : '—'}
+          subtext={hasActiveSubscription ? 'current active plan ends' : 'activate a plan to unlock access'}
+          icon={CalendarCheck}
         />
         {hasScheduledSubscription && (
           <>
