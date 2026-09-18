@@ -68,6 +68,9 @@ export const AdminPayments: React.FC = () => {
   });
   useEffect(() => setPage(1), [search, methodFilter, statusFilter]);
   const visiblePayments = filtered.slice((page - 1) * pageSize, page * pageSize);
+  const selectedPaymentMember = members.find(member => member.id === paymentForm.memberId) || null;
+  const selectedPaymentPlan = plans.find(plan => plan.id === paymentForm.planId) || null;
+  const isDifferentPlanPayment = Boolean(selectedPaymentMember?.membershipStatus === 'Active' && selectedPaymentPlan && selectedPaymentPlan.id !== selectedPaymentMember.membershipPlanId);
 
   return (
     <AppLayout
@@ -223,6 +226,7 @@ export const AdminPayments: React.FC = () => {
         <form onSubmit={recordPayment} className="space-y-4 text-xs">
           <label className="block font-bold uppercase text-gray-700">Member<select required value={paymentForm.memberId} onChange={e=>setPaymentForm({...paymentForm,memberId:e.target.value})} className="mt-1 w-full rounded border border-gray-300 bg-white px-3 py-2.5 text-sm font-normal"><option value="">Select member</option>{members.map(m=><option key={m.id} value={m.id}>{m.firstName} {m.lastName} · {m.memberId}</option>)}</select></label>
           <label className="block font-bold uppercase text-gray-700">Membership plan<select required value={paymentForm.planId} onChange={e=>setPaymentForm({...paymentForm,planId:e.target.value})} className="mt-1 w-full rounded border border-gray-300 bg-white px-3 py-2.5 text-sm font-normal"><option value="">Select plan</option>{plans.filter(p=>p.isActive).map(p=><option key={p.id} value={p.id}>{p.name} · ₦{p.price.toLocaleString()}</option>)}</select></label>
+          {isDifferentPlanPayment && <div className="rounded-lg border border-sky-200 bg-sky-50 p-3 font-semibold text-sky-800">Your new plan will start when your current plan ends.</div>}
           <label className="block font-bold uppercase text-gray-700">Payment method<select value={paymentForm.method} onChange={e=>setPaymentForm({...paymentForm,method:e.target.value as typeof paymentForm.method})} className="mt-1 w-full rounded border border-gray-300 bg-white px-3 py-2.5 text-sm font-normal"><option>Cash</option><option>Bank Transfer</option></select></label>
           <div className="flex justify-end gap-2 border-t border-gray-200 pt-4"><button type="button" onClick={()=>setIsRecordOpen(false)} className="rounded border border-gray-300 px-4 py-2 font-bold uppercase">Cancel</button><button type="submit" disabled={recording} className="rounded bg-[#EF1B23] px-5 py-2 font-bold uppercase text-white disabled:cursor-not-allowed disabled:opacity-60">{recording ? 'Recording…' : 'Confirm payment'}</button></div>
         </form>
@@ -272,4 +276,3 @@ export const AdminPayments: React.FC = () => {
     </AppLayout>
   );
 };
-

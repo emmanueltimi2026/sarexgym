@@ -80,8 +80,10 @@ export const AdminMembers: React.FC = () => {
           >
             <option value="All">All Statuses</option>
             <option value="Active">Active Only</option>
+            <option value="Scheduled">Scheduled</option>
             <option value="Expiring">Expiring Soon</option>
             <option value="Expired">Expired Only</option>
+            <option value="Frozen">Frozen</option>
             <option value="Inactive">Inactive</option>
           </select>
 
@@ -155,17 +157,7 @@ export const AdminMembers: React.FC = () => {
                     </td>
 
                     <td className="py-3 px-4">
-                      <Badge
-                        variant={
-                          member.membershipStatus === 'Active'
-                            ? 'success'
-                            : member.membershipStatus === 'Expiring'
-                            ? 'warning'
-                            : 'danger'
-                        }
-                      >
-                        {member.membershipStatus}
-                      </Badge>
+                      <Badge>{member.membershipStatus}</Badge>
                     </td>
 
                     <td className="py-3 px-4 text-right">
@@ -254,8 +246,10 @@ export const AdminMembers: React.FC = () => {
                 className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:border-[#EF1B23] focus:outline-none bg-white"
               >
                 <option value="Active">Active</option>
+                <option value="Scheduled">Scheduled</option>
                 <option value="Expiring">Expiring</option>
                 <option value="Expired">Expired</option>
+                <option value="Frozen">Frozen</option>
                 <option value="Inactive">Inactive</option>
               </select>
             </div>
@@ -292,4 +286,3 @@ export const AdminMembers: React.FC = () => {
     </AppLayout>
   );
 };
-

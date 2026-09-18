@@ -55,18 +55,30 @@ export const MemberDashboard: React.FC = () => {
         )}
       </>}
     >
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-3 mb-4">
         <StatCard
-          label="Pass Expiration"
+          label="Days Remaining"
           value={hasActiveSubscription ? `${diffDays} Days Left` : '—'}
           trend={hasActiveSubscription ? { value: currentMember.membershipExpiryDate, isPositive: diffDays > 5 } : undefined}
           icon={CalendarCheck}
         />
         <StatCard
-          label="Membership Tier"
+          label="Current Plan"
           value={hasActiveSubscription ? currentMember.membershipPlanName : 'Inactive'}
           subtext={hasActiveSubscription ? 'Full facility clearance' : 'Choose a plan and complete payment'}
           icon={ShieldCheck}
+        />
+        <StatCard
+          label="Next Plan"
+          value={currentMember.nextPlanName || 'None Scheduled'}
+          subtext={currentMember.nextPlanName ? 'Purchased renewal queued' : 'No future plan selected'}
+          icon={CreditCard}
+        />
+        <StatCard
+          label="Scheduled Start"
+          value={currentMember.nextPlanStartDate || '—'}
+          subtext={currentMember.nextPlanName ? 'Starts after current plan ends' : 'No scheduled start'}
+          icon={CalendarCheck}
         />
         <StatCard
           label="Facility Visits"

@@ -44,12 +44,18 @@ export const Badge: React.FC<BadgeProps> = ({
     variant === 'warning' ||
     s === 'pending' ||
     s === 'expiring' ||
+    s === 'frozen' ||
     s === 'check out' ||
     s === 'inside' ||
     s === 'currently inside' ||
     s === 'warning'
   ) {
     colorClasses = 'text-amber-600 bg-amber-50 border-amber-200';
+  } else if (
+    variant === 'info' ||
+    s === 'scheduled'
+  ) {
+    colorClasses = 'text-sky-700 bg-sky-50 border-sky-200';
   } else if (s === 'qr' || s === 'reception qr') {
     colorClasses = 'bg-[#151515] text-white border-black';
   } else if (s === 'manual') {
@@ -66,5 +72,4 @@ export const Badge: React.FC<BadgeProps> = ({
     </span>
   );
 };
-
 

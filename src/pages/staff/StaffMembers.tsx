@@ -12,7 +12,7 @@ import { Pagination } from '../../components/ui/Pagination';
 export const StaffMembers: React.FC = () => {
   const { members, navigate } = useGym();
   const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'All' | 'Active' | 'Expiring' | 'Expired' | 'Inactive'>('All');
+  const [statusFilter, setStatusFilter] = useState<'All' | 'Active' | 'Scheduled' | 'Expiring' | 'Expired' | 'Frozen' | 'Inactive'>('All');
   const [page, setPage] = useState(1);
   const pageSize = 12;
 
@@ -65,7 +65,7 @@ export const StaffMembers: React.FC = () => {
 
         
         <div className="flex items-center gap-1.5 overflow-x-auto w-full sm:w-auto pb-1 sm:pb-0 text-xs font-semibold">
-          {(['All', 'Active', 'Expiring', 'Expired', 'Inactive'] as const).map(st => (
+          {(['All', 'Active', 'Scheduled', 'Expiring', 'Expired', 'Frozen', 'Inactive'] as const).map(st => (
             <button
               key={st}
               onClick={() => setStatusFilter(st)}
@@ -134,17 +134,7 @@ export const StaffMembers: React.FC = () => {
                     </td>
 
                     <td className="py-3 px-4">
-                      <Badge
-                        variant={
-                          member.membershipStatus === 'Active'
-                            ? 'success'
-                            : member.membershipStatus === 'Expiring'
-                            ? 'warning'
-                            : 'danger'
-                        }
-                      >
-                        {member.membershipStatus}
-                      </Badge>
+                      <Badge>{member.membershipStatus}</Badge>
                     </td>
 
                   </tr>

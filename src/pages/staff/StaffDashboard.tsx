@@ -254,9 +254,7 @@ export const StaffDashboard: React.FC = () => {
               </div>
               <div className="flex justify-between mt-1">
                 <span className="text-gray-500">Current Status:</span>
-                <Badge variant={selectedMemberForRenew.membershipStatus === 'Active' ? 'success' : 'danger'}>
-                  {selectedMemberForRenew.membershipStatus}
-                </Badge>
+                <Badge>{selectedMemberForRenew.membershipStatus}</Badge>
               </div>
             </div>
 
@@ -288,6 +286,12 @@ export const StaffDashboard: React.FC = () => {
                 </span>
               </div>
             </div>
+
+            {selectedMemberForRenew.membershipStatus === 'Active' && selectedPlanForRenew.id !== selectedMemberForRenew.membershipPlanId && (
+              <div className="rounded-lg border border-sky-200 bg-sky-50 p-3 text-xs font-semibold text-sky-800">
+                Your new plan will start when your current plan ends.
+              </div>
+            )}
 
             <div className="grid grid-cols-2 gap-2 pt-2">
               <button

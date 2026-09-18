@@ -15,6 +15,7 @@ export const StaffMemberships: React.FC = () => {
   const [isSuccessModalOpen, setIsSuccessModalOpen] = useState(false);
   const [quote, setQuote] = useState<{ membershipAmount: number; registrationFee: number; total: number } | null>(null);
   const [quoteLoading, setQuoteLoading] = useState(false);
+  const isDifferentPlanRenewal = Boolean(selectedMember?.membershipStatus === 'Active' && selectedPlan && selectedPlan.id !== selectedMember.membershipPlanId);
 
   const normalizeSearch = (value: string) => value.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
   const searchTerms = normalizeSearch(searchMember).split(/\s+/).filter(Boolean);
@@ -152,9 +153,7 @@ export const StaffMemberships: React.FC = () => {
                       <div className="font-bold">{m.firstName} {m.lastName}</div>
                       <div className="text-[10px] text-gray-400 font-mono">{m.memberId}</div>
                     </div>
-                    <Badge variant={m.membershipStatus === 'Active' ? 'success' : 'danger'}>
-                      {m.membershipStatus}
-                    </Badge>
+                    <Badge>{m.membershipStatus}</Badge>
                   </div>
                 );
               })}
@@ -178,6 +177,11 @@ export const StaffMemberships: React.FC = () => {
                   <span className="text-gray-500">Duration:</span>
                   <span className="font-bold text-gray-900">{selectedPlan?.durationDays || 0} Days</span>
                 </div>
+                {isDifferentPlanRenewal && (
+                  <div className="rounded-lg border border-sky-200 bg-sky-50 p-3 font-semibold text-sky-800">
+                    Your new plan will start when your current plan ends.
+                  </div>
+                )}
                 <div className="flex justify-between border-t border-gray-200 pt-2"><span className="text-gray-500">Membership:</span><span className="font-bold">₦{(quote?.membershipAmount ?? selectedPlan?.price ?? 0).toLocaleString()}</span></div>
                 {!!quote?.registrationFee && <div className="flex justify-between"><span className="text-gray-500">One-time registration fee:</span><span className="font-bold">₦{quote.registrationFee.toLocaleString()}</span></div>}
                 <div className="flex justify-between border-t border-gray-200 pt-2 text-sm font-bold">
@@ -224,7 +228,9 @@ export const StaffMemberships: React.FC = () => {
             Renewal Confirmed!
           </h4>
           <p className="text-xs text-gray-600">
-            {selectedMember?.firstName} {selectedMember?.lastName}'s pass is now valid for another {selectedPlan?.durationDays || 0} days.
+            {isDifferentPlanRenewal
+              ? `${selectedMember?.firstName} ${selectedMember?.lastName}'s new plan is scheduled to start when the current plan ends.`
+              : `${selectedMember?.firstName} ${selectedMember?.lastName}'s pass is now valid for another ${selectedPlan?.durationDays || 0} days.`}
           </p>
           <button
             onClick={() => {
@@ -240,4 +246,3 @@ export const StaffMemberships: React.FC = () => {
     </AppLayout>
   );
 };
-

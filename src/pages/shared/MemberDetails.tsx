@@ -76,13 +76,13 @@ export const MemberDetails: React.FC = () => {
       {member && details && <div className="space-y-5">
         <section className="flex flex-col gap-5 rounded-lg border border-gray-200 bg-white p-5 shadow-xs sm:flex-row sm:items-center sm:justify-between">
           <div className="flex min-w-0 items-center gap-4"><InitialsAvatar src={member.photo} firstName={member.firstName} lastName={member.lastName} className="h-16 w-16 shrink-0"/><div className="min-w-0"><p className="text-[10px] font-bold uppercase tracking-wider text-[#EF1B23]">{member.memberId}</p><h1 className="truncate text-2xl font-black text-[#111111]">{member.firstName} {member.lastName}</h1><p className="mt-1 truncate text-sm text-gray-500">Member since {member.memberSince || 'Not recorded'}</p></div></div>
-          <Badge variant={member.membershipStatus === 'Active' ? 'success' : member.membershipStatus === 'Expiring' ? 'warning' : 'danger'}>{member.membershipStatus || 'Inactive'}</Badge>
+          <Badge>{member.membershipStatus || 'Inactive'}</Badge>
         </section>
 
         <div className="grid gap-5 lg:grid-cols-2">
           <section className="rounded-lg border border-gray-200 bg-white p-5 shadow-xs"><div className="mb-5 flex items-center gap-2"><UserRound className="h-5 w-5 text-[#EF1B23]"/><h2 className="font-black uppercase">Contact and profile</h2></div><dl className="grid gap-4 text-sm sm:grid-cols-2">{contactProfileItems.map(item => <Info key={item.label} label={item.label} value={item.value} icon={item.icon}/>)}</dl></section>
 
-          <section className="rounded-lg border border-gray-200 bg-white p-5 shadow-xs"><div className="mb-5 flex items-center gap-2"><ShieldCheck className="h-5 w-5 text-[#EF1B23]"/><h2 className="font-black uppercase">Membership access</h2></div><dl className="grid gap-4 text-sm sm:grid-cols-2"><Info label="Current plan" value={member.membershipPlanName}/><Info label="Assigned trainer" value={member.assignedTrainerName || 'Not assigned'}/><Info label="Start date" value={member.membershipStartDate || 'Not active'}/><Info label="Expiry date" value={member.membershipExpiryDate || 'Not active'}/><Info label="Trainer access" value={member.trainerAccess ? 'Included' : 'Not included'}/><Info label="Workout plans" value={member.workoutPlanEnabled ? 'Included' : 'Not included'}/></dl></section>
+          <section className="rounded-lg border border-gray-200 bg-white p-5 shadow-xs"><div className="mb-5 flex items-center gap-2"><ShieldCheck className="h-5 w-5 text-[#EF1B23]"/><h2 className="font-black uppercase">Membership access</h2></div><dl className="grid gap-4 text-sm sm:grid-cols-2"><Info label="Current plan" value={member.membershipPlanName}/><Info label="Assigned trainer" value={member.assignedTrainerName || 'Not assigned'}/><Info label="Start date" value={member.membershipStartDate || 'Not active'}/><Info label="Expiry date" value={member.membershipExpiryDate || 'Not active'}/>{member.nextPlanName&&<><Info label="Next plan" value={member.nextPlanName}/><Info label="Scheduled start" value={member.nextPlanStartDate || 'Pending date'}/></>}<Info label="Trainer access" value={member.trainerAccess ? 'Included' : 'Not included'}/><Info label="Workout plans" value={member.workoutPlanEnabled ? 'Included' : 'Not included'}/></dl></section>
         </div>
 
         <section className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-xs">
@@ -120,6 +120,11 @@ export const MemberDetails: React.FC = () => {
                 {activePlans.map(plan => <option key={plan.id} value={plan.id}>{plan.name} - ₦{plan.price.toLocaleString()} ({plan.durationDays} Days)</option>)}
               </select>
             </div>
+            {member.membershipStatus === 'Active' && selectedPlanForRenew.id !== member.membershipPlanId && (
+              <div className="rounded-lg border border-sky-200 bg-sky-50 p-3 font-semibold text-sky-800">
+                Your new plan will start when your current plan ends.
+              </div>
+            )}
             <div className="grid grid-cols-2 gap-2 pt-2">
               <button type="button" onClick={() => { void renewMemberMembership(member.id, selectedPlanForRenew.id, 'Cash'); setIsRenewOpen(false); setMessage('Cash membership renewal recorded successfully.'); window.setTimeout(() => setMessage(''), 3500); }} className="rounded bg-neutral-800 py-2.5 font-athletic text-xs font-bold uppercase text-white transition hover:bg-neutral-900">Record cash</button>
               <button type="button" onClick={() => setIsPaystackOpen(true)} className="rounded bg-[#EF1B23] py-2.5 font-athletic text-xs font-bold uppercase text-white transition hover:bg-red-700">Online Paystack</button>

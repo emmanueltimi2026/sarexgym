@@ -12,6 +12,7 @@ import { createSharedRateLimit } from './rate-limit.js';
 import { verifyReceptionCheckInToken } from './check-in-token.js';
 import { recordDeniedAttendance } from './attendance.js';
 import { attachAuthDiagnostic, setAuthDiagnostic } from './auth-diagnostics.js';
+import { activateDueScheduledSubscriptions, decideRenewalPeriod } from './subscriptions.js';
 
 const asyncRoute = fn => (req,res,next)=>Promise.resolve(fn(req,res,next)).catch(next);
 const loginSchema=z.object({email:z.string().email().max(254).transform(v=>v.toLowerCase()),password:z.string().min(8).max(200),remember:z.boolean().optional().default(true)}).strict();
@@ -35,6 +36,7 @@ export function createApp({db,config}) {
      const eventKey=`charge.success:${reference}`; const payloadHash=sha256(req.body);
      const inserted=await c.query(`INSERT INTO webhook_events(provider,event_key,payload_hash) VALUES('paystack',$1,$2) ON CONFLICT DO NOTHING RETURNING id`,[eventKey,payloadHash]);
      if(!inserted.rowCount) return;
+     await activateDueScheduledSubscriptions(c);
      const eventRegistration=(await c.query("SELECT r.*,e.title,e.currency FROM event_registrations r JOIN events e ON e.id=r.event_id WHERE r.provider_reference=$1 FOR UPDATE",[reference])).rows[0];
      if(eventRegistration){
        if(event.data.status!=='success'||Number(event.data.amount)!==Number(eventRegistration.amount_minor)||event.data.currency!==eventRegistration.currency)throw Object.assign(new Error('Event payment verification mismatch'),{status:422,code:'PAYMENT_MISMATCH'});
@@ -47,19 +49,19 @@ export function createApp({db,config}) {
      const orderResult=await c.query(`SELECT o.*,p.duration_days,p.trainer_access,p.workout_plan_access FROM payment_orders o JOIN membership_plans p ON p.id=o.plan_id WHERE o.provider='paystack' AND o.provider_reference=$1 FOR UPDATE`,[reference]);
      const order=orderResult.rows[0];
      if(!order||event.data.status!=='success'||Number(event.data.amount)!==Number(order.amount_minor)||event.data.currency!==order.currency) throw Object.assign(new Error('Payment verification mismatch'),{status:422,code:'PAYMENT_MISMATCH'});
-     const current=await c.query(`SELECT * FROM subscriptions WHERE member_id=$1 AND status='active' ORDER BY ends_at DESC LIMIT 1 FOR UPDATE`,[order.member_id]);
-     const isPlanChange=Boolean(current.rows[0]&&current.rows[0].plan_id!==order.plan_id);
-     const startsAt=isPlanChange?new Date():current.rows[0]&&new Date(current.rows[0].ends_at)>new Date()?current.rows[0].ends_at:new Date();
-     const endsAt=new Date(startsAt); endsAt.setUTCDate(endsAt.getUTCDate()+order.duration_days);
+     const current=await c.query(`SELECT * FROM subscriptions WHERE member_id=$1 AND status='active' AND starts_at<=now() AND ends_at>now() ORDER BY ends_at DESC LIMIT 1 FOR UPDATE`,[order.member_id]);
+     const latestSamePlan=await c.query(`SELECT * FROM subscriptions WHERE member_id=$1 AND plan_id=$2 AND status IN ('active','scheduled') AND ends_at>now() ORDER BY ends_at DESC LIMIT 1 FOR UPDATE`,[order.member_id,order.plan_id]);
+     const renewal=decideRenewalPeriod({current:current.rows[0],latestSamePlan:latestSamePlan.rows[0],planId:order.plan_id,durationDays:order.duration_days});
      const membershipAmount=Number(order.membership_amount_minor||order.amount_minor),registrationFee=Number(order.registration_fee_minor||0);
-     const subscription=await c.query(`INSERT INTO subscriptions(member_id,plan_id,starts_at,ends_at,status,amount_minor,currency) VALUES($1,$2,$3,$4,'active',$5,$6) RETURNING id`,[order.member_id,order.plan_id,startsAt,endsAt,membershipAmount,order.currency]);
-     if(isPlanChange)await c.query("UPDATE subscriptions SET status='expired',updated_at=now() WHERE member_id=$1 AND id<>$2 AND status='active'",[order.member_id,subscription.rows[0].id]);
+     const overlap=(await c.query("SELECT id FROM subscriptions WHERE member_id=$1 AND status IN ('active','scheduled','frozen') AND tstzrange(starts_at,ends_at,'[)') && tstzrange($2::timestamptz,$3::timestamptz,'[)') LIMIT 1",[order.member_id,renewal.startsAt,renewal.endsAt])).rows[0];
+     if(overlap)throw Object.assign(new Error('This member already has a subscription scheduled for that period'),{status:409,code:'SUBSCRIPTION_OVERLAP'});
+     const subscription=await c.query(`INSERT INTO subscriptions(member_id,plan_id,starts_at,ends_at,status,amount_minor,currency) VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING id`,[order.member_id,order.plan_id,renewal.startsAt,renewal.endsAt,renewal.status,membershipAmount,order.currency]);
      await c.query(`INSERT INTO payments(order_id,member_id,subscription_id,plan_id,amount_minor,membership_amount_minor,registration_fee_minor,currency,method,provider,provider_reference,status,paid_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,'paystack','paystack',$9,'successful',now())`,[order.id,order.member_id,subscription.rows[0].id,order.plan_id,order.amount_minor,membershipAmount,registrationFee,order.currency,reference]);
      if(registrationFee>0)await c.query('UPDATE members SET registration_fee_paid_at=COALESCE(registration_fee_paid_at,now()) WHERE id=$1',[order.member_id]);
      if(order.trainer_access)await c.query("INSERT INTO notifications(recipient_user_id,type,title,message,metadata) SELECT u.id,'trainer_assignment_required','Trainer assignment requested',$1,$2 FROM users u JOIN user_roles ur ON ur.user_id=u.id JOIN roles r ON r.id=ur.role_id WHERE r.code='admin'",['A paid membership with trainer access needs a trainer assignment.',JSON.stringify({memberId:order.member_id,subscriptionId:subscription.rows[0].id})]);
      await c.query(`UPDATE payment_orders SET status='successful' WHERE id=$1`,[order.id]);
      await c.query(`UPDATE webhook_events SET status='processed',processed_at=now() WHERE id=$1`,[inserted.rows[0].id]);
-     await c.query(`INSERT INTO audit_logs(action,entity_type,entity_id,new_values,request_id,ip) VALUES('payment.verified','payment_order',$1,$2,$3,$4)`,[order.id,JSON.stringify({provider:'paystack',reference}),req.requestId,req.ip]);
+     await c.query(`INSERT INTO audit_logs(action,entity_type,entity_id,new_values,request_id,ip) VALUES('payment.verified','payment_order',$1,$2,$3,$4)`,[order.id,JSON.stringify({provider:'paystack',reference,subscriptionStatus:renewal.status,planChange:renewal.planChange}),req.requestId,req.ip]);
    },'SERIALIZABLE'); res.sendStatus(200);
  }));
 
@@ -92,6 +94,7 @@ export function createApp({db,config}) {
  }));
  app.use('/api/v1',requireAuth(db));
  app.get('/api/v1/csrf',(req,res)=>res.json({csrfToken:csrfTokenForRequest(req,config)}));
+ app.use('/api/v1',asyncRoute(async(_req,_res,next)=>{await activateDueScheduledSubscriptions(db);next()}));
  app.use('/api/v1',requireCsrf(config));
  app.post('/api/v1/auth/logout',asyncRoute(async(req,res)=>{await db.query('UPDATE sessions SET revoked_at=now() WHERE id=$1',[req.actor.session_id]);clearSessionCookie(res,config);res.sendStatus(204)}));
  app.post('/api/v1/auth/change-initial-password',asyncRoute(async(req,res)=>{const input=z.object({password:z.string().min(10).max(200)}).strict().parse(req.body);await db.transaction(async c=>{await c.query('UPDATE users SET password_hash=$1,must_change_password=false,credential_version=credential_version+1,updated_at=now() WHERE id=$2',[await hashPassword(input.password),req.actor.id]);await c.query('UPDATE sessions SET revoked_at=now() WHERE user_id=$1 AND id<>$2 AND revoked_at IS NULL',[req.actor.id,req.actor.session_id])});res.sendStatus(204)}));

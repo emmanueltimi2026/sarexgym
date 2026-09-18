@@ -68,6 +68,9 @@ export const StaffPayments: React.FC = () => {
   const paystackTotal = payments.filter(p => p.status === 'Successful' && p.paymentMethod === 'Paystack').reduce((sum, p) => sum + p.amount, 0);
   const cashTransferTotal = payments.filter(p => p.status === 'Successful' && (p.paymentMethod === 'Cash' || p.paymentMethod === 'Bank Transfer')).reduce((sum, p) => sum + p.amount, 0);
   const grossTotal = payments.filter(p => p.status === 'Successful').reduce((sum, p) => sum + p.amount, 0);
+  const selectedPaymentMember = members.find(member => member.id === newPayForm.memberId) || null;
+  const selectedPaymentPlan = plans.find(plan => plan.id === newPayForm.planId) || null;
+  const isDifferentPlanPayment = Boolean(selectedPaymentMember?.membershipStatus === 'Active' && selectedPaymentPlan && selectedPaymentPlan.id !== selectedPaymentMember.membershipPlanId);
 
   useEffect(() => {
     if (!isNewPaymentModalOpen || !newPayForm.memberId || !newPayForm.planId) { setQuote(null); return; }
@@ -280,6 +283,11 @@ export const StaffPayments: React.FC = () => {
             {!!quote?.registrationFee && <div className="flex justify-between"><span className="text-gray-500">One-time registration fee</span><strong>₦{quote.registrationFee.toLocaleString()}</strong></div>}
             <div className="flex justify-between border-t border-gray-200 pt-2 text-sm"><strong>Total to collect</strong><strong className="text-[#EF1B23]">{quoteLoading ? 'Calculating…' : `₦${(quote?.total || 0).toLocaleString()}`}</strong></div>
           </div>
+          {isDifferentPlanPayment && (
+            <div className="rounded-lg border border-sky-200 bg-sky-50 p-3 text-xs font-semibold text-sky-800">
+              Your new plan will start when your current plan ends.
+            </div>
+          )}
 
           <div>
             <label className="block text-xs font-bold uppercase text-gray-700 mb-1">Plan / Item</label>

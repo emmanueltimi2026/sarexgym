@@ -1,6 +1,6 @@
 export type UserRole = 'super_admin' | 'staff' | 'trainer' | 'member';
 
-export type MembershipStatus = 'active' | 'pending' | 'expired' | 'suspended' | 'Active' | 'Pending' | 'Expiring' | 'Expired' | 'Inactive';
+export type MembershipStatus = 'active' | 'pending' | 'scheduled' | 'expired' | 'suspended' | 'frozen' | 'Active' | 'Pending' | 'Scheduled' | 'Expiring' | 'Expired' | 'Inactive' | 'Frozen';
 
 export type PaymentMethod = 'Paystack' | 'Cash' | 'Bank Transfer';
 
@@ -44,7 +44,7 @@ export interface Member {
   membershipStartDate: string;
   membershipExpiryDate: string;
   status: MembershipStatus;
-  membershipStatus?: 'Active' | 'Pending' | 'Expiring' | 'Expired' | 'Inactive';
+  membershipStatus?: 'Active' | 'Pending' | 'Scheduled' | 'Expiring' | 'Expired' | 'Inactive' | 'Frozen';
   assignedTrainerId?: string;
   assignedTrainerName?: string;
   memberSince?: string;
@@ -54,6 +54,12 @@ export interface Member {
   workoutPlanEnabled?: boolean;
   trainerAccess?: boolean;
   registrationFeePaid?: boolean;
+  nextSubscriptionId?: string;
+  nextPlanId?: string;
+  nextPlanName?: string;
+  nextPlanStartDate?: string;
+  nextPlanExpiryDate?: string;
+  nextSubscriptionStatus?: string;
 }
 
 export interface AttendanceRecord {
