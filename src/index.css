@@ -579,6 +579,30 @@
 .public-check-list svg { width: 18px; flex: 0 0 auto; color: #ef1b23; }
 .public-check-list strong { color: #171717; }
 
+.public-events-preview { background: #fff; }
+.public-event-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; }
+.public-event-card { display: flex; min-width: 0; flex-direction: column; overflow: hidden; border: 1px solid #deded9; border-radius: 10px; background: #fff; box-shadow: 0 16px 42px rgba(17,17,17,.08); transform-origin: 50% 100%; transition: border-color .28s ease, box-shadow .28s ease; will-change: transform, opacity; }
+.public-event-card:hover { border-color: rgba(239,27,35,.34); box-shadow: 0 24px 58px rgba(17,17,17,.14); }
+.public-event-image { position: relative; height: 240px; overflow: hidden; background: #151515; }
+.public-event-image img { width: 100%; height: 100%; object-fit: cover; transition: transform .58s cubic-bezier(.22,1,.36,1); }
+.public-event-card:hover .public-event-image img { transform: scale(1.045); }
+.public-event-image::after { position: absolute; inset: auto 0 0; height: 46%; background: linear-gradient(180deg, transparent, rgba(0,0,0,.74)); content: ''; pointer-events: none; }
+.public-event-image span { position: absolute; right: 14px; bottom: 14px; z-index: 1; display: grid; width: 38px; height: 38px; place-items: center; border-radius: 50%; background: #ef1b23; color: #fff; font-size: 10px; font-weight: 900; }
+.public-event-copy { display: flex; flex: 1; flex-direction: column; padding: 26px; }
+.public-event-copy > small { color: #ef1b23; font-size: 9px; font-weight: 900; letter-spacing: .14em; text-transform: uppercase; }
+.public-event-copy h3 { margin-top: 10px; font-family: 'Oswald', Arial, sans-serif; font-size: 27px; font-weight: 700; letter-spacing: 0; line-height: 1.05; text-transform: uppercase; }
+.public-event-copy > p { margin-top: 12px; color: #666; font-size: 12px; line-height: 1.75; }
+.public-event-copy dl { display: grid; gap: 12px; margin: 24px 0; padding-top: 22px; border-top: 1px solid #e8e8e3; }
+.public-event-copy dt { display: flex; align-items: center; gap: 7px; color: #94949a; font-size: 9px; font-weight: 900; letter-spacing: .12em; text-transform: uppercase; }
+.public-event-copy dt svg { width: 13px; height: 13px; color: #ef1b23; }
+.public-event-copy dd { margin-top: 4px; color: #28282c; font-size: 12px; font-weight: 800; line-height: 1.45; }
+.public-event-copy button { margin-top: auto; width: 100%; }
+.public-event-empty { display: grid; min-height: 320px; place-items: center; border: 1px solid #deded9; border-radius: 10px; padding: 48px 24px; background: linear-gradient(135deg, #f8f8f5, #fff); text-align: center; box-shadow: 0 16px 42px rgba(17,17,17,.06); }
+.public-event-empty > svg { width: 44px; height: 44px; margin-bottom: 18px; color: #ef1b23; }
+.public-event-empty h3 { font-family: 'Oswald', Arial, sans-serif; font-size: 30px; font-weight: 700; letter-spacing: 0; text-transform: uppercase; }
+.public-event-empty p { max-width: 500px; margin: 12px auto 0; color: #666; font-size: 13px; line-height: 1.75; }
+.public-event-empty button { margin-top: 24px; }
+
 .public-how-section { background: #fff; }
 .public-step-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0; margin-top: 58px; counter-reset: steps; }
 .public-step-grid li { position: relative; min-width: 0; padding: 40px; border: 1px solid #deded9; border-right: 0; list-style: none; }
@@ -726,7 +750,8 @@
   .public-home-hero-copy { width: 68%; }
   .public-home-hero-athlete { right: -14%; width: 58%; opacity: .78; }
   .public-service-grid,
-  .public-plan-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .public-plan-grid,
+  .public-event-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .public-split-feature,
   .public-story-grid { gap: 44px; }
   .public-facility-rows article > div { padding: 38px; }
@@ -757,6 +782,7 @@
   .public-benefit-grid,
   .public-service-grid,
   .public-plan-grid,
+  .public-event-grid,
   .public-step-grid,
   .public-review-grid,
   .public-category-grid,
@@ -792,6 +818,8 @@
   .public-visit-grid,
   .public-contact-grid { grid-template-columns: 1fr; gap: 44px; }
   .public-split-images { min-height: 400px; }
+  .public-event-image { height: 220px; }
+  .public-event-copy { padding: 24px; }
   .public-step-grid li { border-right: 1px solid #deded9; border-bottom: 0; padding: 28px; }
   .public-step-grid li:last-child { border-bottom: 1px solid #deded9; }
   .public-final-cta { padding: 64px 0; }

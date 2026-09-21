@@ -94,3 +94,30 @@ test('event registration uses a separate registration window',async()=>{
  assert.match(registerRoute,/registration_ends_at/);
  assert.match(registerRoute,/EVENT_REGISTRATION_CLOSED/);
 });
+
+test('homepage renders active public events from the public events endpoint',async()=>{
+ const home=await readFile(new URL('../src/pages/public/PublicHome.tsx',import.meta.url),'utf8');
+ assert.match(home,/\/api\/v1\/public\/events/);
+ assert.match(home,/public-events-preview/);
+ assert.doesNotMatch(home,/events\.length > 0 &&/);
+ assert.match(home,/No upcoming event yet/);
+ assert.match(home,/navigate\(`\/events\/\$\{event\.id\}`\)/);
+ assert.match(home,/registration_starts_at/);
+ assert.match(home,/registration_ends_at/);
+});
+
+test('editable number inputs keep text form state until submit',async()=>{
+ const [events,plans]=await Promise.all([
+  readFile(new URL('../src/pages/shared/EventManagement.tsx',import.meta.url),'utf8'),
+  readFile(new URL('../src/pages/admin/AdminPlans.tsx',import.meta.url),'utf8')
+ ]);
+ assert.doesNotMatch(events,/Number\(e\.target\.value\)/);
+ assert.match(events,/capacity:'40'/);
+ assert.match(events,/price:'0'/);
+ assert.match(events,/capacity:Number\(form\.capacity\)/);
+ assert.match(events,/price:Number\(form\.price\)/);
+ assert.doesNotMatch(plans,/price: Number\(e\.target\.value\)/);
+ assert.doesNotMatch(plans,/durationDays: Number\(e\.target\.value\)/);
+ assert.match(plans,/price: Number\(editingPlan\.price\)/);
+ assert.match(plans,/durationDays: Number\(editingPlan\.durationDays\)/);
+});

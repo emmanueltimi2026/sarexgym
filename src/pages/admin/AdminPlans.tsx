@@ -5,18 +5,24 @@ import { Modal } from '../../components/ui/Modal';
 import { Check, Edit2, Plus } from 'lucide-react';
 import { MembershipPlan } from '../../types';
 
+type PlanForm = Omit<MembershipPlan, 'price' | 'durationDays' | 'registrationFee'> & {
+  price: string;
+  durationDays: string;
+  registrationFee?: string;
+};
+
 export const AdminPlans: React.FC = () => {
   const { plans, members, updatePlan, addPlan } = useGym();
-  const [editingPlan, setEditingPlan] = useState<MembershipPlan | null>(null);
+  const [editingPlan, setEditingPlan] = useState<PlanForm | null>(null);
   const [isAddOpen, setIsAddOpen] = useState(false);
 
   const [newPlan, setNewPlan] = useState({
     name: '',
-    price: 35000,
-    durationDays: 30,
+    price: '35000',
+    durationDays: '30',
     description: '',
     featuresText: 'All gym equipment access\nFree locker usage\nFitness evaluation',
-    registrationFee: '' as number | '', trainerAccess: false, workoutPlanAccess: false
+    registrationFee: '', trainerAccess: false, workoutPlanAccess: false
   });
 
   const handleEditSubmit = (e: React.FormEvent) => {
@@ -24,10 +30,10 @@ export const AdminPlans: React.FC = () => {
     if (!editingPlan) return;
     updatePlan(editingPlan.id, {
       name: editingPlan.name,
-      price: editingPlan.price,
-      durationDays: editingPlan.durationDays,
+      price: Number(editingPlan.price),
+      durationDays: Number(editingPlan.durationDays),
       description: editingPlan.description,
-      features: editingPlan.features, registrationFee: editingPlan.registrationFee || 0, trainerAccess: Boolean(editingPlan.trainerAccess), workoutPlanAccess: Boolean(editingPlan.workoutPlanAccess)
+      features: editingPlan.features, registrationFee: Number(editingPlan.registrationFee || 0), trainerAccess: Boolean(editingPlan.trainerAccess), workoutPlanAccess: Boolean(editingPlan.workoutPlanAccess)
     });
     setEditingPlan(null);
   };
@@ -50,10 +56,10 @@ export const AdminPlans: React.FC = () => {
     setIsAddOpen(false);
     setNewPlan({
       name: '',
-      price: 35000,
-      durationDays: 30,
+      price: '35000',
+      durationDays: '30',
       description: '',
-      featuresText: 'All gym equipment access\nFree locker usage\nFitness evaluation', registrationFee: '' as number | '', trainerAccess: false, workoutPlanAccess: false
+      featuresText: 'All gym equipment access\nFree locker usage\nFitness evaluation', registrationFee: '', trainerAccess: false, workoutPlanAccess: false
     });
   };
 
@@ -86,7 +92,7 @@ export const AdminPlans: React.FC = () => {
                     {plan.name}
                   </h3>
                   <button
-                    onClick={() => setEditingPlan({ ...plan })}
+                    onClick={() => setEditingPlan({ ...plan, price: String(plan.price), durationDays: String(plan.durationDays), registrationFee: plan.registrationFee === undefined || plan.registrationFee === null ? '' : String(plan.registrationFee) })}
                     className="p-1 text-gray-400 hover:text-black rounded"
                     title="Edit Plan"
                   >
@@ -149,7 +155,7 @@ export const AdminPlans: React.FC = () => {
               />
             </div>
 
-            <label className="block font-bold uppercase text-gray-700">Registration fee (₦)<input type="number" min="0" value={editingPlan.registrationFee ?? ''} onChange={e=>setEditingPlan({...editingPlan,registrationFee:e.target.value===''?undefined:Number(e.target.value)})} placeholder="Enter registration fee" className="mt-1 w-full rounded border border-gray-300 px-3 py-2 text-sm font-normal"/></label>
+            <label className="block font-bold uppercase text-gray-700">Registration fee (₦)<input type="number" min="0" value={editingPlan.registrationFee ?? ''} onChange={e=>setEditingPlan({...editingPlan,registrationFee:e.target.value})} placeholder="Enter registration fee" className="mt-1 w-full rounded border border-gray-300 px-3 py-2 text-sm font-normal"/></label>
             <div className="flex gap-5"><label className="flex items-center gap-2 font-bold"><input type="checkbox" checked={Boolean(editingPlan.workoutPlanAccess)} onChange={e=>setEditingPlan({...editingPlan,workoutPlanAccess:e.target.checked})}/>Workout plan access</label><label className="flex items-center gap-2 font-bold"><input type="checkbox" checked={Boolean(editingPlan.trainerAccess)} onChange={e=>setEditingPlan({...editingPlan,trainerAccess:e.target.checked})}/>Trainer access</label></div>
 
             <div className="grid grid-cols-2 gap-3">
@@ -159,7 +165,7 @@ export const AdminPlans: React.FC = () => {
                   type="number"
                   required
                   value={editingPlan.price}
-                  onChange={e => setEditingPlan({ ...editingPlan, price: Number(e.target.value) })}
+                  onChange={e => setEditingPlan({ ...editingPlan, price: e.target.value })}
                   className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:border-[#EF1B23] focus:outline-none"
                 />
               </div>
@@ -169,7 +175,7 @@ export const AdminPlans: React.FC = () => {
                   type="number"
                   required
                   value={editingPlan.durationDays}
-                  onChange={e => setEditingPlan({ ...editingPlan, durationDays: Number(e.target.value) })}
+                  onChange={e => setEditingPlan({ ...editingPlan, durationDays: e.target.value })}
                   className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:border-[#EF1B23] focus:outline-none"
                 />
               </div>
@@ -236,7 +242,7 @@ export const AdminPlans: React.FC = () => {
             />
           </div>
 
-          <label className="block font-bold uppercase text-gray-700">Registration fee (₦)<input type="number" min="0" value={newPlan.registrationFee} onChange={e=>setNewPlan({...newPlan,registrationFee:e.target.value===''?'':Number(e.target.value)})} placeholder="Enter registration fee" className="mt-1 w-full rounded border border-gray-300 px-3 py-2 text-sm font-normal"/></label>
+          <label className="block font-bold uppercase text-gray-700">Registration fee (₦)<input type="number" min="0" value={newPlan.registrationFee} onChange={e=>setNewPlan({...newPlan,registrationFee:e.target.value})} placeholder="Enter registration fee" className="mt-1 w-full rounded border border-gray-300 px-3 py-2 text-sm font-normal"/></label>
           <div className="flex gap-5"><label className="flex items-center gap-2 font-bold"><input type="checkbox" checked={newPlan.workoutPlanAccess} onChange={e=>setNewPlan({...newPlan,workoutPlanAccess:e.target.checked})}/>Workout plan access</label><label className="flex items-center gap-2 font-bold"><input type="checkbox" checked={newPlan.trainerAccess} onChange={e=>setNewPlan({...newPlan,trainerAccess:e.target.checked})}/>Trainer access</label></div>
 
           <div className="grid grid-cols-2 gap-3">
@@ -246,7 +252,7 @@ export const AdminPlans: React.FC = () => {
                 type="number"
                 required
                 value={newPlan.price}
-                onChange={e => setNewPlan({ ...newPlan, price: Number(e.target.value) })}
+                onChange={e => setNewPlan({ ...newPlan, price: e.target.value })}
                 className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:border-[#EF1B23] focus:outline-none"
               />
             </div>
@@ -256,7 +262,7 @@ export const AdminPlans: React.FC = () => {
                 type="number"
                 required
                 value={newPlan.durationDays}
-                onChange={e => setNewPlan({ ...newPlan, durationDays: Number(e.target.value) })}
+                onChange={e => setNewPlan({ ...newPlan, durationDays: e.target.value })}
                 className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:border-[#EF1B23] focus:outline-none"
               />
             </div>

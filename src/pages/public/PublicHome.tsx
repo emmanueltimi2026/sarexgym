@@ -1,9 +1,25 @@
-import React, { useState } from 'react';
-import { ArrowRight, CheckCircle2, Star } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { ArrowRight, CalendarDays, CheckCircle2, MapPin, Star, Users } from 'lucide-react';
 import { FinalCta, PlanGrid, SectionHeading } from '../../components/public/PublicSections';
 import { useGym } from '../../context/GymContext';
 import { facilities, testimonials } from './publicContent';
 import { PremiumImage, ScaleReveal, SlideUp, StaggerContainer, StaggerItem } from '../../components/public/PublicMotion';
+import { apiBase as BASE } from '../../lib/secureFetch';
+
+type PublicEvent = {
+  id: string;
+  title: string;
+  description: string;
+  location: string;
+  starts_at: string;
+  ends_at: string;
+  registration_starts_at: string;
+  registration_ends_at: string;
+  capacity: number;
+  price_minor: number;
+  image_url?: string | null;
+  registered: number;
+};
 
 const workProcess = [
   {
@@ -31,6 +47,23 @@ export const PublicHome: React.FC = () => {
   const [bmiWeight, setBmiWeight] = useState('');
   const [bmiHeight, setBmiHeight] = useState('');
   const [bmiResult, setBmiResult] = useState<number | null>(null);
+  const [events, setEvents] = useState<PublicEvent[]>([]);
+  const [eventsLoading, setEventsLoading] = useState(true);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    setEventsLoading(true);
+    fetch(`${BASE}/api/v1/public/events`, { credentials: 'include', cache: 'no-store', signal: controller.signal })
+      .then(async response => response.ok ? response.json() : { data: [] })
+      .then(body => setEvents(Array.isArray(body.data) ? body.data.slice(0, 3) : []))
+      .catch(error => {
+        if (!(error instanceof DOMException && error.name === 'AbortError')) setEvents([]);
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setEventsLoading(false);
+      });
+    return () => controller.abort();
+  }, []);
 
   const calculateBmi = (event: React.FormEvent) => {
     event.preventDefault();
@@ -40,6 +73,7 @@ export const PublicHome: React.FC = () => {
     setBmiResult(Number((weight / (heightInMetres * heightInMetres)).toFixed(1)));
   };
   const bmiCategory = bmiResult === null ? '' : bmiResult < 18.5 ? 'Underweight' : bmiResult < 25 ? 'Healthy range' : bmiResult < 30 ? 'Overweight' : 'High range';
+  const formatDate = (value: string) => value ? new Date(value).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) : 'Date pending';
 
   return (
     <div className="public-marketing-page">
@@ -139,6 +173,51 @@ export const PublicHome: React.FC = () => {
               </StaggerContainer>
               <button className="public-primary-button" onClick={() => navigate('/facilities')}>Explore the facilities <ArrowRight aria-hidden="true" /></button>
             </div>
+          </div>
+        </section>
+
+        <section className="public-section public-events-preview" aria-labelledby="events-preview-title">
+          <div className="public-container">
+            <div className="public-section-topline">
+              <SectionHeading id="events-preview-title" eyebrow="Events" title="Upcoming SAREX experiences" description="Join fitness outings, wellness sessions, and community activities created for the SAREX family." />
+              <button className="public-text-button" onClick={() => navigate('/register')}>Join to book events <ArrowRight aria-hidden="true" /></button>
+            </div>
+            {eventsLoading ? (
+              <div className="public-event-empty" role="status" aria-live="polite">
+                <CalendarDays aria-hidden="true" />
+                <h3>Checking upcoming events</h3>
+                <p>We are loading the latest SAREX community schedule.</p>
+              </div>
+            ) : events.length ? (
+              <StaggerContainer as="div" className="public-event-grid" delay={0.06} stagger={0.12}>
+                {events.map((event, index) => (
+                  <StaggerItem as="article" key={event.id} className="public-event-card" distance={72} duration={0.68} interactive hoverDistance={8} hoverScale={1.01}>
+                    <div className="public-event-image">
+                      {event.image_url ? <PremiumImage src={event.image_url} alt={`${event.title} event at SAREX Fitness Clinic`} loading="lazy" /> : <PremiumImage src="/assets/photos/photo-1549060279-7e168fcee0c2.jpg" alt="" loading="lazy" />}
+                      <span>{String(index + 1).padStart(2, '0')}</span>
+                    </div>
+                    <div className="public-event-copy">
+                      <small>{Number(event.price_minor) ? `₦${(Number(event.price_minor) / 100).toLocaleString()}` : 'Free event'}</small>
+                      <h3>{event.title}</h3>
+                      <p>{event.description}</p>
+                      <dl>
+                        <div><dt><CalendarDays aria-hidden="true" />Event date</dt><dd>{formatDate(event.starts_at)} - {formatDate(event.ends_at)}</dd></div>
+                        <div><dt><CalendarDays aria-hidden="true" />Registration</dt><dd>{formatDate(event.registration_starts_at)} - {formatDate(event.registration_ends_at)}</dd></div>
+                        <div><dt><MapPin aria-hidden="true" />Location</dt><dd>{event.location}</dd></div>
+                        <div><dt><Users aria-hidden="true" />Booked</dt><dd>{event.registered}/{event.capacity}</dd></div>
+                      </dl>
+                      <button className="public-secondary-button is-dark" onClick={() => navigate(`/events/${event.id}`)}>View event <ArrowRight aria-hidden="true" /></button>
+                    </div>
+                  </StaggerItem>
+                ))}
+              </StaggerContainer>
+            ) : (
+              <SlideUp as="div" className="public-event-empty" distance={28}>
+                <CalendarDays aria-hidden="true" />
+                <h3>No upcoming event yet</h3>
+                <button className="public-secondary-button is-dark" onClick={() => navigate('/contact')}>Ask about upcoming activities <ArrowRight aria-hidden="true" /></button>
+              </SlideUp>
+            )}
           </div>
         </section>
 
