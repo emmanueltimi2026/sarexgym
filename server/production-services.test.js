@@ -121,3 +121,9 @@ test('editable number inputs keep text form state until submit',async()=>{
  assert.match(plans,/price: Number\(editingPlan\.price\)/);
  assert.match(plans,/durationDays: Number\(editingPlan\.durationDays\)/);
 });
+
+test('homepage event section uses visible buttons on light backgrounds',async()=>{
+ const css=await readFile(new URL('../src/index.css',import.meta.url),'utf8');
+ assert.match(css,/\.public-event-copy \.public-secondary-button\.is-dark,\s*\.public-event-empty \.public-secondary-button\.is-dark \{[^}]*background: #171717;[^}]*color: #fff;/s);
+ assert.match(css,/\.public-event-copy \.public-secondary-button\.is-dark:hover,\s*\.public-event-empty \.public-secondary-button\.is-dark:hover \{[^}]*background: #ef1b23;[^}]*color: #fff;/s);
+});

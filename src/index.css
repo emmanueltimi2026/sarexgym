@@ -597,6 +597,10 @@
 .public-event-copy dt svg { width: 13px; height: 13px; color: #ef1b23; }
 .public-event-copy dd { margin-top: 4px; color: #28282c; font-size: 12px; font-weight: 800; line-height: 1.45; }
 .public-event-copy button { margin-top: auto; width: 100%; }
+.public-event-copy .public-secondary-button.is-dark,
+.public-event-empty .public-secondary-button.is-dark { border-color: #171717; background: #171717; color: #fff; box-shadow: 0 14px 30px rgba(17,17,17,.14); }
+.public-event-copy .public-secondary-button.is-dark:hover,
+.public-event-empty .public-secondary-button.is-dark:hover { border-color: #ef1b23; background: #ef1b23; color: #fff; transform: translateY(-2px); }
 .public-event-empty { display: grid; min-height: 320px; place-items: center; border: 1px solid #deded9; border-radius: 10px; padding: 48px 24px; background: linear-gradient(135deg, #f8f8f5, #fff); text-align: center; box-shadow: 0 16px 42px rgba(17,17,17,.06); }
 .public-event-empty > svg { width: 44px; height: 44px; margin-bottom: 18px; color: #ef1b23; }
 .public-event-empty h3 { font-family: 'Oswald', Arial, sans-serif; font-size: 30px; font-weight: 700; letter-spacing: 0; text-transform: uppercase; }
