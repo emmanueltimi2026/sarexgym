@@ -7,7 +7,7 @@ import{useVisibilityPolling}from'../../hooks/useVisibilityPolling';
 import{PORTAL_POLL_INTERVALS}from'../../lib/refreshPolicy';
 import{apiBase as BASE}from'../../lib/secureFetch';
 
-const formatDate=(value:string)=>value?new Date(value).toLocaleString():'Not set';
+const formatDate=(value:string)=>value?new Date(value).toLocaleDateString(undefined,{year:'numeric',month:'short',day:'numeric'}):'Not set';
 const registrationOpen=(event:any)=>event?.registration_starts_at&&event?.registration_ends_at&&new Date(event.registration_starts_at)<=new Date()&&new Date(event.registration_ends_at)>=new Date();
 
 export const MemberEvents:React.FC=()=>{
