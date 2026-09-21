@@ -591,12 +591,15 @@
 .public-event-copy { display: flex; flex: 1; flex-direction: column; padding: 26px; }
 .public-event-copy > small { color: #ef1b23; font-size: 9px; font-weight: 900; letter-spacing: .14em; text-transform: uppercase; }
 .public-event-copy h3 { margin-top: 10px; font-family: 'Oswald', Arial, sans-serif; font-size: 27px; font-weight: 700; letter-spacing: 0; line-height: 1.05; text-transform: uppercase; }
-.public-event-copy > p { margin-top: 12px; color: #666; font-size: 12px; line-height: 1.75; }
+.public-event-copy > p { display: -webkit-box; min-height: calc(12px * 1.75 * 3); margin-top: 12px; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 3; color: #666; font-size: 12px; line-height: 1.75; }
 .public-event-copy dl { display: grid; gap: 12px; margin: 24px 0; padding-top: 22px; border-top: 1px solid #e8e8e3; }
 .public-event-copy dt { display: flex; align-items: center; gap: 7px; color: #94949a; font-size: 9px; font-weight: 900; letter-spacing: .12em; text-transform: uppercase; }
 .public-event-copy dt svg { width: 13px; height: 13px; color: #ef1b23; }
 .public-event-copy dd { margin-top: 4px; color: #28282c; font-size: 12px; font-weight: 800; line-height: 1.45; }
-.public-event-copy button { margin-top: auto; width: 100%; }
+.public-event-actions { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; margin-top: auto; }
+.public-event-copy .public-event-actions button { width: 100%; min-width: 0; margin-top: 0; padding-inline: 12px; }
+.public-event-copy .public-event-actions .public-secondary-button { border-color: #171717; background: #fff; color: #171717; }
+.public-event-copy .public-event-actions .public-secondary-button:hover { border-color: #ef1b23; color: #ef1b23; transform: translateY(-2px); }
 .public-event-copy .public-secondary-button.is-dark,
 .public-event-empty .public-secondary-button.is-dark { border-color: #171717; background: #171717; color: #fff; box-shadow: 0 14px 30px rgba(17,17,17,.14); }
 .public-event-copy .public-secondary-button.is-dark:hover,

@@ -74,6 +74,7 @@ export const PublicHome: React.FC = () => {
   };
   const bmiCategory = bmiResult === null ? '' : bmiResult < 18.5 ? 'Underweight' : bmiResult < 25 ? 'Healthy range' : bmiResult < 30 ? 'Overweight' : 'High range';
   const formatDate = (value: string) => value ? new Date(value).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) : 'Date pending';
+  const eventRegistrationPath = (eventId: string) => `/login?returnTo=${encodeURIComponent(`/member/events/${eventId}`)}`;
 
   return (
     <div className="public-marketing-page">
@@ -206,7 +207,10 @@ export const PublicHome: React.FC = () => {
                         <div><dt><MapPin aria-hidden="true" />Location</dt><dd>{event.location}</dd></div>
                         <div><dt><Users aria-hidden="true" />Booked</dt><dd>{event.registered}/{event.capacity}</dd></div>
                       </dl>
-                      <button className="public-secondary-button is-dark" onClick={() => navigate(`/events/${event.id}`)}>View event <ArrowRight aria-hidden="true" /></button>
+                      <div className="public-event-actions">
+                        <button className="public-secondary-button" onClick={() => navigate(`/events/${event.id}`)}>View details</button>
+                        <button className="public-primary-button" onClick={() => navigate(eventRegistrationPath(event.id))}>Register <ArrowRight aria-hidden="true" /></button>
+                      </div>
                     </div>
                   </StaggerItem>
                 ))}

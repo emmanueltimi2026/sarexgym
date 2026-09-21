@@ -123,7 +123,17 @@ test('editable number inputs keep text form state until submit',async()=>{
 });
 
 test('homepage event section uses visible buttons on light backgrounds',async()=>{
- const css=await readFile(new URL('../src/index.css',import.meta.url),'utf8');
+ const [css,home,details]=await Promise.all([
+  readFile(new URL('../src/index.css',import.meta.url),'utf8'),
+  readFile(new URL('../src/pages/public/PublicHome.tsx',import.meta.url),'utf8'),
+  readFile(new URL('../src/pages/shared/EventDetails.tsx',import.meta.url),'utf8')
+ ]);
+ assert.match(home,/View details/);
+ assert.match(home,/Register <ArrowRight/);
+ assert.match(home,/returnTo=\$\{encodeURIComponent\(`\/member\/events\/\$\{eventId\}`\)\}/);
+ assert.match(details,/registerLabel=\{mode==='public'\?'Register':undefined\}/);
+ assert.match(css,/\.public-event-copy > p \{[^}]*-webkit-line-clamp: 3;/s);
+ assert.match(css,/\.public-event-actions \{[^}]*grid-template-columns: minmax\(0, 1fr\) minmax\(0, 1fr\);/s);
  assert.match(css,/\.public-event-copy \.public-secondary-button\.is-dark,\s*\.public-event-empty \.public-secondary-button\.is-dark \{[^}]*background: #171717;[^}]*color: #fff;/s);
  assert.match(css,/\.public-event-copy \.public-secondary-button\.is-dark:hover,\s*\.public-event-empty \.public-secondary-button\.is-dark:hover \{[^}]*background: #ef1b23;[^}]*color: #fff;/s);
 });
