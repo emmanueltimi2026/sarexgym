@@ -8,17 +8,20 @@ import{useVisibilityPolling}from'../../hooks/useVisibilityPolling';
 import{PORTAL_POLL_INTERVALS}from'../../lib/refreshPolicy';
 import{apiBase as BASE}from'../../lib/secureFetch';
 
+const formatDate=(value:string)=>value?new Date(value).toLocaleString():'Not set';
+const registrationOpen=(event:any)=>event?.registration_starts_at&&event?.registration_ends_at&&new Date(event.registration_starts_at)<=new Date()&&new Date(event.registration_ends_at)>=new Date();
+
 const EventBody:React.FC<{event:any;onBack:()=>void;onRegister?:()=>void;message?:string}>=({event,onBack,onRegister,message})=><div className="mx-auto max-w-5xl">
  <button onClick={onBack} className="mb-5 inline-flex items-center gap-2 text-xs font-black uppercase text-[#EF1B23]"><ArrowLeft className="h-4 w-4"/>Back to events</button>
  {message&&<div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-bold text-emerald-800">{message}</div>}
  <article className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
   {event.image_url&&<img src={event.image_url} alt={event.title} className="h-[260px] w-full object-cover sm:h-[380px]"/>}
   <div className="p-6 sm:p-8">
-   <div className="flex flex-wrap items-center justify-between gap-3 text-xs font-black uppercase tracking-widest text-[#EF1B23]"><span>{new Date(event.starts_at).toLocaleString()}</span><span>{Number(event.price_minor)?`₦${(Number(event.price_minor)/100).toLocaleString()}`:'Free event'}</span></div>
+   <div className="flex flex-wrap items-center justify-between gap-3 text-xs font-black uppercase tracking-widest text-[#EF1B23]"><span>{formatDate(event.starts_at)}</span><span>{Number(event.price_minor)?`₦${(Number(event.price_minor)/100).toLocaleString()}`:'Free event'}</span></div>
    <h1 className="mt-4 text-3xl font-black tracking-tight text-[#111] sm:text-5xl">{event.title}</h1>
-   <div className="mt-6 grid gap-3 text-sm text-gray-600 sm:grid-cols-3"><span className="flex items-center gap-2"><CalendarDays className="h-4 w-4 text-[#EF1B23]"/>{new Date(event.ends_at).toLocaleString()}</span><span className="flex items-center gap-2"><MapPin className="h-4 w-4 text-[#EF1B23]"/>{event.location}</span><span className="flex items-center gap-2"><Users className="h-4 w-4 text-[#EF1B23]"/>{event.registered}/{event.capacity} booked</span></div>
+   <div className="mt-6 grid gap-3 text-sm text-gray-600 sm:grid-cols-2"><span className="flex items-center gap-2"><CalendarDays className="h-4 w-4 text-[#EF1B23]"/>Event: {formatDate(event.starts_at)} - {formatDate(event.ends_at)}</span><span className="flex items-center gap-2"><CalendarDays className="h-4 w-4 text-[#EF1B23]"/>Registration: {formatDate(event.registration_starts_at)} - {formatDate(event.registration_ends_at)}</span><span className="flex items-center gap-2"><MapPin className="h-4 w-4 text-[#EF1B23]"/>{event.location}</span><span className="flex items-center gap-2"><Users className="h-4 w-4 text-[#EF1B23]"/>{event.registered}/{event.capacity} booked</span></div>
    <p className="mt-7 whitespace-pre-line text-base leading-8 text-gray-700">{event.description}</p>
-   {onRegister&&<button disabled={event.registration_status==='confirmed'} onClick={onRegister} className="mt-8 rounded-xl bg-[#EF1B23] px-6 py-3 text-xs font-black uppercase text-white disabled:bg-emerald-600">{event.registration_status==='confirmed'?'Booking confirmed':event.registration_status==='pending_payment'?'Complete payment':Number(event.price_minor)?'Register and pay':'Reserve my place'}</button>}
+   {onRegister&&<button disabled={event.registration_status==='confirmed'||!registrationOpen(event)} onClick={onRegister} className="mt-8 rounded-xl bg-[#EF1B23] px-6 py-3 text-xs font-black uppercase text-white disabled:bg-gray-400">{event.registration_status==='confirmed'?'Booking confirmed':event.registration_status==='pending_payment'?'Complete payment':!registrationOpen(event)?'Registration closed':Number(event.price_minor)?'Register and pay':'Reserve my place'}</button>}
   </div>
  </article>
 </div>;

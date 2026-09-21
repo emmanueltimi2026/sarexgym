@@ -73,3 +73,24 @@ test('payment receipt stops polling on terminal backend errors',async()=>{
  assert.match(receipt,/setError\(r\.status===202\?'':body\?\.error\?\.message/);
  assert.match(receipt,/Payment needs review/);
 });
+
+test('member and public event listings keep active multi-day events visible until the event ends',async()=>{
+ const routes=await readFile(new URL('./routes.js',import.meta.url),'utf8');
+ assert.match(routes,/public\/events'.*e\.status='published' AND e\.ends_at>now\(\)/s);
+ assert.match(routes,/public\/events\/:id'.*e\.status='published' AND e\.ends_at>now\(\)/s);
+ assert.match(routes,/app\.get\('\/api\/v1\/events'.*e\.status='published' AND e\.ends_at>now\(\)/s);
+ assert.match(routes,/app\.get\('\/api\/v1\/events\/:id'.*e\.status='published' AND e\.ends_at>now\(\)/s);
+ assert.doesNotMatch(routes,/e\.status='published' AND e\.starts_at>now\(\)/);
+});
+
+test('event registration uses a separate registration window',async()=>{
+ const routes=await readFile(new URL('./routes.js',import.meta.url),'utf8');
+ const registerRoute=routes.slice(routes.indexOf("app.post('/api/v1/events/:id/register'"),routes.indexOf("app.get('/api/v1/classes'"));
+ assert.match(routes,/registrationStartsAt:z\.string\(\)\.datetime\(\)/);
+ assert.match(routes,/registrationEndsAt:z\.string\(\)\.datetime\(\)/);
+ assert.match(routes,/registration_starts_at/);
+ assert.match(routes,/registration_ends_at/);
+ assert.match(registerRoute,/registration_starts_at/);
+ assert.match(registerRoute,/registration_ends_at/);
+ assert.match(registerRoute,/EVENT_REGISTRATION_CLOSED/);
+});
