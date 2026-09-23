@@ -104,7 +104,7 @@ export function createApp({db,config}) {
        return{denied:true,httpStatus,code,message};
      };
      if(member.user_status!=='active')return deny('Your member account is not active','ACCESS_DENIED',403);
-     const access=(await c.query("SELECT s.id,p.name plan_name,s.ends_at FROM subscriptions s JOIN membership_plans p ON p.id=s.plan_id WHERE s.member_id=$1 AND s.status='active' AND s.starts_at<=now() AND s.ends_at>now() AND NOT EXISTS(SELECT 1 FROM subscription_freezes f WHERE f.subscription_id=s.id AND now()>=f.starts_at AND now()<f.ends_at) ORDER BY s.ends_at DESC LIMIT 1 FOR UPDATE OF s",[member.id])).rows[0];
+     const access=(await c.query("SELECT s.id,p.name plan_name,s.ends_at FROM subscriptions s JOIN membership_plans p ON p.id=s.plan_id WHERE s.member_id=$1 AND s.status='active' AND s.starts_at<=now() AND s.ends_at>now() AND NOT EXISTS(SELECT 1 FROM subscription_freezes f WHERE f.released_at IS NULL AND f.subscription_id=s.id AND now()>=f.starts_at AND now()<f.ends_at) ORDER BY s.ends_at DESC LIMIT 1 FOR UPDATE OF s",[member.id])).rows[0];
      if(!access)return deny('You do not have an active membership','INACTIVE_MEMBERSHIP',403);
      await c.query('SELECT pg_advisory_xact_lock(hashtext($1))',[member.id]);
      const existing=(await c.query("SELECT id,checked_in_at FROM attendance WHERE member_id=$1 AND status='completed' AND (checked_in_at AT TIME ZONE $2)::date=(now() AT TIME ZONE $2)::date ORDER BY checked_in_at DESC LIMIT 1",[member.id,branch.timezone])).rows[0];

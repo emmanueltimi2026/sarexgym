@@ -22,6 +22,29 @@ export function decideRenewalPeriod({ current, latestSamePlan, latestQueued, pla
   };
 }
 
+export async function createPaidSubscriptionPeriod(db, { memberId, planId, startsAt, endsAt, status, amountMinor, currency, isFirstPurchase }) {
+  if (isFirstPurchase) {
+    const pending = (await db.query(`
+      SELECT s.id FROM subscriptions s
+      WHERE s.member_id=$1 AND s.status='pending'
+        AND NOT EXISTS(SELECT 1 FROM payments py WHERE py.subscription_id=s.id)
+      ORDER BY s.created_at,s.id LIMIT 1 FOR UPDATE OF s
+    `, [memberId])).rows[0];
+    if (pending) {
+      return (await db.query(`
+        UPDATE subscriptions SET plan_id=$2,starts_at=$3,ends_at=$4,status=$5,amount_minor=$6,currency=$7,updated_at=now()
+        WHERE id=$1 AND status='pending'
+        RETURNING id,status,starts_at,ends_at
+      `, [pending.id, planId, startsAt, endsAt, status, amountMinor, currency])).rows[0];
+    }
+  }
+  return (await db.query(`
+    INSERT INTO subscriptions(member_id,plan_id,starts_at,ends_at,status,amount_minor,currency)
+    VALUES($1,$2,$3,$4,$5,$6,$7)
+    RETURNING id,status,starts_at,ends_at
+  `, [memberId, planId, startsAt, endsAt, status, amountMinor, currency])).rows[0];
+}
+
 export async function activateDueScheduledSubscriptions(db) {
   const run = async c => {
     const nowResult = await c.query('SELECT now() now');

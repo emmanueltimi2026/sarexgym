@@ -85,8 +85,8 @@ const AppLayoutFrame: React.FC<AppLayoutProps> = ({
   const notificationDestination = (notification: typeof notifications[number]) => {
     const metadata = notification.metadata || {};
     if (notification.type === 'event_booking' && metadata.eventId) return '/member/events/' + metadata.eventId;
-    if (notification.type === 'payment_receipt' || notification.type === 'subscription_expiry') return '/member/membership';
-    if (notification.type === 'trainer_assignment_required') return '/admin/members';
+    if (notification.type === 'payment_receipt' || notification.type === 'subscription_expiry' || notification.type === 'membership_access') return '/member/membership';
+    if (notification.type === 'trainer_assignment_required') return metadata.memberId ? `/staff/members/${metadata.memberId}` : '/staff/members';
     if (notification.type === 'password_reset') return role === 'member' ? '/member/profile' : role === 'super_admin' ? '/admin/settings' : null;
     return null;
   };

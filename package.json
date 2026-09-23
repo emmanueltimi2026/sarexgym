@@ -11,6 +11,8 @@
     "db:migrate": "node server/migrate.js",
     "db:bootstrap-admin": "node server/bootstrap-admin.js",
     "db:seed:development": "node server/seed-development.js",
+    "db:cleanup-demo": "node server/cleanup-demo.js",
+    "db:cleanup-demo:verify": "node server/cleanup-demo.js --verify-only",
     "job:activate-subscriptions": "node server/run-subscription-activation.js",
     "job:expiry-notifications": "node server/run-expiry-notifications.js",
     "test": "node --test server/*.test.js",

@@ -53,6 +53,7 @@ export interface Member {
   amountPaid?: number;
   workoutPlanEnabled?: boolean;
   trainerAccess?: boolean;
+  freezeActive?: boolean;
   registrationFeePaid?: boolean;
   nextSubscriptionId?: string;
   nextPlanId?: string;

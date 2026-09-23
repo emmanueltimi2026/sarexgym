@@ -109,7 +109,7 @@ export const AdminMembers: React.FC = () => {
           <table className="w-full text-left text-xs">
             <thead className="bg-gray-50 border-b border-[#E5E7EB] font-athletic uppercase tracking-wider text-gray-600">
               <tr>
-                <th className="py-3 px-4">Member / Member</th>
+                <th className="py-3 px-4">Member</th>
                 <th className="py-3 px-4">Member ID</th>
                 <th className="py-3 px-4">Plan</th>
                 <th className="py-3 px-4">Joined Date</th>

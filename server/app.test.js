@@ -11,6 +11,22 @@ test('protected endpoint fails closed without session',()=>withServer(async base
 test('login validates input and never assigns a role from email text',()=>withServer(async base=>{const response=await fetch(base+'/api/v1/auth/login',{method:'POST',headers:{'content-type':'application/json','origin':config.APP_ORIGIN},body:JSON.stringify({email:'admin@example.com',password:'short'})});assert.equal(response.status,400);assert.equal((await response.json()).error.code,'VALIDATION_ERROR')}));
 test('unsafe requests reject an unrelated browser origin',()=>withServer(async base=>{const response=await fetch(base+'/api/v1/auth/login',{method:'POST',headers:{'content-type':'application/json','origin':'https://evil.example'},body:JSON.stringify({email:'admin@example.com',password:'long-enough-password'})});assert.equal(response.status,403)}));
 
+test('staff cannot freeze a member even if granted the freeze permission',async()=>{
+ const frozenMemberId='7f07e15c-82ae-4cef-93b4-029916326130';
+ let memberLockQueries=0;
+ const freezeDb={query:async sql=>sql.includes('FROM sessions s')?{rows:[{session_id:'session-1',id:'staff-1',email:'staff@sarex.test',status:'active',permissions:['subscriptions.freeze'],roles:['staff']}],rowCount:1}:{rows:[],rowCount:0},transaction:async work=>work({query:async sql=>{if(sql==='SELECT now() now')return{rows:[{now:new Date()}]};if(sql.includes('FROM members WHERE id=$1 FOR UPDATE'))memberLockQueries++;return{rows:[],rowCount:0};}})};
+ const localConfig={...config,SESSION_IDLE_TIMEOUT_HOURS:24,COOKIE_SAME_SITE:'lax',CSRF_SECRET:'test-freeze-secret-with-enough-entropy'};
+ const server=createApp({db:freezeDb,config:localConfig}).listen(0);
+ try{
+  await new Promise(resolve=>server.once('listening',resolve));
+  const base=`http://127.0.0.1:${server.address().port}`,headers={cookie:'session=session-token',origin:localConfig.APP_ORIGIN};
+  const csrfResponse=await fetch(base+'/api/v1/csrf',{headers}),csrfToken=(await csrfResponse.json()).csrfToken;
+  const response=await fetch(`${base}/api/v1/members/${frozenMemberId}/freeze`,{method:'POST',headers:{...headers,'content-type':'application/json','x-csrf-token':csrfToken},body:JSON.stringify({frozen:true})});
+  assert.equal(response.status,403);
+  assert.equal(memberLockQueries,0);
+ }finally{await new Promise(resolve=>server.close(resolve));}
+});
+
 test('duplicate reception scan returns the existing successful check-in idempotently',async()=>{
  const branchId='d49cf982-dcc9-43bd-974d-2ed0995e9eed',checkedInAt=new Date('2026-09-17T08:30:00.000Z'),transactionQueries=[];
  const duplicateDb={

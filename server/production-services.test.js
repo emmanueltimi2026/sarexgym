@@ -137,3 +137,45 @@ test('homepage event section uses visible buttons on light backgrounds',async()=
  assert.match(css,/\.public-event-copy \.public-secondary-button\.is-dark,\s*\.public-event-empty \.public-secondary-button\.is-dark \{[^}]*background: #171717;[^}]*color: #fff;/s);
  assert.match(css,/\.public-event-copy \.public-secondary-button\.is-dark:hover,\s*\.public-event-empty \.public-secondary-button\.is-dark:hover \{[^}]*background: #ef1b23;[^}]*color: #fff;/s);
 });
+
+test('demo cleanup command is dry-run guarded and transaction safe',async()=>{
+ const [pkgText,script]=await Promise.all([
+  readFile(new URL('../package.json',import.meta.url),'utf8'),
+  readFile(new URL('./cleanup-demo.js',import.meta.url),'utf8')
+ ]);
+ const pkg=JSON.parse(pkgText);
+ assert.equal(pkg.scripts['db:cleanup-demo'],'node server/cleanup-demo.js');
+ assert.equal(pkg.scripts['db:cleanup-demo:verify'],'node server/cleanup-demo.js --verify-only');
+ assert.match(script,/const dryRun = argv\.has\('--dry-run'\)/);
+ assert.match(script,/CONFIRM_DEMO_CLEANUP === 'true'/);
+ assert.match(script,/Refusing destructive cleanup/);
+ assert.match(script,/inspectForeignKeys/);
+ assert.match(script,/assertKnownForeignKeys/);
+ assert.match(script,/pg_constraint/);
+ assert.match(script,/expectedMemberReferences/);
+ assert.match(script,/expectedUserReferences/);
+ assert.match(script,/SERIALIZABLE/);
+ assert.match(script,/CREATE TEMP TABLE cleanup_member_ids/);
+ assert.match(script,/DELETE FROM members WHERE id IN/);
+ assert.match(script,/DELETE FROM users WHERE id IN/);
+ assert.match(script,/verifyDatabase/);
+ assert.doesNotMatch(script,/TRUNCATE/i);
+ assert.doesNotMatch(script,/CASCADE/i);
+});
+
+test('deleting an event preserves paid registrations and receipt lookup',async()=>{
+ const [routes,migration,page]=await Promise.all([
+  readFile(new URL('./routes.js',import.meta.url),'utf8'),
+  readFile(new URL('./migrations/017_event_soft_delete.sql',import.meta.url),'utf8'),
+  readFile(new URL('../src/pages/shared/EventManagement.tsx',import.meta.url),'utf8')
+ ]);
+ const deletion=routes.slice(routes.indexOf("app.delete('/api/v1/events/:id'"),routes.indexOf("app.post('/api/v1/events/:id/register'"));
+ assert.match(migration,/ADD COLUMN IF NOT EXISTS deleted_at/);
+ assert.match(deletion,/status='cancelled',deleted_at=now\(\)/);
+ assert.match(deletion,/event\.deleted/);
+ assert.doesNotMatch(deletion,/DELETE FROM events|DELETE FROM event_registrations/);
+ assert.match(routes,/JOIN events e ON e\.id=r\.event_id/);
+ assert.match(routes,/FROM events e WHERE e\.deleted_at IS NULL ORDER BY starts_at DESC/);
+ assert.match(page,/Existing bookings and receipts will be retained/);
+ assert.match(page,/method:'DELETE'/);
+});

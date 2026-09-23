@@ -1,7 +1,8 @@
 import React, { useCallback, useState } from 'react';
-import { ArrowLeft, CalendarCheck, CreditCard, Dumbbell, Mail, MapPin, Phone, ShieldCheck, UserPlus, UserRound } from 'lucide-react';
+import { ArrowLeft, CalendarCheck, CreditCard, Dumbbell, Mail, MapPin, Phone, ShieldCheck, Snowflake, UserPlus, UserRound } from 'lucide-react';
 import { AppLayout } from '../../components/layout/AppLayout';
 import { Badge } from '../../components/ui/Badge';
+import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
 import { InitialsAvatar } from '../../components/ui/InitialsAvatar';
 import { Modal } from '../../components/ui/Modal';
 import { PaystackModal } from '../../components/ui/PaystackModal';
@@ -19,7 +20,7 @@ type DetailsResponse = {
 };
 
 export const MemberDetails: React.FC = () => {
-  const { currentPath, navigate, plans, trainers, updateMember, renewMemberMembership } = useGym();
+  const { currentPath, navigate, plans, trainers, updateMember, renewMemberMembership, refresh } = useGym();
   const portal = currentPath.startsWith('/admin/') ? 'admin' : 'staff';
   const memberId = currentPath.split('/').filter(Boolean).at(-1) || '';
   const [page, setPage] = useState(1);
@@ -31,6 +32,9 @@ export const MemberDetails: React.FC = () => {
   const [isAssignOpen, setIsAssignOpen] = useState(false);
   const [trainerId, setTrainerId] = useState('');
   const [message, setMessage] = useState('');
+  const [freezeConfirm, setFreezeConfirm] = useState<boolean | null>(null);
+  const [freezeBusy, setFreezeBusy] = useState(false);
+  const [freezeError, setFreezeError] = useState('');
   const pageSize = 10;
   const activePlans = plans.filter(plan => plan.isActive !== false);
 
@@ -45,10 +49,28 @@ export const MemberDetails: React.FC = () => {
       if (!(reason instanceof DOMException && reason.name === 'AbortError')) setError(reason instanceof Error ? reason.message : 'Member details could not be loaded.');
     }
   }, [memberId, page]);
-  useVisibilityPolling(loadDetails, PORTAL_POLL_INTERVALS.portal, true, true);
+  const refreshDetails = useVisibilityPolling(loadDetails, PORTAL_POLL_INTERVALS.portal, true, true);
 
   const member = details?.member;
   const canAssignTrainer = Boolean(member?.trainerAccess);
+  const canFreeze = portal === 'admin' && Boolean(member && (member.status === 'active' || member.freezeActive));
+  const changeFreeze = async () => {
+    if (!member || freezeConfirm === null) return;
+    setFreezeBusy(true);
+    setFreezeError('');
+    const frozen = freezeConfirm;
+    try {
+      const response = await fetch(`${BASE}/api/v1/members/${encodeURIComponent(member.id)}/freeze`, { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ frozen }) });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body?.error?.message || 'Membership access could not be updated.');
+      setFreezeConfirm(null);
+      setMessage(frozen ? 'Membership access frozen.' : 'Membership access restored.');
+      await Promise.allSettled([refreshDetails(), refresh()]);
+    } catch (reason) {
+      setFreezeConfirm(null);
+      setFreezeError(reason instanceof Error ? reason.message : 'Membership access could not be updated.');
+    } finally { setFreezeBusy(false); }
+  };
   const backPath = `/${portal}/members`;
   const portalLabel = portal === 'admin' ? 'Administration' : 'Staff Portal';
   const contactProfileItems = member ? [
@@ -65,9 +87,10 @@ export const MemberDetails: React.FC = () => {
       pageTitle="Member Details"
       pageSubtitle="Review profile, membership access, and check-in history."
       breadcrumbs={[{ label: portalLabel, path: `/${portal}/dashboard` }, { label: 'Members', path: backPath }, { label: member?.memberId || 'Details' }]}
-      actions={<div className="flex flex-wrap items-center gap-2">{member && canAssignTrainer && <button type="button" onClick={() => { setTrainerId(member.assignedTrainerId || ''); setIsAssignOpen(true); }} className="flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-bold text-gray-700 transition hover:border-[#EF1B23]"><UserPlus className="h-4 w-4"/>Assign trainer</button>}{member && <button type="button" onClick={() => { const plan = activePlans.find(item => item.id === member.membershipPlanId) || activePlans[0] || null; setSelectedPlanForRenew(plan); setIsRenewOpen(true); }} className="flex items-center gap-2 rounded-lg bg-[#EF1B23] px-3 py-2 text-xs font-bold text-white transition hover:bg-red-700"><CreditCard className="h-4 w-4"/>Renew</button>}<button type="button" onClick={() => navigate(backPath)} className="flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-bold text-gray-700 transition hover:border-gray-500"><ArrowLeft className="h-4 w-4"/>Back to members</button></div>}
+      actions={<div className="flex flex-wrap items-center gap-2">{member && canAssignTrainer && <button type="button" onClick={() => { setTrainerId(member.assignedTrainerId || ''); setIsAssignOpen(true); }} className="flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-bold text-gray-700 transition hover:border-[#EF1B23]"><UserPlus className="h-4 w-4"/>Assign trainer</button>}{canFreeze && <button type="button" onClick={() => setFreezeConfirm(!member?.freezeActive)} className="flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-bold text-gray-700 transition hover:border-[#EF1B23]"><Snowflake className="h-4 w-4"/>{member?.freezeActive ? 'Unfreeze access' : 'Freeze access'}</button>}{member && <button type="button" onClick={() => { const plan = activePlans.find(item => item.id === member.membershipPlanId) || activePlans[0] || null; setSelectedPlanForRenew(plan); setIsRenewOpen(true); }} className="flex items-center gap-2 rounded-lg bg-[#EF1B23] px-3 py-2 text-xs font-bold text-white transition hover:bg-red-700"><CreditCard className="h-4 w-4"/>Renew</button>}<button type="button" onClick={() => navigate(backPath)} className="flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-bold text-gray-700 transition hover:border-gray-500"><ArrowLeft className="h-4 w-4"/>Back to members</button></div>}
     >
       {message && <div className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-xs font-semibold text-emerald-800">{message}</div>}
+      {freezeError && <div role="alert" className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-xs font-semibold text-red-800">{freezeError}</div>}
 
       {!details && !error && <div className="space-y-5" role="status" aria-label="Loading member details"><div className="h-40 animate-pulse rounded-lg bg-white"/><div className="grid gap-4 md:grid-cols-2"><div className="h-56 animate-pulse rounded-lg bg-white"/><div className="h-56 animate-pulse rounded-lg bg-white"/></div><div className="h-72 animate-pulse rounded-lg bg-white"/></div>}
 
@@ -136,6 +159,7 @@ export const MemberDetails: React.FC = () => {
       {member && selectedPlanForRenew && (
         <PaystackModal isOpen={isPaystackOpen} onClose={() => { setIsPaystackOpen(false); setIsRenewOpen(false); }} plan={selectedPlanForRenew} memberName={`${member.firstName} ${member.lastName}`} memberId={member.id} onSuccess={() => { void renewMemberMembership(member.id, selectedPlanForRenew.id, 'Paystack'); }}/>
       )}
+      <ConfirmDialog open={freezeConfirm !== null} title={freezeConfirm ? 'Freeze membership access?' : 'Restore membership access?'} message={member ? freezeConfirm ? `Freeze gym access for ${member.firstName} ${member.lastName} until an administrator restores it or this subscription expires? The paid end date will stay the same.` : `Restore gym access for ${member.firstName} ${member.lastName} for the remainder of the current subscription?` : ''} confirmLabel={freezeConfirm ? 'Freeze access' : 'Restore access'} tone={freezeConfirm ? 'danger' : 'primary'} busy={freezeBusy} onClose={() => setFreezeConfirm(null)} onConfirm={() => { void changeFreeze(); }}/>
     </AppLayout>
   );
 };

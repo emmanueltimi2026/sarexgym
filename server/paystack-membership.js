@@ -1,4 +1,4 @@
-import { decideRenewalPeriod } from './subscriptions.js';
+import { createPaidSubscriptionPeriod, decideRenewalPeriod } from './subscriptions.js';
 
 export function formatMembershipPaymentConfirmation(row) {
   if (!row) return null;
@@ -56,7 +56,6 @@ export async function findSuccessfulMembershipPayment(db, { reference, memberId 
     WHERE py.provider='paystack'
       AND py.provider_reference=$1
       AND py.status='successful'
-      AND s.status IN ('active','scheduled')
       ${memberFilter}
   `, args)).rows[0];
   return row || null;
@@ -116,16 +115,17 @@ export async function finalizePaystackMembershipPayment(db, { reference, provide
   `, [order.member_id, renewal.startsAt, renewal.endsAt])).rows[0];
   if (overlap) throw Object.assign(new Error('This member already has a subscription scheduled for that period'), { status: 409, code: 'SUBSCRIPTION_OVERLAP' });
 
-  const subscription = await db.query(`
-    INSERT INTO subscriptions(member_id,plan_id,starts_at,ends_at,status,amount_minor,currency)
-    VALUES($1,$2,$3,$4,$5,$6,$7)
-    RETURNING id,status,starts_at,ends_at
-  `, [order.member_id, order.plan_id, renewal.startsAt, renewal.endsAt, renewal.status, membershipAmount, order.currency]);
+  const hasPriorPayment = (await db.query("SELECT 1 FROM payments WHERE member_id=$1 AND status='successful' LIMIT 1", [order.member_id])).rowCount > 0;
+  const subscription = await createPaidSubscriptionPeriod(db, {
+    memberId: order.member_id, planId: order.plan_id, startsAt: renewal.startsAt,
+    endsAt: renewal.endsAt, status: renewal.status, amountMinor: membershipAmount,
+    currency: order.currency, isFirstPurchase: !hasPriorPayment && !current.rows[0] && !latestQueued.rows[0]
+  });
   const payment = await db.query(`
     INSERT INTO payments(order_id,member_id,subscription_id,plan_id,amount_minor,membership_amount_minor,registration_fee_minor,currency,method,provider,provider_reference,status,paid_at)
     VALUES($1,$2,$3,$4,$5,$6,$7,$8,'paystack','paystack',$9,'successful',now())
     RETURNING id,receipt_number,provider_reference,paid_at
-  `, [order.id, order.member_id, subscription.rows[0].id, order.plan_id, order.amount_minor, membershipAmount, registrationFee, order.currency, reference]);
+  `, [order.id, order.member_id, subscription.id, order.plan_id, order.amount_minor, membershipAmount, registrationFee, order.currency, reference]);
   if (registrationFee > 0) await db.query('UPDATE members SET registration_fee_paid_at=COALESCE(registration_fee_paid_at,now()) WHERE id=$1', [order.member_id]);
   if (order.trainer_access) {
     await db.query(`
@@ -134,8 +134,10 @@ export async function finalizePaystackMembershipPayment(db, { reference, provide
       FROM users u
       JOIN user_roles ur ON ur.user_id=u.id
       JOIN roles r ON r.id=ur.role_id
-      WHERE r.code='admin'
-    `, ['A paid membership with trainer access needs a trainer assignment.', JSON.stringify({ memberId: order.member_id, subscriptionId: subscription.rows[0].id })]);
+      JOIN staff st ON st.user_id=u.id
+      WHERE r.code='staff' AND st.active AND u.status='active'
+        AND NOT EXISTS(SELECT 1 FROM trainer_assignments ta WHERE ta.member_id=$3 AND ta.active)
+    `, ['A paid membership with trainer access needs a trainer assignment.', JSON.stringify({ memberId: order.member_id, subscriptionId: subscription.id }), order.member_id]);
   }
   await db.query(`UPDATE payment_orders SET status='successful' WHERE id=$1`, [order.id]);
   await db.query(`
@@ -148,7 +150,7 @@ export async function finalizePaystackMembershipPayment(db, { reference, provide
     ...formatMembershipPaymentConfirmation(confirmed),
     idempotentReplay: false,
     paymentId: payment.rows[0].id,
-    subscriptionStatus: subscription.rows[0].status
+    subscriptionStatus: subscription.status
   };
 }
 
