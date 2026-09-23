@@ -102,7 +102,7 @@ export const MemberDetails: React.FC = () => {
           <Badge>{member.membershipStatus || 'Inactive'}</Badge>
         </section>
 
-        <div className="grid gap-5 lg:grid-cols-2">
+        <div className="grid items-start gap-5 lg:grid-cols-2">
           <section className="rounded-lg border border-gray-200 bg-white p-5 shadow-xs"><div className="mb-5 flex items-center gap-2"><UserRound className="h-5 w-5 text-[#EF1B23]"/><h2 className="font-black uppercase">Contact and profile</h2></div><dl className="grid gap-4 text-sm sm:grid-cols-2">{contactProfileItems.map(item => <Info key={item.label} label={item.label} value={item.value} icon={item.icon}/>)}</dl></section>
 
           <section className="rounded-lg border border-gray-200 bg-white p-5 shadow-xs">

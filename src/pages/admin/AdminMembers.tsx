@@ -80,7 +80,6 @@ export const AdminMembers: React.FC = () => {
           >
             <option value="All">All Statuses</option>
             <option value="Active">Active Only</option>
-            <option value="Scheduled">Scheduled</option>
             <option value="Expiring">Expiring Soon</option>
             <option value="Expired">Expired Only</option>
             <option value="Frozen">Frozen</option>

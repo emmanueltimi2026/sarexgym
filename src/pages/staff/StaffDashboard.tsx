@@ -41,7 +41,7 @@ export const StaffDashboard: React.FC = () => {
 
   return (
     <AppLayout
-      pageTitle="Staff"
+      pageTitle="Dashboard"
       pageSubtitle="Handle member check-ins, registrations, renewals, and payments for today."
       breadcrumbs={[{ label: 'Staff Portal' }, { label: 'Staff' }]}
       actions={
