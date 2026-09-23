@@ -65,3 +65,6 @@ server\integration.test.js
 server\production-services.test.js
 server\workout-batch.test.js
 server\refresh-policy.test.js
+CRON_JOBS.md
+server\member-freeze.test.js
+server\paystack-events.test.js
