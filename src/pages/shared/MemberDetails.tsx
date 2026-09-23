@@ -102,8 +102,15 @@ export const MemberDetails: React.FC = () => {
           <Badge>{member.membershipStatus || 'Inactive'}</Badge>
         </section>
 
-        <div className="grid items-start gap-5 lg:grid-cols-2">
-          <section className="rounded-lg border border-gray-200 bg-white p-5 shadow-xs"><div className="mb-5 flex items-center gap-2"><UserRound className="h-5 w-5 text-[#EF1B23]"/><h2 className="font-black uppercase">Contact and profile</h2></div><dl className="grid gap-4 text-sm sm:grid-cols-2">{contactProfileItems.map(item => <Info key={item.label} label={item.label} value={item.value} icon={item.icon}/>)}</dl></section>
+        <div className="grid gap-5 lg:grid-cols-2">
+          <section className="flex flex-col rounded-lg border border-gray-200 bg-white p-5 shadow-xs">
+            <div className="mb-5 flex items-center gap-2"><UserRound className="h-5 w-5 text-[#EF1B23]"/><h2 className="font-black uppercase">Contact and profile</h2></div>
+            <dl className="grid gap-4 text-sm sm:grid-cols-2">{contactProfileItems.map(item => <Info key={item.label} label={item.label} value={item.value} icon={item.icon}/>)}</dl>
+            {(canAssignTrainer || canFreeze) && <div className="mt-auto flex flex-col gap-2 border-t border-gray-100 pt-4 sm:flex-row sm:flex-wrap">
+              {canAssignTrainer && <button type="button" onClick={() => { setTrainerId(member.assignedTrainerId || ''); setIsAssignOpen(true); }} className="flex items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-xs font-bold text-gray-700 transition hover:border-[#EF1B23] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#EF1B23]"><UserPlus className="h-4 w-4"/>Assign trainer</button>}
+              {canFreeze && <button type="button" onClick={() => setFreezeConfirm(!member.freezeActive)} className="flex items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-xs font-bold text-gray-700 transition hover:border-[#EF1B23] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#EF1B23]"><Snowflake className="h-4 w-4"/>{member.freezeActive ? 'Unfreeze access' : 'Freeze access'}</button>}
+            </div>}
+          </section>
 
           <section className="rounded-lg border border-gray-200 bg-white p-5 shadow-xs">
             <div className="mb-5 flex items-center gap-2"><ShieldCheck className="h-5 w-5 text-[#EF1B23]"/><h2 className="font-black uppercase">Membership access</h2></div>
@@ -116,10 +123,6 @@ export const MemberDetails: React.FC = () => {
               <Info label="Trainer access" value={member.trainerAccess ? 'Included' : 'Not included'}/>
               <Info label="Workout plans" value={member.workoutPlanEnabled ? 'Included' : 'Not included'}/>
             </dl>
-            {(canAssignTrainer || canFreeze) && <div className="mt-5 flex flex-col gap-2 border-t border-gray-100 pt-4 sm:flex-row sm:flex-wrap">
-              {canAssignTrainer && <button type="button" onClick={() => { setTrainerId(member.assignedTrainerId || ''); setIsAssignOpen(true); }} className="flex items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-xs font-bold text-gray-700 transition hover:border-[#EF1B23] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#EF1B23]"><UserPlus className="h-4 w-4"/>Assign trainer</button>}
-              {canFreeze && <button type="button" onClick={() => setFreezeConfirm(!member.freezeActive)} className="flex items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-xs font-bold text-gray-700 transition hover:border-[#EF1B23] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#EF1B23]"><Snowflake className="h-4 w-4"/>{member.freezeActive ? 'Unfreeze access' : 'Freeze access'}</button>}
-            </div>}
           </section>
         </div>
 
