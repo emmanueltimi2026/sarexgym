@@ -33,3 +33,13 @@ test('unknown semantic action never exposes an internal action name or entity ID
   assert.equal(auditActivity(row), 'Completed a staff action');
   assert.equal(auditArea(row), 'Administration');
 });
+
+test('workout changes and assessments have human-readable activity labels', () => {
+  const rows = [
+    { action: 'workout.updated', entity_type: 'workout_plan' },
+    { action: 'workout.completed', entity_type: 'workout_plan' },
+    { action: 'post./api/v1/progress', entity_type: 'request' }
+  ];
+  assert.deepEqual(rows.map(auditActivity), ['Updated a workout program', 'Completed a workout program', 'Recorded a member assessment']);
+  assert.deepEqual(rows.map(auditArea), ['Workout program', 'Workout program', 'Training progress']);
+});

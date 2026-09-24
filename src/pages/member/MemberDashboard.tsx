@@ -32,7 +32,8 @@ export const MemberDashboard: React.FC = () => {
   const memberAttendance = attendance.filter(a => a.memberId === currentMember.memberId);
   const successfulAttendance = memberAttendance.filter(a => a.status !== 'Denied');
   const canViewWorkoutPlan = Boolean(currentMember.workoutPlanEnabled);
-  const myWorkoutPlan = canViewWorkoutPlan ? workoutPlans.find(plan => plan.memberId === currentMember.id || plan.memberId === currentMember.memberId) || null : null;
+  const assignedWorkoutPlans = canViewWorkoutPlan ? workoutPlans.filter(plan => plan.memberId === currentMember.id || plan.memberId === currentMember.memberId) : [];
+  const myWorkoutPlan = assignedWorkoutPlans.find(plan => plan.status === 'active') || assignedWorkoutPlans[0] || null;
   const expiry = new Date(currentMember.membershipExpiryDate);
   const now = new Date();
   const diffTime = expiry.getTime() - now.getTime();
@@ -101,8 +102,8 @@ export const MemberDashboard: React.FC = () => {
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         <div className="lg:col-span-12 space-y-6">
-          {canViewWorkoutPlan && <div className="bg-white border border-[#E5E7EB] rounded-lg p-5 shadow-xs">
-            <div className="flex items-center justify-between mb-4">
+          {canViewWorkoutPlan && <section className="rounded-lg border border-[#E5E7EB] bg-white p-5 shadow-xs sm:p-6">
+            <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
               <div className="flex items-center gap-2">
                 <Dumbbell className="w-5 h-5 text-[#EF1B23]" />
                 <h3 className="font-athletic font-bold uppercase tracking-wider text-base text-[#111111]">
@@ -111,52 +112,43 @@ export const MemberDashboard: React.FC = () => {
               </div>
               <button
                 onClick={() => navigate('/member/workout')}
-                className="text-xs font-bold text-[#EF1B23] hover:underline flex items-center gap-1"
+                className="inline-flex items-center gap-1.5 rounded border border-gray-200 px-3 py-2 text-xs font-bold text-[#111111] transition hover:border-[#EF1B23] hover:text-[#EF1B23]"
               >
-                Full Routine <ArrowRight className="w-3.5 h-3.5" />
+                View full plan <ArrowRight className="h-3.5 w-3.5" />
               </button>
             </div>
 
             {myWorkoutPlan ? (
-              <div className="p-4 bg-gray-50 border border-gray-200 rounded-lg">
-                <div className="flex items-center justify-between mb-2">
-                  <h4 className="font-athletic font-bold text-sm uppercase text-[#111111]">
+              <div>
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="min-w-0">
+                  <h4 className="break-words text-lg font-bold text-[#111111]">
                     {myWorkoutPlan.title || myWorkoutPlan.workoutName || 'Prescribed Regimen'}
                   </h4>
-                  <span className="text-[10px] font-bold bg-neutral-800 text-white px-2 py-0.5 rounded">
+                  <p className="mt-1 text-xs text-gray-500">Prescribed by {myWorkoutPlan.trainerName || 'SAREX Specialist'} · {myWorkoutPlan.daysPerWeek || myWorkoutPlan.routine?.length || 0} days per week</p>
+                  </div>
+                  <span className="rounded bg-neutral-900 px-2 py-1 text-[10px] font-bold uppercase text-white">
                     {myWorkoutPlan.difficulty || 'Intermediate'}
                   </span>
                 </div>
-                <p className="text-xs text-gray-500 mb-3">
+                {myWorkoutPlan.description && <p className="mt-2 max-w-3xl whitespace-pre-wrap break-words text-xs leading-5 text-gray-600">
                   {myWorkoutPlan.description}
-                </p>
+                </p>}
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                <div className="mt-4 grid grid-cols-1 gap-2 border-t border-gray-100 pt-4 text-xs sm:grid-cols-2 xl:grid-cols-3">
                   {((myWorkoutPlan.routine && Array.isArray(myWorkoutPlan.routine))
-                    ? myWorkoutPlan.routine.slice(0, 2)
+                    ? myWorkoutPlan.routine.slice(0, 3)
                     : []
                   ).map((routine, idx) => (
-                    <div key={idx} className="bg-white p-2.5 rounded border border-gray-200">
-                      <span className="text-[10px] font-bold text-[#EF1B23] uppercase block">
-                        {routine.dayName}
-                      </span>
-                      <span className="font-bold text-gray-800 block text-[11px]">
-                        {routine.focus}
-                      </span>
-                      <span className="text-[10px] text-gray-400 mt-1 block">
-                        {routine.exercises?.length || 0} compound exercises
-                      </span>
+                    <div key={routine.id || idx} className="min-w-0 border-l-2 border-[#EF1B23] bg-gray-50 px-3 py-2.5">
+                      <span className="block text-[10px] font-bold uppercase text-[#EF1B23]">{routine.dayName || `Day ${idx + 1}`}</span>
+                      <span className="mt-0.5 block break-words font-semibold text-gray-900">{routine.focus || 'Training day'}</span>
+                      <span className="mt-1 block text-[11px] text-gray-500">{routine.exercises?.length || 0} exercises</span>
                     </div>
                   ))}
+                  {(myWorkoutPlan.routine?.length || 0) > 3 && <div className="flex items-center text-xs font-semibold text-gray-500">+{myWorkoutPlan.routine.length - 3} more days in your full plan</div>}
                   {(!myWorkoutPlan.routine || myWorkoutPlan.routine.length === 0) && myWorkoutPlan.exercises && (
-                    <div className="sm:col-span-2 bg-white p-3 rounded border border-gray-200">
-                      <span className="text-[10px] font-bold text-[#EF1B23] uppercase block mb-1">
-                        Active Prescribed Movements
-                      </span>
-                      <p className="text-gray-700 text-xs">
-                        {myWorkoutPlan.exercises.length} compound exercises logged in your profile.
-                      </p>
-                    </div>
+                    <div className="text-gray-600">{myWorkoutPlan.exercises.length} prescribed exercises</div>
                   )}
                 </div>
               </div>
@@ -165,7 +157,7 @@ export const MemberDashboard: React.FC = () => {
                 No active workout routine currently assigned. Consult with your trainer to establish your training split.
               </div>
             )}
-          </div>}
+          </section>}
 
           <div className="bg-white border border-[#E5E7EB] rounded-lg p-5 shadow-xs">
             <h3 className="font-athletic font-bold uppercase tracking-wider text-base text-[#111111] mb-3">

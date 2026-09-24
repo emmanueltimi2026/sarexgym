@@ -3,15 +3,26 @@ import { useGym } from '../../context/GymContext';
 import { AppLayout } from '../../components/layout/AppLayout';
 import { Modal } from '../../components/ui/Modal';
 import { Dumbbell, Plus, ChevronDown, ChevronUp, Search } from 'lucide-react';
-import { WorkoutDayRoutine } from '../../types';
+import { WorkoutRoutineBuilder } from '../../components/trainer/WorkoutRoutineBuilder';
+import { resizeRoutine, routinePayload, validateRoutine, type DayDraft } from '../../lib/workoutRoutine';
+import { workoutCreatePayload } from '../../../shared/workout-create.js';
+import type { WorkoutPlan } from '../../types';
+import { apiUrl } from '../../lib/secureFetch';
 
 export const TrainerPlans: React.FC = () => {
-  const { workoutPlans, addWorkoutPlan, user, members } = useGym();
+  const { workoutPlans, addWorkoutPlan, updateWorkoutPlan, members, refresh } = useGym();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [editingPlanId, setEditingPlanId] = useState<string | null>(null);
+  const [completionPlan, setCompletionPlan] = useState<WorkoutPlan | null>(null);
+  const [completing, setCompleting] = useState(false);
   const [expandedPlanId, setExpandedPlanId] = useState<string | null>(workoutPlans[0]?.id || null);
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
   const [memberSearch, setMemberSearch] = useState('');
+  const [memberPickerOpen, setMemberPickerOpen] = useState(false);
+  const [selectedAllEligible, setSelectedAllEligible] = useState(false);
+  const [routineDays, setRoutineDays] = useState(() => resizeRoutine([], 4));
+  const [attemptedSave, setAttemptedSave] = useState(false);
   const eligibleMembers = members.filter(member => member.workoutPlanEnabled && member.trainerAccess);
   const visibleEligibleMembers = eligibleMembers.filter(member => `${member.firstName} ${member.lastName} ${member.memberId}`.toLowerCase().includes(memberSearch.toLowerCase()));
 
@@ -23,46 +34,65 @@ export const TrainerPlans: React.FC = () => {
     memberIds: [] as string[]
   });
 
+  const editPlan = (plan: WorkoutPlan) => {
+    setEditingPlanId(plan.id);
+    setNewPlan({ title: plan.title || plan.workoutName || '', description: plan.description || '', difficulty: plan.difficulty || 'Intermediate', daysPerWeek: plan.daysPerWeek || plan.routine?.length || 1, memberIds: plan.memberId ? [plan.memberId] : [] });
+    setRoutineDays((plan.routine || []).map((day): DayDraft => ({ id: day.id || crypto.randomUUID(), dayName: day.dayName, focus: day.focus, exercises: day.exercises.map(exercise => ({ id: exercise.id || crypto.randomUUID(), name: exercise.name, sets: String(exercise.sets), reps: exercise.reps, restSeconds: String(exercise.restSeconds ?? 60), notes: exercise.notes || '' })) })));
+    setAttemptedSave(false); setSaveError(''); setIsCreateOpen(true);
+  };
+
+  const openCreate = () => {
+    setEditingPlanId(null);
+    setNewPlan({ title: '', description: '', difficulty: 'Intermediate', daysPerWeek: 4, memberIds: [] });
+    setRoutineDays(resizeRoutine([], 4));
+    setAttemptedSave(false); setSaveError(''); setIsCreateOpen(true);
+  };
+
+  const completeProgram = async () => {
+    if (!completionPlan || completing) return;
+    setCompleting(true); setSaveError('');
+    try {
+      const response = await fetch(apiUrl(`/api/v1/workouts/${completionPlan.id}/complete`), { method:'POST', credentials:'include' });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body?.error?.message || 'Unable to complete this program.');
+      await refresh({background:true});
+      setCompletionPlan(null);
+    } catch (error) { setSaveError(error instanceof Error ? error.message : 'Unable to complete this program.'); }
+    finally { setCompleting(false); }
+  };
+
+  React.useEffect(() => {
+    const id = new URLSearchParams(window.location.search).get('memberId');
+    if (id && eligibleMembers.some(member => member.id === id)) {
+      setNewPlan(current => ({ ...current, memberIds: [id] }));
+      setIsCreateOpen(true);
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }, [members]);
+
   const handleCreateSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const defaultRoutines: WorkoutDayRoutine[] = [
-      {
-        dayName: 'Day 1',
-        focus: 'Chest & Triceps Hypertrophy',
-        exercises: [
-          { name: 'Barbell Bench Press', sets: 4, reps: '8-10', restSeconds: 90, notes: 'Explosive concentric' },
-          { name: 'Incline Dumbbell Press', sets: 3, reps: '10-12', restSeconds: 60 },
-          { name: 'Cable Tricep Pushdowns', sets: 4, reps: '12-15', restSeconds: 45 }
-        ]
-      },
-      {
-        dayName: 'Day 2',
-        focus: 'Back & Biceps Thickness',
-        exercises: [
-          { name: 'Conventional Deadlift', sets: 4, reps: '5', restSeconds: 150, notes: 'Chalk required' },
-          { name: 'Barbell Pendlay Row', sets: 4, reps: '8', restSeconds: 90 },
-          { name: 'Incline Dumbbell Curl', sets: 3, reps: '12', restSeconds: 60 }
-        ]
-      }
-    ];
+    setAttemptedSave(true);
+    if (validateRoutine(routineDays, newPlan.daysPerWeek).length) return;
 
     setIsSaving(true);
     setSaveError('');
     try {
-      const result = await addWorkoutPlan({
-        title: newPlan.title,
-        description: newPlan.description,
-        difficulty: newPlan.difficulty,
-        daysPerWeek: Number(newPlan.daysPerWeek),
-        trainerId: user?.id || '',
-        trainerName: user ? `${user.firstName} ${user.lastName}` : 'Assigned trainer',
-        routine: defaultRoutines,
-        memberIds: newPlan.memberIds
-      });
-      setExpandedPlanId(result?.data?.id || null);
+      if (editingPlanId) {
+        await updateWorkoutPlan(editingPlanId, { title: newPlan.title, description: newPlan.description, difficulty: newPlan.difficulty, daysPerWeek: newPlan.daysPerWeek, routine: routinePayload(routineDays) });
+        setExpandedPlanId(editingPlanId);
+      } else {
+        const result = await addWorkoutPlan(workoutCreatePayload(newPlan, routinePayload(routineDays)));
+        setExpandedPlanId(result?.data?.id || null);
+      }
       setIsCreateOpen(false);
+      setEditingPlanId(null);
       setNewPlan({ title: '', description: '', difficulty: 'Intermediate', daysPerWeek: 4, memberIds: [] });
+      setRoutineDays(resizeRoutine([], 4));
+      setAttemptedSave(false);
       setMemberSearch('');
+      setMemberPickerOpen(false);
+      setSelectedAllEligible(false);
     } catch (error) {
       setSaveError(error instanceof Error ? error.message : 'The workout program could not be saved.');
     } finally {
@@ -72,12 +102,12 @@ export const TrainerPlans: React.FC = () => {
 
   return (
     <AppLayout
-      pageTitle="Program Library"
+      pageTitle="Workout Programs"
       pageSubtitle="Create clear workout plans with exercises, sets, repetitions, and weekly schedules."
       breadcrumbs={[{ label: 'Trainer Portal', path: '/trainer/dashboard' }, { label: 'Workout Plans' }]}
       actions={
         <button
-          onClick={() => setIsCreateOpen(true)}
+          onClick={openCreate}
           className="px-4 py-2 bg-[#EF1B23] hover:bg-red-700 text-white font-athletic font-bold uppercase text-xs rounded transition-colors flex items-center gap-1.5 shadow-xs"
         >
           <Plus className="w-4 h-4" />
@@ -91,7 +121,7 @@ export const TrainerPlans: React.FC = () => {
             <Dumbbell className="mx-auto h-10 w-10 text-gray-300" />
             <h2 className="mt-4 text-xl font-black">No workout plans yet</h2>
             <p className="mx-auto mt-2 max-w-md text-sm text-gray-500">Create a member-specific program when a member is ready for guided training.</p>
-            <button onClick={() => setIsCreateOpen(true)} className="mt-5 rounded-lg bg-[#EF1B23] px-5 py-3 text-xs font-black text-white">CREATE FIRST PROGRAM</button>
+            <button onClick={openCreate} className="mt-5 rounded-lg bg-[#EF1B23] px-5 py-3 text-xs font-black text-white">CREATE FIRST PROGRAM</button>
           </div>
         )}
         {workoutPlans.map(plan => {
@@ -120,7 +150,7 @@ export const TrainerPlans: React.FC = () => {
                       </span>
                     </div>
                     <p className="text-xs text-gray-500 mt-0.5">
-                      {plan.description} • By {plan.trainerName}
+                      {plan.memberName || 'Assigned member'} · {plan.description}
                     </p>
                   </div>
                 </div>
@@ -140,6 +170,7 @@ export const TrainerPlans: React.FC = () => {
               
               {isExpanded && (
                 <div className="border-t border-gray-100 p-5 bg-gray-50/50 space-y-4">
+                  {plan.status !== 'completed' ? <div className="flex flex-wrap gap-2"><button type="button" onClick={() => editPlan(plan)} className="rounded border border-gray-300 bg-white px-3 py-2 text-xs font-bold text-gray-700 hover:border-[#EF1B23]">Edit program</button><button type="button" onClick={() => { setSaveError(''); setCompletionPlan(plan); }} className="rounded border border-gray-300 bg-white px-3 py-2 text-xs font-bold text-gray-700 hover:border-[#EF1B23]">Mark completed</button></div> : <p className="text-xs font-bold text-gray-500">Completed · read-only for the member</p>}
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {(plan.routine || []).map((day, dIdx) => (
                       <div
@@ -168,7 +199,7 @@ export const TrainerPlans: React.FC = () => {
                                 </span>
                               </div>
                               <div className="flex justify-between text-[10px] text-gray-500 mt-1">
-                                <span>Rest: {ex.restSeconds || 60}s</span>
+                                <span>Rest: {ex.restSeconds ?? 60}s</span>
                                 {ex.notes && <span className="italic">{ex.notes}</span>}
                               </div>
                             </div>
@@ -204,20 +235,27 @@ export const TrainerPlans: React.FC = () => {
       <Modal
         isOpen={isCreateOpen}
         onClose={() => { if (!isSaving) { setIsCreateOpen(false); setSaveError(''); } }}
-        title="ARCHITECT NEW TRAINING PROGRAM"
-        subtitle="Establish periodized split guidelines"
+        title={editingPlanId ? 'EDIT TRAINING PROGRAM' : 'NEW TRAINING PROGRAM'}
+        subtitle={editingPlanId ? 'Update this member’s routine before activity is recorded' : 'Build and assign a weekly routine'}
+        maxWidth="2xl"
       >
         <form onSubmit={handleCreateSubmit} className="space-y-4 text-xs">
-          <div>
+          {!editingPlanId && <div>
             <div className="mb-2 flex items-center justify-between gap-3"><label className="font-bold uppercase text-gray-700">Assign members</label><span className="text-[11px] font-semibold text-gray-500">{newPlan.memberIds.length} selected</span></div>
-            <div className="overflow-hidden rounded-lg border border-gray-300 bg-white">
-              <div className="flex items-center gap-2 border-b border-gray-200 bg-gray-50 px-3 py-2"><Search className="h-4 w-4 text-gray-400"/><input type="search" value={memberSearch} onChange={event => setMemberSearch(event.target.value)} placeholder="Search eligible members" className="min-w-0 flex-1 bg-transparent text-sm outline-none"/></div>
-              <label className="flex cursor-pointer items-center gap-3 border-b border-gray-200 px-3 py-2.5 font-bold"><input type="checkbox" checked={eligibleMembers.length > 0 && newPlan.memberIds.length === eligibleMembers.length} onChange={event => setNewPlan({ ...newPlan, memberIds: event.target.checked ? eligibleMembers.map(member => member.id) : [] })} className="h-4 w-4 accent-[#EF1B23]"/>Select all eligible members</label>
-              <div className="max-h-48 overflow-y-auto">{visibleEligibleMembers.map(member => <label key={member.id} className="flex cursor-pointer items-center gap-3 border-b border-gray-100 px-3 py-2.5 last:border-0 hover:bg-gray-50"><input type="checkbox" checked={newPlan.memberIds.includes(member.id)} onChange={event => setNewPlan({ ...newPlan, memberIds: event.target.checked ? [...newPlan.memberIds, member.id] : newPlan.memberIds.filter(id => id !== member.id) })} className="h-4 w-4 accent-[#EF1B23]"/><span className="min-w-0"><strong className="block truncate text-sm">{member.firstName} {member.lastName}</strong><span className="text-[10px] text-gray-500">{member.memberId} · {member.membershipPlanName}</span></span></label>)}</div>
+            <div className="relative">
+              <button type="button" onClick={() => setMemberPickerOpen(open => !open)} disabled={!eligibleMembers.length} aria-expanded={memberPickerOpen} aria-controls="eligible-member-options" className="flex w-full items-center justify-between gap-3 rounded-lg border border-gray-300 bg-white px-3 py-3 text-left text-sm disabled:cursor-not-allowed disabled:bg-gray-50">
+                <span className="truncate">{newPlan.memberIds.length ? `${newPlan.memberIds.length} member${newPlan.memberIds.length === 1 ? '' : 's'} selected` : 'Select eligible members'}</span>
+                <ChevronDown className={`h-4 w-4 shrink-0 transition-transform ${memberPickerOpen ? 'rotate-180' : ''}`} />
+              </button>
+              {memberPickerOpen && <div id="eligible-member-options" className="mt-2 overflow-hidden rounded-lg border border-gray-300 bg-white shadow-sm">
+                <div className="flex items-center gap-2 border-b border-gray-200 bg-gray-50 px-3 py-2"><Search className="h-4 w-4 text-gray-400"/><input type="search" value={memberSearch} onChange={event => setMemberSearch(event.target.value)} placeholder="Search eligible members" aria-label="Search eligible members" className="min-w-0 flex-1 bg-transparent text-sm outline-none"/></div>
+                <label className="flex cursor-pointer items-center gap-3 border-b border-gray-200 px-3 py-2.5 font-bold"><input type="checkbox" checked={selectedAllEligible && eligibleMembers.every(member => newPlan.memberIds.includes(member.id))} onChange={event => { setSelectedAllEligible(event.target.checked); setNewPlan(current => ({ ...current, memberIds: event.target.checked ? eligibleMembers.map(member => member.id) : [] })); }} className="h-4 w-4 accent-[#EF1B23]"/>Select all eligible members</label>
+                <div className="max-h-48 overflow-y-auto">{visibleEligibleMembers.map(member => <label key={member.id} className="flex cursor-pointer items-center gap-3 border-b border-gray-100 px-3 py-2.5 last:border-0 hover:bg-gray-50"><input type="checkbox" checked={newPlan.memberIds.includes(member.id)} onChange={event => { setSelectedAllEligible(false); setNewPlan(current => ({ ...current, memberIds: event.target.checked ? [...current.memberIds, member.id] : current.memberIds.filter(id => id !== member.id) })); }} className="h-4 w-4 accent-[#EF1B23]"/><span className="min-w-0"><strong className="block truncate text-sm">{member.firstName} {member.lastName}</strong><span className="text-[10px] text-gray-500">{member.memberId} · {member.membershipPlanName}</span></span></label>)}</div>
+                {!visibleEligibleMembers.length && <p className="px-3 py-3 text-[11px] text-gray-500">No eligible members match this search.</p>}
+              </div>}
             </div>
             {!eligibleMembers.length && <p className="mt-2 text-[11px] text-amber-700">No assigned member currently has an active subscription with trainer and workout-plan access.</p>}
-            {eligibleMembers.length > 0 && !visibleEligibleMembers.length && <p className="mt-2 text-[11px] text-gray-500">No eligible members match this search.</p>}
-          </div>
+          </div>}
           <div>
             <label className="block font-bold uppercase text-gray-700 mb-1">Program Title</label>
             <input
@@ -242,33 +280,13 @@ export const TrainerPlans: React.FC = () => {
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block font-bold uppercase text-gray-700 mb-1">Difficulty</label>
-              <select
-                value={newPlan.difficulty}
-                onChange={e => setNewPlan({ ...newPlan, difficulty: e.target.value as any })}
-                className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:border-[#EF1B23] focus:outline-none bg-white"
-              >
-                <option value="Beginner">Beginner</option>
-                <option value="Intermediate">Intermediate</option>
-                <option value="Advanced">Advanced (High Intensity)</option>
-              </select>
-            </div>
-            <div>
-              <label className="block font-bold uppercase text-gray-700 mb-1">Days Per Week</label>
-              <select
-                value={newPlan.daysPerWeek}
-                onChange={e => setNewPlan({ ...newPlan, daysPerWeek: Number(e.target.value) })}
-                className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:border-[#EF1B23] focus:outline-none bg-white"
-              >
-                <option value={3}>3 Days / Week</option>
-                <option value={4}>4 Days / Week</option>
-                <option value={5}>5 Days / Week</option>
-                <option value={6}>6 Days / Week</option>
-              </select>
-            </div>
+          <div>
+            <label className="block font-bold uppercase text-gray-700 mb-1">Difficulty</label>
+            <select value={newPlan.difficulty} onChange={event => setNewPlan({ ...newPlan, difficulty: event.target.value as 'Beginner' | 'Intermediate' | 'Advanced' })} className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:border-[#EF1B23] focus:outline-none bg-white">
+              <option value="Beginner">Beginner</option><option value="Intermediate">Intermediate</option><option value="Advanced">Advanced (High Intensity)</option>
+            </select>
           </div>
+          <WorkoutRoutineBuilder days={routineDays} daysPerWeek={newPlan.daysPerWeek} errors={attemptedSave ? validateRoutine(routineDays, newPlan.daysPerWeek) : []} onDaysChange={setRoutineDays} onCountChange={count => setNewPlan(current => ({ ...current, daysPerWeek: count }))}/>
 
           <div className="pt-3 border-t border-gray-200 flex justify-end gap-2">
             {saveError && <p role="alert" className="mr-auto max-w-xs text-[11px] text-red-600">{saveError}</p>}
@@ -281,13 +299,16 @@ export const TrainerPlans: React.FC = () => {
             </button>
             <button
               type="submit"
-              disabled={isSaving || !newPlan.memberIds.length}
+              disabled={isSaving || (!editingPlanId && !newPlan.memberIds.length)}
               className="px-5 py-2 bg-[#EF1B23] hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50 text-white font-athletic font-bold uppercase text-xs rounded transition-colors"
             >
-              {isSaving ? 'Saving…' : `Save Program${newPlan.memberIds.length > 1 ? 's' : ''}`}
+              {isSaving ? 'Saving…' : editingPlanId ? 'Save Changes' : `Save Program${newPlan.memberIds.length > 1 ? 's' : ''}`}
             </button>
           </div>
         </form>
+      </Modal>
+      <Modal isOpen={Boolean(completionPlan)} onClose={() => { if (!completing) setCompletionPlan(null); }} title="COMPLETE PROGRAM" subtitle={completionPlan?.title || 'Training program'}>
+        <div className="space-y-4 text-sm"><p>Mark this program complete? The member can still review the routine, but can no longer mark exercises done.</p>{saveError && <p role="alert" className="text-red-700">{saveError}</p>}<div className="flex justify-end gap-2"><button type="button" onClick={() => setCompletionPlan(null)} disabled={completing} className="rounded border border-gray-300 px-4 py-2 font-bold">Cancel</button><button type="button" onClick={() => void completeProgram()} disabled={completing} className="rounded bg-[#EF1B23] px-4 py-2 font-bold text-white disabled:opacity-50">{completing ? 'Completing…' : 'Complete program'}</button></div></div>
       </Modal>
     </AppLayout>
   );

@@ -108,7 +108,7 @@ const portalFallbackTitle = (path: string) => {
 };
 
 const AppRouter: React.FC = () => {
-  const { currentPath, settings, loading, navigate } = useGym();
+  const { currentPath, settings, loading, error, refresh, navigate } = useGym();
   const [accessState, setAccessState] = useState<'public' | 'checking' | 'allowed' | 'denied'>('public');
   const [sessionRevision, setSessionRevision] = useState(0);
   const previousMarketingPath = useRef(currentPath);
@@ -199,7 +199,9 @@ const AppRouter: React.FC = () => {
     if (isMarketingRoute) previousMarketingPath.current = currentPath;
   }, [currentPath, isMarketingRoute]);
 
-  if (accessState === 'checking' || (requiredRole && accessState === 'allowed' && loading)) return <><Seo {...routeSeo} /><DashboardSkeleton /></>;
+  if (accessState === 'checking') return <><Seo {...routeSeo} /><DashboardSkeleton /></>;
+  if (requiredRole && accessState === 'allowed' && error) return <><Seo {...routeSeo} /><main role="alert" className="flex min-h-screen flex-col items-center justify-center gap-4 bg-[#f7f8fb] px-6 text-center"><h1 className="text-xl font-bold text-[#151515]">Portal data is unavailable</h1><p className="max-w-md text-sm text-gray-600">We could not load your portal right now. Please try again.</p><button type="button" onClick={() => void refresh()} className="rounded bg-[#EF1B23] px-5 py-2.5 text-sm font-bold text-white">Retry</button></main></>;
+  if (requiredRole && accessState === 'allowed' && loading) return <><Seo {...routeSeo} /><DashboardSkeleton /></>;
   if (accessState === 'denied') return <><Seo {...routeSeo} /><LoginPage /></>;
 
   const renderRoute = () => {

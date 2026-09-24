@@ -1,36 +1,42 @@
 import { memberGoalLabel } from '../../../shared/fitness-goals.js';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { InitialsAvatar } from '../../components/ui/InitialsAvatar';
 import { useGym } from '../../context/GymContext';
 import { AppLayout } from '../../components/layout/AppLayout';
 import { Badge } from '../../components/ui/Badge';
 import { Modal } from '../../components/ui/Modal';
-import { Search, Dumbbell, Target, CheckCircle2 } from 'lucide-react';
+import { Search, Dumbbell, Target } from 'lucide-react';
 import { Member } from '../../types';
+import { apiUrl } from '../../lib/secureFetch';
+import { formatAppDate, formatAppDateTime } from '../../utils/dateTime';
 
 export const TrainerMembers: React.FC = () => {
-  const { members, workoutPlans, attendance } = useGym();
+  const { members, memberProgress, attendance, navigate, currentTrainer } = useGym();
   const [search, setSearch] = useState('');
   const [selectedMember, setSelectedMember] = useState<Member | null>(null);
-  const [isAssignPlanOpen, setIsAssignPlanOpen] = useState(false);
-  const [selectedPlanId, setSelectedPlanId] = useState(workoutPlans[0]?.id || '');
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [progress, setProgress] = useState<{windowDays:number;plans:{id:string;title:string;completedExercises:number;activeDays:number;lastCompletedOn:string|null;lastCompletedAt:string|null;recentDays:{date:string;completedExercises:number}[]}[]}|null>(null);
+  const [progressError, setProgressError] = useState('');
+  const [progressLoading, setProgressLoading] = useState(false);
+  const [progressRefresh, setProgressRefresh] = useState(0);
 
   const filtered = members.filter(
-    m =>
+    m => m.assignedTrainerId === currentTrainer.id && (
       m.firstName.toLowerCase().includes(search.toLowerCase()) ||
       m.lastName.toLowerCase().includes(search.toLowerCase()) ||
-      m.memberId.toLowerCase().includes(search.toLowerCase())
+      m.memberId.toLowerCase().includes(search.toLowerCase()))
   );
+  const selectedAssessments = selectedMember ? memberProgress.filter(entry => entry.memberId === selectedMember.id).slice(0, 5) : [];
 
-  const handleAssignPlan = (e: React.FormEvent) => {
-    e.preventDefault();
+  useEffect(() => {
     if (!selectedMember) return;
-    const plan = workoutPlans.find(p => p.id === selectedPlanId);
-    setToastMessage(`Assigned program "${plan?.title}" to ${selectedMember.firstName}!`);
-    setIsAssignPlanOpen(false);
-    setTimeout(() => setToastMessage(null), 3500);
-  };
+    const controller = new AbortController();
+    setProgress(null); setProgressError(''); setProgressLoading(true);
+    fetch(apiUrl(`/api/v1/members/${selectedMember.id}/training-progress`), { credentials:'include', signal:controller.signal })
+      .then(async response => { const body = await response.json(); if (!response.ok) throw new Error(body?.error?.message || 'Unable to load training progress.'); return body.data; })
+      .then(setProgress).catch(error => { if (!controller.signal.aborted) setProgressError(error instanceof Error ? error.message : 'Unable to load training progress.'); })
+      .finally(() => { if (!controller.signal.aborted) setProgressLoading(false); });
+    return () => controller.abort();
+  }, [selectedMember?.id, progressRefresh]);
 
   const getMemberAttendanceCount = (memId: string) => {
     return attendance.filter(a => a.memberId === memId && a.status !== 'Denied').length;
@@ -42,15 +48,6 @@ export const TrainerMembers: React.FC = () => {
       pageSubtitle="Review assigned members, visit history, fitness goals, and workout plans."
       breadcrumbs={[{ label: 'Trainer Portal', path: '/trainer/dashboard' }, { label: 'Members' }]}
     >
-      {toastMessage && (
-        <div className="mb-4 p-3 bg-emerald-50 border border-emerald-300 text-emerald-800 text-xs rounded flex items-center justify-between animate-in fade-in">
-          <div className="flex items-center gap-2">
-            <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-            <span className="font-semibold">{toastMessage}</span>
-          </div>
-          <button onClick={() => setToastMessage(null)} className="text-gray-400 hover:text-black">✕</button>
-        </div>
-      )}
 
       
       <div className="bg-white border border-[#E5E7EB] rounded-lg p-4 mb-6 shadow-xs flex items-center justify-between">
@@ -124,15 +121,14 @@ export const TrainerMembers: React.FC = () => {
 
               <div className="mt-4 pt-3 border-t border-gray-100 flex gap-2">
                 <button
-                  onClick={() => {
-                    setSelectedMember(member);
-                    setIsAssignPlanOpen(true);
-                  }}
-                  className="w-full py-2 bg-[#151515] hover:bg-black text-white font-athletic font-bold uppercase text-[11px] rounded transition-colors flex items-center justify-center gap-1.5"
+                  onClick={() => navigate(`/trainer/plans?memberId=${encodeURIComponent(member.id)}`)}
+                  disabled={!member.workoutPlanEnabled || !member.trainerAccess}
+                  className="w-full py-2 bg-[#151515] hover:bg-black disabled:cursor-not-allowed disabled:opacity-50 text-white font-athletic font-bold uppercase text-[11px] rounded transition-colors flex items-center justify-center gap-1.5"
                 >
                   <Dumbbell className="w-3.5 h-3.5 text-[#EF1B23]" />
-                  Assign Workout Program
+                  Create Workout Program
                 </button>
+                <button type="button" onClick={() => setSelectedMember(member)} className="rounded border border-gray-300 px-3 py-2 text-[11px] font-bold uppercase text-gray-700 hover:border-gray-500">Progress</button>
               </div>
             </div>
           );
@@ -142,60 +138,36 @@ export const TrainerMembers: React.FC = () => {
       
       {selectedMember && (
         <Modal
-          isOpen={isAssignPlanOpen}
-          onClose={() => setIsAssignPlanOpen(false)}
-          title="ASSIGN TRAINING PROGRAM"
-          subtitle={`Assign routine to ${selectedMember.firstName} ${selectedMember.lastName}`}
+          isOpen={Boolean(selectedMember)}
+          onClose={() => setSelectedMember(null)}
+          title="MEMBER TRAINING PROGRESS"
+          subtitle={`${selectedMember.firstName} ${selectedMember.lastName}`}
         >
-          <form onSubmit={handleAssignPlan} className="space-y-4 text-xs">
-            <div>
-              <label className="block font-bold uppercase text-gray-700 mb-1">
-                Select Program From Library
-              </label>
-              <select
-                value={selectedPlanId}
-                onChange={e => setSelectedPlanId(e.target.value)}
-                className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:border-[#EF1B23] focus:outline-none bg-white"
-              >
-                {workoutPlans.map(p => (
-                  <option key={p.id} value={p.id}>
-                    {p.title} ({p.difficulty} - {p.daysPerWeek} Days/wk)
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="block font-bold uppercase text-gray-700 mb-1">
-                Training Directive & Focus Notes
-              </label>
-              <textarea
-                rows={3}
-                placeholder="Specific RPE targets, warm-up instructions, or injury modifications..."
-                className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:border-[#EF1B23] focus:outline-none"
-                defaultValue="Focus on progressive overload with 2.5kg micro-loading on barbell movements. Maintain strict tempo."
-              />
-            </div>
-
-            <div className="pt-3 border-t border-gray-200 flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => setIsAssignPlanOpen(false)}
-                className="px-4 py-2 border border-gray-300 rounded text-xs font-bold uppercase text-gray-700"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                className="px-5 py-2 bg-[#EF1B23] hover:bg-red-700 text-white font-athletic font-bold uppercase text-xs rounded transition-colors"
-              >
-                Confirm Program Assignment
-              </button>
-            </div>
-          </form>
+          <div className="space-y-5 text-xs">
+            {progressError && <div role="alert" className="flex items-center justify-between gap-3 rounded border border-red-200 bg-red-50 p-3 text-red-700"><span>{progressError}</span>{!progress && <button type="button" onClick={() => setProgressRefresh(value => value + 1)} className="rounded border border-red-300 bg-white px-2 py-1 font-bold">Retry</button>}</div>}
+            <section>
+              <h3 className="mb-2 font-bold uppercase">Workout activity, last 30 days</h3>
+              {!progress ? progressLoading ? <p className="text-gray-500">Loading activity...</p> : !progressError ? <p className="text-gray-500">No activity available.</p> : null : progress.plans.length ? (
+                <div className="space-y-2">
+                  {progress.plans.map(plan => <div key={plan.id} className="rounded border border-gray-200 p-3">
+                    <strong className="block text-sm">{plan.title}</strong>
+                    <span className="text-gray-600">{plan.activeDays} active days · {plan.completedExercises} exercises completed</span>
+                    <span className="mt-1 block text-gray-500">Last activity: {plan.lastCompletedAt ? formatAppDateTime(plan.lastCompletedAt) : plan.lastCompletedOn ? formatAppDate(plan.lastCompletedOn) : 'None recorded'}</span>
+                    {plan.recentDays.length > 0 && <div className="mt-2 flex flex-wrap gap-1.5">{plan.recentDays.slice(0, 10).map(day => <span key={day.date} className="rounded border border-gray-200 bg-gray-50 px-2 py-1 text-gray-600">{formatAppDate(day.date)}: {day.completedExercises}</span>)}</div>}
+                  </div>)}
+                </div>
+              ) : <p className="text-gray-500">No program has been assigned.</p>}
+            </section>
+            {selectedAssessments.length > 0 && <section>
+              <h3 className="mb-2 font-bold uppercase">Past assessments</h3>
+              {selectedAssessments.map(entry => <div key={entry.id} className="border-t border-gray-100 py-2">
+                <strong>{formatAppDate(entry.date)}</strong> · {entry.weightKg} kg · {entry.bodyFatPercentage}% body fat
+                {entry.trainerNotes && <p className="mt-1 whitespace-pre-wrap text-gray-600">{entry.trainerNotes}</p>}
+              </div>)}
+            </section>}
+          </div>
         </Modal>
       )}
     </AppLayout>
   );
 };
-

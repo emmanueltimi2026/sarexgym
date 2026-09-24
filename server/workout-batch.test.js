@@ -1,6 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { assertWorkoutBatchEligibility, uniqueWorkoutMemberIds } from './routes.js';
+import { workoutCreatePayload } from '../shared/workout-create.js';
+
+test('trainer workout request contains only API-supported fields',()=>{
+ const payload=workoutCreatePayload({title:'Strength Plan',description:'Member program',difficulty:'Intermediate',daysPerWeek:4,memberIds:['member-a'],trainerId:'client-id',trainerName:'Client name'},[]);
+ assert.deepEqual(Object.keys(payload).sort(),['daysPerWeek','description','difficulty','memberIds','routine','title'].sort());
+ assert.equal(payload.daysPerWeek,4);
+ assert.deepEqual(payload.memberIds,['member-a']);
+});
 
 test('workout batch selection removes duplicate member ids',()=>{
  const ids=uniqueWorkoutMemberIds({memberIds:['member-a','member-b','member-a']});

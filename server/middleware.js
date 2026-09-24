@@ -48,6 +48,9 @@ export const requirePermission = permission => (req, res, next) => req.actor?.pe
 
 export const errorHandler = (error, req, res, _next) => {
   const validation = error?.name === 'ZodError' || (error instanceof SyntaxError && 'body' in error);
+  if (error?.code === '23505' && error?.constraint === 'one_active_trainer_per_member') {
+    return res.status(409).json({ error: { code: 'MEMBER_TRAINER_CONFLICT', message: 'This member already has an active trainer. Refresh the member details and try again.', requestId: req.requestId } });
+  }
   const conflict = error?.code === '23505' || error?.code === '23P01';
   const status = validation ? 400 : conflict ? 409 : Number.isInteger(error.status) ? error.status : 500;
   if (status >= 500) console.error(JSON.stringify({ level: 'error', requestId: req.requestId, message: error.message, stack: process.env.NODE_ENV === 'production' ? undefined : error.stack }));

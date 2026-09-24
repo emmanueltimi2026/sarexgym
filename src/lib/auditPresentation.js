@@ -18,6 +18,8 @@ const requestAction = action => {
   if (path.startsWith('/api/v1/staff/')) return { label: 'Updated a staff account', area: 'Staff account' };
   if (path.startsWith('/api/v1/trainers/')) return { label: 'Updated a trainer account', area: 'Trainer account' };
   if (path.startsWith('/api/v1/settings')) return { label: 'Updated gym settings', area: 'Gym settings' };
+  if (path.startsWith('/api/v1/workouts')) return { label: 'Updated a workout program', area: 'Workout program' };
+  if (path.startsWith('/api/v1/progress')) return { label: 'Recorded a member assessment', area: 'Training progress' };
   return { label: 'Completed a staff action', area: 'Administration' };
 };
 
@@ -27,7 +29,7 @@ export const auditArea = row => {
     member: 'Member account', payment: 'Payment record', trainer: 'Trainer account',
     staff: 'Staff account', event: 'Event', event_registration: 'Event booking',
     attendance: 'Entrance attendance', setting: 'Gym settings',
-    subscription: 'Membership subscription', user: 'Account access'
+    subscription: 'Membership subscription', user: 'Account access', workout_plan: 'Workout program', member_progress: 'Training progress'
   }[String(row.entity_type || row.resource_type || '').toLowerCase()] || 'Administration';
 };
 
@@ -67,7 +69,10 @@ export const auditActivity = row => {
     'attendance.manual_check_in_denied': `Denied a manual check-in for ${d.memberName || 'a member'}`,
     'attendance.reception_qr_check_in': 'Recorded a reception QR check-in',
     'attendance.reception_qr_denied': 'Denied a reception QR check-in',
-    'settings.updated': 'Updated gym settings'
+    'settings.updated': 'Updated gym settings',
+    'workout.created': d.title ? `Created the workout program “${d.title}”` : 'Created a workout program',
+    'workout.updated': 'Updated a workout program',
+    'workout.completed': 'Completed a workout program'
   };
   return labels[action] || 'Completed a staff action';
 };

@@ -72,3 +72,11 @@ server\app.test.js
 server\audit-presentation.test.js
 server\personnel-accounts.test.js
 server\fitness-goals.test.js
+server\trainer-assignment.test.js
+server\workout-completions-http.test.js
+server\workout-completions.test.js
+server\workout-create-http.test.js
+server\workout-edit-http.test.js
+server\workout-progress-http.test.js
+server\workout-progress.test.js
+server\workout-routine.test.js

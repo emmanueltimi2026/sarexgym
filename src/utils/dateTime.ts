@@ -39,6 +39,13 @@ const appDateTimeFormatter = new Intl.DateTimeFormat('en-NG', {
   hour12: true,
 });
 
+const appDateFormatter = new Intl.DateTimeFormat('en-NG', {
+  timeZone: 'Africa/Lagos',
+  day: '2-digit',
+  month: 'short',
+  year: 'numeric',
+});
+
 const uppercaseMeridiem = (value: string) => value.replace(/\b(am|pm)\b/i, match => match.toUpperCase());
 
 export const formatAppTime = (value: string | Date | null | undefined) => {
@@ -60,6 +67,12 @@ export const formatAppDateTime = (value: string | Date | null | undefined) => {
   if (!value) return '';
   const date = value instanceof Date ? value : new Date(value);
   return Number.isNaN(date.getTime()) ? String(value) : uppercaseMeridiem(appDateTimeFormatter.format(date));
+};
+
+export const formatAppDate = (value: string | Date | null | undefined) => {
+  if (!value) return '';
+  const date = value instanceof Date ? value : new Date(/^\d{4}-\d{2}-\d{2}$/.test(value) ? `${value}T12:00:00Z` : value);
+  return Number.isNaN(date.getTime()) ? String(value) : appDateFormatter.format(date);
 };
 
 export const formatPaymentDateTime = (value: string | Date | null | undefined) => {

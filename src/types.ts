@@ -148,9 +148,11 @@ export interface ExerciseItem {
 }
 
 export interface WorkoutDayRoutine {
+  id?: string;
   dayName: string;
   focus: string;
   exercises: Array<{
+    id?: string;
     name: string;
     sets: number;
     reps: string;

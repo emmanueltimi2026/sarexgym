@@ -8,18 +8,16 @@ import { Badge } from '../../components/ui/Badge';
 import {
   Users,
   Dumbbell,
-  CalendarCheck,
   Plus,
   ArrowRight,
   Target
 } from 'lucide-react';
 
 export const TrainerDashboard: React.FC = () => {
-  const { members, workoutPlans, memberProgress, user, navigate } = useGym();
+  const { members, workoutPlans, user, navigate } = useGym();
 
   const assignedMembers = members.filter(m => m.assignedTrainerId === user?.id);
   const myPlans = workoutPlans.filter(p => p.trainerId === user?.id);
-  const myProgressUpdates = memberProgress.filter(entry => entry.trainerId === user?.id);
 
   return (
     <AppLayout
@@ -37,7 +35,7 @@ export const TrainerDashboard: React.FC = () => {
       }
     >
       
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
         <StatCard
           label="Assigned Members"
           value={assignedMembers.length}
@@ -49,12 +47,6 @@ export const TrainerDashboard: React.FC = () => {
           value={myPlans.length}
           subtext="Assigned member programs"
           icon={Dumbbell}
-        />
-        <StatCard
-          label="Progress Updates Logged"
-          value={myProgressUpdates.length}
-          subtext="Member assessments recorded"
-          icon={CalendarCheck}
         />
       </div>
 
@@ -183,4 +175,3 @@ export const TrainerDashboard: React.FC = () => {
     </AppLayout>
   );
 };
-
