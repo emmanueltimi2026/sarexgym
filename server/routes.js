@@ -145,7 +145,8 @@ export function installProtectedRoutes(app,{db,config,checkInLimit=(req,res,next
    if(member.status!=='active')return deny('Member account is not active','ACCESS_DENIED',403);
    const valid=(await c.query("SELECT 1 FROM subscriptions WHERE member_id=$1 AND status='active' AND starts_at<=now() AND ends_at>now() AND NOT EXISTS(SELECT 1 FROM subscription_freezes f WHERE f.released_at IS NULL AND f.subscription_id=subscriptions.id AND now()>=f.starts_at AND now()<f.ends_at)",[memberId])).rowCount;
    if(!valid)return deny('Member does not have an active membership','ACCESS_DENIED',403);
-   const existing=(await c.query("SELECT id,checked_in_at FROM attendance WHERE member_id=$1 AND status='completed' AND checked_in_at::date=current_date ORDER BY checked_in_at DESC LIMIT 1",[memberId])).rows[0];
+   const timezone=(await c.query('SELECT timezone FROM branches WHERE id=$1',[branch])).rows[0]?.timezone||'Africa/Lagos';
+   const existing=(await c.query("SELECT id,checked_in_at FROM attendance WHERE member_id=$1 AND status='completed' AND (checked_in_at AT TIME ZONE $2)::date=(now() AT TIME ZONE $2)::date ORDER BY checked_in_at DESC LIMIT 1",[memberId,timezone])).rows[0];
    if(existing)return{...existing,duplicate:true,member:{id:member.id,firstName:member.first_name,lastName:member.last_name}};
    const visit=(await c.query("INSERT INTO attendance(member_id,branch_id,checked_in_at,scanner_user_id,method,status) VALUES($1,$2,now(),$3,'manual','completed') RETURNING id,checked_in_at",[memberId,branch,req.actor.id])).rows[0];
    await audit(c,req,'attendance.manual_check_in','attendance',visit.id,{memberId,memberName:`${member.first_name} ${member.last_name}`,branchId:branch});

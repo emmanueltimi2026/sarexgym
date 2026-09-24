@@ -69,9 +69,19 @@ test('shared payment confirmation route dispatches event references to the event
 
 test('payment receipt stops polling on terminal backend errors',async()=>{
  const receipt=await readFile(new URL('../src/components/ui/PaymentReceipt.tsx',import.meta.url),'utf8');
- assert.match(receipt,/else if\(r\.status===202&&tries<40\)/);
- assert.match(receipt,/setError\(r\.status===202\?'':body\?\.error\?\.message/);
+ assert.match(receipt,/else if \(response\.status === 202 && tries < 40\)/);
+ assert.match(receipt,/setError\(response\.status === 202 \? '' : body\?\.error\?\.message/);
  assert.match(receipt,/Payment needs review/);
+});
+
+test('confirmed payment receipt remains mounted until the member closes it',async()=>{
+ const receipt=await readFile(new URL('../src/components/ui/PaymentReceipt.tsx',import.meta.url),'utf8');
+ const success=receipt.slice(receipt.indexOf('if (response.ok) {'),receipt.indexOf('} else if (response.status === 202'));
+ assert.match(success,/setReceipt\(payment\)/);
+ assert.match(success,/setDestination\(/);
+ assert.doesNotMatch(success,/navigateRef\.current\(/);
+ assert.match(receipt,/const close = \(\) => \{[\s\S]*navigateRef\.current\(destination\)/);
+ assert.match(receipt,/<OfficialReceipt receipt=\{receipt\} onClose=\{close\}/);
 });
 
 test('member and public event listings keep active multi-day events visible until the event ends',async()=>{

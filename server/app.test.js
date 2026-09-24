@@ -60,6 +60,52 @@ test('duplicate reception scan returns the existing successful check-in idempote
  }finally{await new Promise(resolve=>server.close(resolve));}
 });
 
+test('manual check-in uses the branch day at Lagos midnight and replays the new visit',async()=>{
+ const memberId='28f7f90a-013a-4d4e-832a-dca90adf4c90',branchId='d49cf982-dcc9-43bd-974d-2ed0995e9eed';
+ const now=new Date('2026-09-23T23:07:00.000Z'); // 00:07 on 24 September in Lagos.
+ const visits=[{id:'yesterday-visit',checked_in_at:new Date('2026-09-23T14:33:43.637Z')}];
+ const duplicateQueries=[];
+ let inserts=0;
+ const manualDb={
+  async query(sql){
+   if(sql.includes('FROM sessions s'))return{rows:[{session_id:'session-1',id:'staff-1',email:'staff@sarex.test',status:'active',permissions:['checkin.manual'],roles:['staff']}],rowCount:1};
+   return{rows:[],rowCount:0};
+  },
+  async transaction(work){return work({query:async(sql,params=[])=>{
+   if(sql==='SELECT now() now')return{rows:[{now}]};
+   if(sql.includes('FROM members m JOIN users u'))return{rows:[{id:memberId,first_name:'Ademoroti',last_name:'Emmanuel',status:'active'}]};
+   if(sql.startsWith('WITH existing AS'))return{rows:[{id:branchId}]};
+   if(sql.includes('FROM branches WHERE id=$1'))return{rows:[{timezone:'Africa/Lagos'}]};
+   if(sql.includes("SELECT 1 FROM subscriptions WHERE member_id=$1 AND status='active'"))return{rows:[{ok:1}],rowCount:1};
+   if(sql.includes("FROM attendance WHERE member_id=$1 AND status='completed'")){
+    duplicateQueries.push({sql,params});
+    if(!sql.includes('(checked_in_at AT TIME ZONE $2)::date=(now() AT TIME ZONE $2)::date'))throw new Error('Duplicate lookup must use the branch timezone');
+    const day=value=>new Intl.DateTimeFormat('en-CA',{timeZone:params[1],year:'numeric',month:'2-digit',day:'2-digit'}).format(value);
+    return{rows:visits.filter(visit=>day(visit.checked_in_at)===day(now)).slice(-1)};
+   }
+   if(sql.startsWith('INSERT INTO attendance(')){const visit={id:'today-visit',checked_in_at:now};visits.push(visit);inserts++;return{rows:[visit]};}
+   return{rows:[],rowCount:0};
+  }});}
+ };
+ const localConfig={...config,SESSION_IDLE_TIMEOUT_HOURS:24,COOKIE_SAME_SITE:'lax',CSRF_SECRET:'test-manual-secret-with-enough-entropy'};
+ const server=createApp({db:manualDb,config:localConfig}).listen(0);
+ try{
+  await new Promise(resolve=>server.once('listening',resolve));
+  const base=`http://127.0.0.1:${server.address().port}`,headers={cookie:'session=session-token',origin:localConfig.APP_ORIGIN};
+  const csrfResponse=await fetch(base+'/api/v1/csrf',{headers}),csrfToken=(await csrfResponse.json()).csrfToken;
+  const submit=async()=>{const response=await fetch(base+'/api/v1/attendance/manual',{method:'POST',headers:{...headers,'content-type':'application/json','x-csrf-token':csrfToken},body:JSON.stringify({memberId})});return{status:response.status,body:await response.json()};};
+  const first=await submit(),second=await submit();
+  assert.equal(first.status,201);
+  assert.equal(first.body.data.id,'today-visit');
+  assert.equal(second.status,200);
+  assert.equal(second.body.data.duplicate,true);
+  assert.equal(second.body.data.id,'today-visit');
+  assert.equal(inserts,1);
+  assert.equal(duplicateQueries.length,2);
+  assert.ok(duplicateQueries.every(query=>query.params[1]==='Africa/Lagos'));
+ }finally{await new Promise(resolve=>server.close(resolve));}
+});
+
 test('bootstrap returns mixed membership and event payments with UNION-compatible text statuses',async()=>{
  const captured=[];
  const now=new Date('2026-09-18T12:00:00.000Z');
