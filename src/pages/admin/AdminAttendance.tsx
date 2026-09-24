@@ -6,6 +6,7 @@ import { StatCard } from '../../components/ui/StatCard';
 import { Search, QrCode, UserCheck, Clock } from 'lucide-react';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip } from 'recharts';
 import { Pagination } from '../../components/ui/Pagination';
+import { formatAppTime } from '../../utils/dateTime';
 
 export const AdminAttendance: React.FC = () => {
   const { attendance } = useGym();
@@ -35,7 +36,7 @@ export const AdminAttendance: React.FC = () => {
           && Math.floor(checkedInAt.getHours() / 2) === bucket;
       }).length;
       return {
-        hour: new Date(2000, 0, 1, hour).toLocaleTimeString('en-NG', { hour: '2-digit' }),
+        hour: formatAppTime(`${hour}:00`),
         checkIns
       };
     });

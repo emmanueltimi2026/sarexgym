@@ -4,6 +4,7 @@ import { useVisibilityPolling } from '../../hooks/useVisibilityPolling';
 import { PORTAL_POLL_INTERVALS } from '../../lib/refreshPolicy';
 import { preloadPortalRoute } from '../../lib/preloadPortalRoute';
 import { apiUrl } from '../../lib/secureFetch';
+import { formatAppDateTime } from '../../utils/dateTime';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
 import {
   LayoutDashboard,
@@ -402,7 +403,7 @@ const AppLayoutFrame: React.FC<AppLayoutProps> = ({
                       </span>
                     </div>
                     <div className="max-h-[min(24rem,calc(100svh-7rem))] divide-y divide-[#E5E7EB] overflow-y-auto overscroll-contain text-xs">
-                      {notifications.length ? notifications.map(notification=>{const destination=notificationDestination(notification);return <button key={notification.id} onClick={()=>void openNotification(notification)} className={'flex w-full items-center gap-3 p-3 text-left transition-colors hover:bg-gray-50 '+(notification.read_at?'opacity-60':'bg-red-50/30')}><span className="min-w-0 flex-1"><span className="block font-bold text-[#111111]">{notification.title}</span><span className="mt-0.5 block text-[11px] text-gray-500">{notification.message}</span><span className="text-[10px] text-gray-400">{new Date(notification.created_at).toLocaleString()}</span></span>{destination&&<ChevronRight className="h-4 w-4 shrink-0 text-gray-400"/>}</button>}):<p className="p-5 text-center text-gray-500">No notifications yet.</p>}
+                      {notifications.length ? notifications.map(notification=>{const destination=notificationDestination(notification);return <button key={notification.id} onClick={()=>void openNotification(notification)} className={'flex w-full items-center gap-3 p-3 text-left transition-colors hover:bg-gray-50 '+(notification.read_at?'opacity-60':'bg-red-50/30')}><span className="min-w-0 flex-1"><span className="block font-bold text-[#111111]">{notification.title}</span><span className="mt-0.5 block text-[11px] text-gray-500">{notification.message}</span><span className="text-[10px] text-gray-400">{formatAppDateTime(notification.created_at)}</span></span>{destination&&<ChevronRight className="h-4 w-4 shrink-0 text-gray-400"/>}</button>}):<p className="p-5 text-center text-gray-500">No notifications yet.</p>}
                     </div>
                   </div>
                 )}

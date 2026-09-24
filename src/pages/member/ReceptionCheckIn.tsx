@@ -3,6 +3,7 @@ import { CheckCircle2, Clock3, IdCard, Loader2, QrCode, ShieldAlert } from 'luci
 import { useGym } from '../../context/GymContext';
 import { apiBase as BASE } from '../../lib/secureFetch';
 import { InitialsAvatar } from '../../components/ui/InitialsAvatar';
+import { formatAppTime } from '../../utils/dateTime';
 
 type CheckInResult = {
   checked_in_at: string;
@@ -62,7 +63,7 @@ export const ReceptionCheckIn: React.FC = () => {
             <dl className="mt-3 grid grid-cols-2 gap-x-3 gap-y-1.5 text-[10px] sm:mt-5 sm:gap-3 sm:text-xs">
               <div><dt className="text-gray-500">Subscription</dt><dd className="font-bold text-emerald-700 sm:mt-1">{result.member.membershipStatus || 'Active'}</dd></div>
               <div><dt className="text-gray-500">Plan</dt><dd className="truncate font-bold text-[#111] sm:mt-1">{result.member.planName}</dd></div>
-              <div><dt className="text-gray-500">Check-in time</dt><dd className="font-bold text-[#111] sm:mt-1">{new Date(result.checked_in_at).toLocaleTimeString('en-NG',{hour:'2-digit',minute:'2-digit'})}</dd></div>
+              <div><dt className="text-gray-500">Check-in time</dt><dd className="font-bold text-[#111] sm:mt-1">{formatAppTime(result.checked_in_at)}</dd></div>
               <div><dt className="text-gray-500">Access</dt><dd className="font-bold text-emerald-700 sm:mt-1">Approved</dd></div>
               <div className="col-span-2"><dt className="text-gray-500">Membership valid until</dt><dd className="font-bold text-[#111] sm:mt-1">{new Date(result.member.membershipExpiryDate).toLocaleDateString()}</dd></div>
             </dl>

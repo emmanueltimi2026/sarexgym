@@ -3,6 +3,7 @@ import { useGym } from '../../context/GymContext';
 import { AppLayout } from '../../components/layout/AppLayout';
 import { Badge } from '../../components/ui/Badge';
 import { StatCard } from '../../components/ui/StatCard';
+import { formatAppTime } from '../../utils/dateTime';
 import {
   ArrowRight, CalendarCheck, Clock3, TrendingUp, UserCheck, Users
 } from 'lucide-react';
@@ -35,7 +36,7 @@ export const AdminDashboard: React.FC = () => {
     .reduce((acc, curr) => acc + curr.amount, 0);
 
   const checkInDisplayTime = (record: typeof attendance[number]) => record.checkInTime
-    ? new Date(record.checkInTime).toLocaleTimeString('en-NG', { hour: '2-digit', minute: '2-digit' })
+    ? formatAppTime(record.checkInTime)
     : 'Time unavailable';
 
   const now = new Date();

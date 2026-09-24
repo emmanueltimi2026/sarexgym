@@ -4,6 +4,7 @@ import { AppLayout } from '../../components/layout/AppLayout';
 import { Badge } from '../../components/ui/Badge';
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
 import { QrCodeDisplay } from '../../components/ui/QrCodeDisplay';
+import { formatAppDateTime } from '../../utils/dateTime';
 import { useGym } from '../../context/GymContext';
 import { apiUrl } from '../../lib/secureFetch';
 import type { Member } from '../../types';
@@ -63,7 +64,7 @@ export const StaffCheckIn: React.FC = () => {
       const duplicate = body.data?.duplicate === true;
       const previous = body.data?.checked_in_at ? new Date(body.data.checked_in_at) : null;
       const previousTime = previous && !Number.isNaN(previous.getTime())
-        ? new Intl.DateTimeFormat('en-NG', { timeZone: 'Africa/Lagos', dateStyle: 'medium', timeStyle: 'short' }).format(previous)
+        ? formatAppDateTime(previous)
         : null;
       setResult({ member, success: true, duplicate, message: duplicate
         ? `Already checked in${previousTime ? ` on ${previousTime}` : ''}. No new visit was recorded.`

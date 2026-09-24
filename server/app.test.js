@@ -127,7 +127,10 @@ test('bootstrap returns mixed membership and event payments with UNION-compatibl
     trainer_id:null,trainer_name:null,last_check_in:null
    }],rowCount:1};
    if(text.includes("SELECT *,COALESCE(features,'[]'::jsonb) features FROM membership_plans"))return{rows:[{id:'plan-1',name:'Standard Plan',description:'Standard',price_minor:2500000,duration_days:30,active:true,features:[],trainer_access:false,workout_plan_access:false,registration_fee_minor:0}],rowCount:1};
-   if(text.includes('FROM attendance a JOIN members'))return{rows:[],rowCount:0};
+   if(text.includes('FROM attendance a JOIN members'))return{rows:[{
+    id:'visit-1',member_number:'GYM-000001',member_name:'Ada Member',member_email:'member@sarex.test',member_phone:'08000000000',
+    profile_image_url:null,plan_name:'Standard Plan',checked_in_at:new Date('2026-09-18T14:33:00.000Z'),method:'manual',denial_reason:null
+   }],rowCount:1};
    if(text.includes('SELECT * FROM (')&&text.includes('UNION ALL')&&text.includes('event_registrations')) {
     assert.match(text,/py\.status::text status/);
     assert.match(text,/r\.status::text status/);
@@ -154,6 +157,7 @@ test('bootstrap returns mixed membership and event payments with UNION-compatibl
   assert.equal(body.data.payments.length,2);
   assert.equal(body.data.payments[0].status,'Successful');
   assert.equal(body.data.payments[1].planName,'Event: Open Adventure');
+  assert.equal(body.data.attendance[0].time,'3:33 PM');
   assert.ok(captured.some(text=>text.includes('py.status::text status')&&text.includes('r.status::text status')));
  }finally{await new Promise(resolve=>server.close(resolve));}
 });
