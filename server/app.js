@@ -18,7 +18,7 @@ import { finalizePaystackMembershipPayment } from './paystack-membership.js';
 import { finalizePaystackEventPayment } from './paystack-events.js';
 
 const asyncRoute = fn => (req,res,next)=>Promise.resolve(fn(req,res,next)).catch(next);
-const loginSchema=z.object({email:z.string().email().max(254).transform(v=>v.toLowerCase()),password:z.string().min(8).max(200),remember:z.boolean().optional().default(true)}).strict();
+const loginSchema=z.object({email:z.string().trim().email().max(254).transform(v=>v.toLowerCase()),password:z.string().min(8).max(200),remember:z.boolean().optional().default(true)}).strict();
 
 export function createApp({db,config}) {
  const app=express(); app.disable('x-powered-by'); app.locals.config=config;
@@ -82,13 +82,14 @@ export function createApp({db,config}) {
    res.cookie(config.SESSION_COOKIE_NAME,token,sessionCookieOptions(config,expires)); res.json({user:{id:user.id,email:user.email,roles:user.roles,mustChangePassword:user.must_change_password}});
  }));
  app.use('/api/v1',requireAuth(db));
+ app.use('/api/v1',(req,res,next)=>{if(req.actor.must_change_password&&!['/csrf','/session','/auth/logout','/auth/change-initial-password'].includes(req.path))return res.status(403).json({error:{code:'PASSWORD_CHANGE_REQUIRED',message:'Change your temporary password before using the portal',requestId:req.requestId}});next()});
  app.get('/api/v1/csrf',(req,res)=>res.json({csrfToken:csrfTokenForRequest(req,config)}));
  app.use('/api/v1',asyncRoute(async(_req,_res,next)=>{await activateDueScheduledSubscriptions(db);next()}));
  app.use('/api/v1',requireCsrf(config));
  app.post('/api/v1/auth/logout',asyncRoute(async(req,res)=>{await db.query('UPDATE sessions SET revoked_at=now() WHERE id=$1',[req.actor.session_id]);clearSessionCookie(res,config);res.sendStatus(204)}));
  app.post('/api/v1/auth/change-initial-password',asyncRoute(async(req,res)=>{const input=z.object({password:z.string().min(10).max(200)}).strict().parse(req.body);await db.transaction(async c=>{await c.query('UPDATE users SET password_hash=$1,must_change_password=false,credential_version=credential_version+1,updated_at=now() WHERE id=$2',[await hashPassword(input.password),req.actor.id]);await c.query('UPDATE sessions SET revoked_at=now() WHERE user_id=$1 AND id<>$2 AND revoked_at IS NULL',[req.actor.id,req.actor.session_id])});res.sendStatus(204)}));
  app.post('/api/v1/auth/change-password',asyncRoute(async(req,res)=>{const input=z.object({currentPassword:z.string().min(1).max(200),newPassword:z.string().min(10).max(200)}).strict().parse(req.body);const user=(await db.query('SELECT password_hash FROM users WHERE id=$1',[req.actor.id])).rows[0];if(!user||!await verifyPassword(input.currentPassword,user.password_hash))return res.status(401).json({error:{code:'INVALID_CURRENT_PASSWORD',message:'Current password is incorrect',requestId:req.requestId}});await db.transaction(async c=>{await c.query('UPDATE users SET password_hash=$1,must_change_password=false,credential_version=credential_version+1,updated_at=now() WHERE id=$2',[await hashPassword(input.newPassword),req.actor.id]);await c.query('UPDATE sessions SET revoked_at=now() WHERE user_id=$1 AND id<>$2 AND revoked_at IS NULL',[req.actor.id,req.actor.session_id]);await c.query("INSERT INTO audit_logs(actor_user_id,action,entity_type,entity_id,new_values,ip,request_id) VALUES($1,'auth.password_changed','user',$2,$3,$4,$5)",[req.actor.id,req.actor.id,JSON.stringify({revokedOtherSessions:true}),req.ip,req.requestId])});res.sendStatus(204)}));
- app.get('/api/v1/session',asyncRoute(async(req,res)=>res.json({user:{id:req.actor.id,email:req.actor.email,roles:req.actor.roles,permissions:req.actor.permissions}})));
+ app.get('/api/v1/session',asyncRoute(async(req,res)=>res.json({user:{id:req.actor.id,email:req.actor.email,roles:req.actor.roles,permissions:req.actor.permissions,mustChangePassword:req.actor.must_change_password}})));
  app.post('/api/v1/attendance/reception-check-in',checkInLimit,asyncRoute(async(req,res)=>{
    const token=z.object({token:z.string().min(40).max(1000)}).strict().parse(req.body).token,credential=verifyReceptionCheckInToken(token,config.CSRF_SECRET);
    if(!credential)throw Object.assign(new Error('This reception QR code is not valid for SAREX check-in.'),{status:422,code:'INVALID_CHECK_IN_QR'});

@@ -1,3 +1,4 @@
+import { memberGoalLabel } from '../../../shared/fitness-goals.js';
 import React, { useState } from 'react';
 import { InitialsAvatar } from '../../components/ui/InitialsAvatar';
 import { useGym } from '../../context/GymContext';
@@ -99,8 +100,9 @@ export const TrainerMembers: React.FC = () => {
                     </span>
                     <span className="font-semibold text-gray-900 flex items-center gap-1.5">
                       <Target className="w-3.5 h-3.5 text-[#EF1B23]" />
-                      {member.fitnessGoal || 'Hypertrophy & Conditioning'}
+                      {memberGoalLabel(member.fitnessGoal)}
                     </span>
+                    {member.fitnessGoalNotes && <p className="mt-1 text-[11px] leading-5 text-gray-600">{member.fitnessGoalNotes}</p>}
                   </div>
 
                   <div className="grid grid-cols-2 gap-2 text-[11px]">

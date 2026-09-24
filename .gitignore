@@ -70,3 +70,5 @@ server\member-freeze.test.js
 server\paystack-events.test.js
 server\app.test.js
 server\audit-presentation.test.js
+server\personnel-accounts.test.js
+server\fitness-goals.test.js

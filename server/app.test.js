@@ -124,7 +124,7 @@ test('bootstrap returns mixed membership and event payments with UNION-compatibl
     subscription_status:'active',starts_at:new Date('2026-09-01T00:00:00.000Z'),ends_at:new Date('2026-10-01T00:00:00.000Z'),amount_minor:2500000,
     plan_id:'plan-1',plan_name:'Standard Plan',trainer_access:false,workout_plan_access:false,registration_fee_paid_at:now,
     next_subscription_id:'sub-next',next_plan_id:'plan-2',next_subscription_status:'scheduled',next_starts_at:new Date('2026-10-01T00:00:00.000Z'),next_ends_at:new Date('2026-10-31T00:00:00.000Z'),next_plan_name:'Premium',
-    trainer_id:null,trainer_name:null,last_check_in:null
+    trainer_id:null,trainer_name:null,last_check_in:null,fitness_goal:'Build Muscle',fitness_goal_notes:'Train consistently'
    }],rowCount:1};
    if(text.includes("SELECT *,COALESCE(features,'[]'::jsonb) features FROM membership_plans"))return{rows:[{id:'plan-1',name:'Standard Plan',description:'Standard',price_minor:2500000,duration_days:30,active:true,features:[],trainer_access:false,workout_plan_access:false,registration_fee_minor:0}],rowCount:1};
    if(text.includes('FROM attendance a JOIN members'))return{rows:[{
@@ -155,6 +155,8 @@ test('bootstrap returns mixed membership and event payments with UNION-compatibl
   const body=await response.json();
   assert.equal(response.status,200);
   assert.equal(body.data.payments.length,2);
+  assert.equal(body.data.members[0].fitnessGoal,'Build Muscle');
+  assert.equal(body.data.members[0].fitnessGoalNotes,'Train consistently');
   assert.equal(body.data.payments[0].status,'Successful');
   assert.equal(body.data.payments[1].planName,'Event: Open Adventure');
   assert.equal(body.data.attendance[0].time,'3:33 PM');

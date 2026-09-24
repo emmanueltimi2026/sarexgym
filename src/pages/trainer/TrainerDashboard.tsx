@@ -1,3 +1,4 @@
+import { memberGoalLabel } from '../../../shared/fitness-goals.js';
 import React from 'react';
 import { useGym } from '../../context/GymContext';
 import { AppLayout } from '../../components/layout/AppLayout';
@@ -46,7 +47,7 @@ export const TrainerDashboard: React.FC = () => {
         <StatCard
           label="Active Workout Programs"
           value={myPlans.length}
-          subtext="Hypertrophy & conditioning"
+          subtext="Assigned member programs"
           icon={Dumbbell}
         />
         <StatCard
@@ -89,7 +90,7 @@ export const TrainerDashboard: React.FC = () => {
                     </span>
                     <span className="text-[11px] text-gray-500 flex items-center gap-1">
                       <Target className="w-3 h-3 text-[#EF1B23]" />
-                      {member.fitnessGoal || 'General Strength'}
+                      {memberGoalLabel(member.fitnessGoal)}
                     </span>
                   </div>
                 </div>

@@ -50,6 +50,7 @@ export interface Member {
   memberSince?: string;
   lastCheckIn?: string;
   fitnessGoal: string;
+  fitnessGoalNotes?: string;
   amountPaid?: number;
   workoutPlanEnabled?: boolean;
   trainerAccess?: boolean;

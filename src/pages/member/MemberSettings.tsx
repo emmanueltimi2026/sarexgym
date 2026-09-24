@@ -4,10 +4,11 @@ import { AppLayout } from '../../components/layout/AppLayout';
 import { useGym } from '../../context/GymContext';
 import { InitialsAvatar } from '../../components/ui/InitialsAvatar';
 import { apiBase as BASE } from '../../lib/secureFetch';
+import { FITNESS_GOALS } from '../../../shared/fitness-goals.js';
 
 export const MemberSettings: React.FC = () => {
   const { currentMember, refresh } = useGym();
-  const [form, setForm] = useState({ firstName: '', lastName: '', email: '', phone: '', address: '', photo: '' });
+  const [form, setForm] = useState({ firstName: '', lastName: '', email: '', phone: '', address: '', photo: '', fitnessGoal: '', fitnessGoalNotes: '' });
   const [message, setMessage] = useState('');
 
   useEffect(() => {
@@ -17,7 +18,9 @@ export const MemberSettings: React.FC = () => {
       email: currentMember.email || '',
       phone: currentMember.phone || '',
       address: currentMember.address || '',
-      photo: currentMember.photo || ''
+      photo: currentMember.photo || '',
+      fitnessGoal: currentMember.fitnessGoal || '',
+      fitnessGoalNotes: currentMember.fitnessGoalNotes || ''
     });
   }, [currentMember.id]);
 
@@ -39,7 +42,7 @@ export const MemberSettings: React.FC = () => {
       method: 'PATCH',
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(form)
+      body: JSON.stringify({ ...form, fitnessGoal: form.fitnessGoal || null, fitnessGoalNotes: form.fitnessGoal ? form.fitnessGoalNotes : null })
     });
     const body = await response.json().catch(() => ({}));
     if (!response.ok) {
@@ -51,7 +54,7 @@ export const MemberSettings: React.FC = () => {
   };
 
   return (
-    <AppLayout pageTitle="Member Settings" pageSubtitle="Update your contact information and profile photo." breadcrumbs={[{ label: 'Member Portal', path: '/member/dashboard' }, { label: 'Settings' }]}>
+    <AppLayout pageTitle="Member Settings" pageSubtitle="Update your contact information, fitness goal, and profile photo." breadcrumbs={[{ label: 'Member Portal', path: '/member/dashboard' }, { label: 'Settings' }]}>
       <form onSubmit={submit} className="mx-auto max-w-3xl overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
         <div className="flex flex-col gap-5 border-b border-gray-100 p-6 sm:flex-row sm:items-center">
           <InitialsAvatar src={form.photo} firstName={form.firstName} lastName={form.lastName} className="h-24 w-24 text-2xl" />
@@ -70,6 +73,8 @@ export const MemberSettings: React.FC = () => {
           <label className="text-xs font-bold uppercase">Last name<input required value={form.lastName} onChange={event => setForm({ ...form, lastName: event.target.value })} className="mt-2 w-full rounded-lg border border-gray-200 p-3 text-sm font-normal outline-none focus:border-[#EF1B23]" /></label>
           <label className="text-xs font-bold uppercase">Email<input type="email" required value={form.email} onChange={event => setForm({ ...form, email: event.target.value })} className="mt-2 w-full rounded-lg border border-gray-200 p-3 text-sm font-normal outline-none focus:border-[#EF1B23]" /></label>
           <label className="text-xs font-bold uppercase">Phone<input required value={form.phone} onChange={event => setForm({ ...form, phone: event.target.value })} className="mt-2 w-full rounded-lg border border-gray-200 p-3 text-sm font-normal outline-none focus:border-[#EF1B23]" /></label>
+          <label className="text-xs font-bold uppercase">Primary fitness goal<select value={form.fitnessGoal} onChange={event => setForm({ ...form, fitnessGoal: event.target.value, fitnessGoalNotes: event.target.value ? form.fitnessGoalNotes : '' })} className="mt-2 w-full rounded-lg border border-gray-200 bg-white p-3 text-sm font-normal outline-none focus:border-[#EF1B23]"><option value="">Not set</option>{FITNESS_GOALS.map(goal => <option key={goal} value={goal}>{goal}</option>)}</select></label>
+          <label className="text-xs font-bold uppercase sm:col-span-2">Goal notes <span className="font-normal normal-case text-gray-500">(optional)</span><textarea rows={3} maxLength={500} disabled={!form.fitnessGoal} value={form.fitnessGoalNotes} onChange={event => setForm({ ...form, fitnessGoalNotes: event.target.value })} className="mt-2 w-full rounded-lg border border-gray-200 p-3 text-sm font-normal outline-none focus:border-[#EF1B23] disabled:bg-gray-50" /></label>
           <label className="text-xs font-bold uppercase sm:col-span-2">Address<textarea rows={3} value={form.address} onChange={event => setForm({ ...form, address: event.target.value })} className="mt-2 w-full rounded-lg border border-gray-200 p-3 text-sm font-normal outline-none focus:border-[#EF1B23]" /></label>
         </div>
         <div className="flex items-center justify-between border-t border-gray-100 p-6">

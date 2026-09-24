@@ -1,3 +1,4 @@
+import { memberGoalLabel } from '../../../shared/fitness-goals.js';
 import React, { useCallback, useState } from 'react';
 import { ArrowLeft, CalendarCheck, CreditCard, Dumbbell, Mail, MapPin, Phone, ShieldCheck, Snowflake, UserPlus, UserRound } from 'lucide-react';
 import { AppLayout } from '../../components/layout/AppLayout';
@@ -79,7 +80,7 @@ export const MemberDetails: React.FC = () => {
     { label: 'Gender', value: member.gender === 'Other' ? '' : member.gender },
     { label: 'Date of birth', value: member.dateOfBirth },
     { label: 'Address', value: member.address, icon: MapPin },
-    { label: 'Fitness goal', value: member.fitnessGoal, icon: Dumbbell }
+    { label: 'Fitness goal', value: memberGoalLabel(member.fitnessGoal), icon: Dumbbell }
   ].filter(item => hasDisplayValue(item.value)) : [];
 
   return (

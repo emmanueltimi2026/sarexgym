@@ -19,11 +19,11 @@ export const requireAuth = db => async (req, res, next) => {
       setAuthDiagnostic(req, { authenticationSucceeded: false });
       return res.status(401).json({ error: { code: 'UNAUTHENTICATED', message: 'Authentication required', requestId: req.requestId } });
     }
-    const { rows } = await db.query(`SELECT s.id session_id, u.id, u.email, u.status, COALESCE(array_agg(DISTINCT p.code) FILTER (WHERE p.code IS NOT NULL), '{}') permissions, COALESCE(array_agg(DISTINCT r.code) FILTER (WHERE r.code IS NOT NULL), '{}') roles
+    const { rows } = await db.query(`SELECT s.id session_id, u.id, u.email, u.status, u.must_change_password, COALESCE(array_agg(DISTINCT p.code) FILTER (WHERE p.code IS NOT NULL), '{}') permissions, COALESCE(array_agg(DISTINCT r.code) FILTER (WHERE r.code IS NOT NULL), '{}') roles
       FROM sessions s JOIN users u ON u.id=s.user_id LEFT JOIN user_roles ur ON ur.user_id=u.id LEFT JOIN roles r ON r.id=ur.role_id LEFT JOIN role_permissions rp ON rp.role_id=ur.role_id LEFT JOIN permissions p ON p.id=rp.permission_id
       WHERE s.token_hash=$1 AND s.revoked_at IS NULL AND s.expires_at>now()
         AND s.last_seen_at > now() - make_interval(hours => $2)
-      GROUP BY s.id,u.id,u.email,u.status`, [sha256(raw), req.app.locals.config.SESSION_IDLE_TIMEOUT_HOURS]);
+      GROUP BY s.id,u.id,u.email,u.status,u.must_change_password`, [sha256(raw), req.app.locals.config.SESSION_IDLE_TIMEOUT_HOURS]);
     const actor = rows[0];
     if (!actor || actor.status !== 'active') {
       setAuthDiagnostic(req, { authenticationSucceeded: false });

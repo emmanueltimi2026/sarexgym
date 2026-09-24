@@ -14,6 +14,7 @@ type PersonTarget = { kind: 'staff' | 'trainers'; person: StaffMember | Trainer;
 export const AdminStaff: React.FC = () => {
   const { trainers, staffList = [], refresh } = useGym();
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [reactivationKind, setReactivationKind] = useState<'staff'|'trainers'|null>(null);
   const [resetNotice,setResetNotice]=useState('');
   const [noticeTone,setNoticeTone]=useState<'success'|'error'>('success');
   const notify=(message:string,tone:'success'|'error'='success')=>{setNoticeTone(tone);setResetNotice(message)};
@@ -50,13 +51,14 @@ export const AdminStaff: React.FC = () => {
     photo: ''
   });
 
-  const handleAddSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleAddSubmit = (e: React.FormEvent) => { e.preventDefault(); void submitNewAccount(false); };
+  const submitNewAccount = async (reactivate: boolean) => {
     setBusy(true);
     setResetNotice('');
     try {
       const isTrainer = newStaff.staffType === 'trainer';
-      const response = await fetch(`${base}/api/v1/${isTrainer ? 'trainers' : 'staff'}`, {
+      const kind = isTrainer ? 'trainers' : 'staff';
+      const response = await fetch(`${base}/api/v1/${kind}`, {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
@@ -68,23 +70,31 @@ export const AdminStaff: React.FC = () => {
           specialization: newStaff.specialization,
           password: newStaff.password,
           photo: newStaff.photo,
-          isActive: true
+          isActive: true,
+          reactivate
         } : {
           firstName: newStaff.firstName,
           lastName: newStaff.lastName,
           email: newStaff.email,
           phone: newStaff.phone,
           password: newStaff.password,
-          isActive: true
+          isActive: true,
+          reactivate
         })
       });
       if (!response.ok) {
         const body = await response.json().catch(() => ({}));
+        if (response.status === 409 && body?.error?.code === `${isTrainer ? 'TRAINER' : 'STAFF'}_REACTIVATION_REQUIRED` && !reactivate) {
+          setReactivationKind(kind);
+          return;
+        }
         throw new Error(body?.error?.message || 'Unable to create staff account');
       }
+      const body = await response.json();
       await refresh();
-      notify(`${newStaff.firstName} ${newStaff.lastName} was added as ${isTrainer ? 'a trainer' : 'a receptionist'} and must change password on first login.`);
+      notify(`${newStaff.firstName} ${newStaff.lastName} was ${body.data.status === 'reactivated' ? 'reactivated' : 'added'} as ${isTrainer ? 'a trainer' : 'a receptionist'} and must change password on first login.`);
       setIsAddModalOpen(false);
+      setReactivationKind(null);
       resetNewStaff();
     } catch (error) {
       notify(error instanceof Error ? error.message : 'Unable to create staff account','error');
@@ -184,7 +194,7 @@ export const AdminStaff: React.FC = () => {
 
       
       <Modal
-        isOpen={isAddModalOpen}
+        isOpen={isAddModalOpen && !reactivationKind}
         onClose={() => { if (!busy) { setIsAddModalOpen(false); setShowTemporaryPassword(false); } }}
         title="ADD STAFF ACCOUNT"
         subtitle="Create a trainer or receptionist account with first-login password change"
@@ -302,6 +312,7 @@ export const AdminStaff: React.FC = () => {
           <div className="flex justify-end gap-2 border-t border-gray-200 pt-4"><button type="button" disabled={busy} onClick={()=>setEditTarget(null)} className="rounded-lg border px-4 py-2.5 font-bold">Cancel</button><button disabled={busy} className="rounded-lg bg-[#EF1B23] px-5 py-2.5 font-bold text-white disabled:opacity-50">{busy?'Saving…':'Save changes'}</button></div>
         </form>
       </Modal>
+      <ConfirmDialog open={Boolean(reactivationKind)} title="Reactivate account" message={`This ${reactivationKind === 'trainers' ? 'trainer' : 'staff'} account was previously deactivated. Reactivate it with the new details and temporary password?${noticeTone === 'error' && resetNotice ? ` ${resetNotice}` : ''}`} confirmLabel="Reactivate Account" tone="primary" busy={busy} onConfirm={()=>void submitNewAccount(true)} onClose={()=>!busy&&setReactivationKind(null)}/>
       <ConfirmDialog open={Boolean(confirmTarget)} title={confirmTarget?.action==='reset'?'Send password reset':confirmTarget?.action==='delete'?'Delete account':confirmTarget?.action==='suspend'?'Suspend account':'Reactivate account'} message={confirmTarget?confirmTarget.action==='reset'?`Create a new 30-minute password reset link for ${confirmTarget.person.firstName} ${confirmTarget.person.lastName}? Any unused older reset link will stop working.`:confirmTarget.action==='delete'?`Remove ${confirmTarget.person.firstName} ${confirmTarget.person.lastName}'s access? Their historical records will be retained.`:confirmTarget.action==='suspend'?`Suspend ${confirmTarget.person.firstName} ${confirmTarget.person.lastName}? Their active sessions will end immediately.`:`Restore access for ${confirmTarget.person.firstName} ${confirmTarget.person.lastName}?`:''} confirmLabel={confirmTarget?.action==='reset'?'Create reset link':confirmTarget?.action==='delete'?'Delete':confirmTarget?.action==='suspend'?'Suspend':'Reactivate'} tone={confirmTarget?.action==='delete'?'danger':'warning'} busy={busy} onConfirm={()=>void applyPersonnelAction()} onClose={()=>!busy&&setConfirmTarget(null)}/>
     </AppLayout>
   );

@@ -46,7 +46,6 @@ export const AdminMembers: React.FC = () => {
       lastName: editingMember.lastName,
       email: editingMember.email,
       phone: editingMember.phone,
-      fitnessGoal: editingMember.fitnessGoal,
       membershipStatus: editingMember.membershipStatus
     });
     setEditingMember(null);
@@ -251,16 +250,6 @@ export const AdminMembers: React.FC = () => {
                 <option value="Frozen">Frozen</option>
                 <option value="Inactive">Inactive</option>
               </select>
-            </div>
-
-            <div>
-              <label className="block font-bold uppercase text-gray-700 mb-1">Fitness Goal</label>
-              <input
-                type="text"
-                value={editingMember.fitnessGoal}
-                onChange={e => setEditingMember({ ...editingMember, fitnessGoal: e.target.value })}
-                className="w-full px-3 py-2 text-sm border border-gray-300 rounded focus:border-[#EF1B23] focus:outline-none"
-              />
             </div>
 
             <div className="pt-3 border-t border-gray-200 flex justify-end gap-2">

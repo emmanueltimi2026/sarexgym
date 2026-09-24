@@ -108,7 +108,7 @@ const portalFallbackTitle = (path: string) => {
 };
 
 const AppRouter: React.FC = () => {
-  const { currentPath, settings, loading } = useGym();
+  const { currentPath, settings, loading, navigate } = useGym();
   const [accessState, setAccessState] = useState<'public' | 'checking' | 'allowed' | 'denied'>('public');
   const [sessionRevision, setSessionRevision] = useState(0);
   const previousMarketingPath = useRef(currentPath);
@@ -126,6 +126,12 @@ const AppRouter: React.FC = () => {
       .then(({ ok, status, requestId, body }) => {
         const allowed = ok && body.user?.roles?.includes(requiredRole);
         logAuthDiagnostic('session', { requestId, route: '/api/v1/session', authenticationSucceeded: allowed, statusCode: status, redirectTarget: currentPath });
+        if (allowed && body.user?.mustChangePassword) {
+          sessionStorage.setItem('sarex.pendingRole', requiredRole);
+          navigate('/change-password');
+          setAccessState('public');
+          return;
+        }
         setAccessState(allowed ? 'allowed' : 'denied');
       })
       .catch(error => { if (error.name !== 'AbortError') setAccessState('denied'); });
