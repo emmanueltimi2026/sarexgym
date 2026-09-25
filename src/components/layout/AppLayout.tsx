@@ -16,7 +16,6 @@ import {
   Shield,
   Settings,
   UserCheck,
-  TrendingUp,
   User,
   LogOut,
   Menu,
@@ -134,8 +133,7 @@ const AppLayoutFrame: React.FC<AppLayoutProps> = ({
         return [
           { label: 'Dashboard', path: '/trainer/dashboard', icon: LayoutDashboard },
           { label: 'My Members', path: '/trainer/members', icon: Users },
-          { label: 'Workout Plans', path: '/trainer/workout-plans', icon: Dumbbell },
-          { label: 'Member Progress', path: '/trainer/progress', icon: TrendingUp }
+          { label: 'Workout Plans', path: '/trainer/workout-plans', icon: Dumbbell }
         ];
       case 'member':
         return [
