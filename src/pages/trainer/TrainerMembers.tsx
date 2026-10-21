@@ -14,7 +14,7 @@ export const TrainerMembers: React.FC = () => {
   const { members, memberProgress, attendance, navigate, currentTrainer } = useGym();
   const [search, setSearch] = useState('');
   const [selectedMember, setSelectedMember] = useState<Member | null>(null);
-  const [progress, setProgress] = useState<{windowDays:number;plans:{id:string;title:string;completedExercises:number;activeDays:number;lastCompletedOn:string|null;lastCompletedAt:string|null;recentDays:{date:string;completedExercises:number}[]}[]}|null>(null);
+  const [progress, setProgress] = useState<{plans:{id:string;title:string;status:string;programStartedOn:string;currentWeek:{weekNumber:number;startDate:string;endDate:string;completedWorkouts:number;assignedWorkouts:number;percentage:number;isComplete:boolean;days:{dayId:string;dayName:string;status:string;completedAt:string|null}[]};history:{weekNumber:number;startDate:string;endDate:string;completedWorkouts:number;assignedWorkouts:number;percentage:number;days:{dayId:string;dayName:string;status:string;completedAt:string|null}[]}[];recentActivity:{workoutDayId:string;programWeekStart:string;completedAt:string}[]}[]}|null>(null);
   const [progressError, setProgressError] = useState('');
   const [progressLoading, setProgressLoading] = useState(false);
   const [progressRefresh, setProgressRefresh] = useState(0);
@@ -146,14 +146,22 @@ export const TrainerMembers: React.FC = () => {
           <div className="space-y-5 text-xs">
             {progressError && <div role="alert" className="flex items-center justify-between gap-3 rounded border border-red-200 bg-red-50 p-3 text-red-700"><span>{progressError}</span>{!progress && <button type="button" onClick={() => setProgressRefresh(value => value + 1)} className="rounded border border-red-300 bg-white px-2 py-1 font-bold">Retry</button>}</div>}
             <section>
-              <h3 className="mb-2 font-bold uppercase">Workout activity, last 30 days</h3>
+              <h3 className="mb-2 font-bold uppercase">Weekly workout adherence</h3>
               {!progress ? progressLoading ? <p className="text-gray-500">Loading activity...</p> : !progressError ? <p className="text-gray-500">No activity available.</p> : null : progress.plans.length ? (
                 <div className="space-y-2">
-                  {progress.plans.map(plan => <div key={plan.id} className="rounded border border-gray-200 p-3">
+                  {progress.plans.map(plan => <div key={plan.id} className="rounded border border-gray-200 p-3 sm:p-4">
                     <strong className="block text-sm">{plan.title}</strong>
-                    <span className="text-gray-600">{plan.activeDays} active days · {plan.completedExercises} exercises completed</span>
-                    <span className="mt-1 block text-gray-500">Last activity: {plan.lastCompletedAt ? formatAppDateTime(plan.lastCompletedAt) : plan.lastCompletedOn ? formatAppDate(plan.lastCompletedOn) : 'None recorded'}</span>
-                    {plan.recentDays.length > 0 && <div className="mt-2 flex flex-wrap gap-1.5">{plan.recentDays.slice(0, 10).map(day => <span key={day.date} className="rounded border border-gray-200 bg-gray-50 px-2 py-1 text-gray-600">{formatAppDate(day.date)}: {day.completedExercises}</span>)}</div>}
+                    <div className="mt-2 flex flex-wrap items-center justify-between gap-2 rounded bg-gray-50 p-3">
+                      <div><span className="block text-[10px] font-bold uppercase tracking-wide text-gray-500">This week · Week {plan.currentWeek.weekNumber}</span><strong className="mt-1 block text-sm">{plan.currentWeek.completedWorkouts} / {plan.currentWeek.assignedWorkouts} workouts</strong><span className="text-gray-500">{formatAppDate(plan.currentWeek.startDate)} – {formatAppDate(plan.currentWeek.endDate)}</span></div>
+                      <strong className="text-xl text-[#EF1B23]">{plan.currentWeek.percentage}%</strong>
+                    </div>
+                    {plan.currentWeek.isComplete && <p className="mt-2 text-emerald-700">Weekly training completed</p>}
+                    <h4 className="mt-4 font-bold uppercase text-gray-600">Completion history</h4>
+                    <div className="mt-2 max-h-64 space-y-2 overflow-y-auto">{plan.history.slice(0, 12).map(week => <div key={week.weekNumber} className="rounded border border-gray-100 p-2.5">
+                      <div className="flex items-center justify-between gap-2"><span className="font-semibold">Week {week.weekNumber} · {formatAppDate(week.startDate)} – {formatAppDate(week.endDate)}</span><span className="font-bold">{week.completedWorkouts}/{week.assignedWorkouts} · {week.percentage}%</span></div>
+                      <div className="mt-2 flex flex-wrap gap-1.5">{week.days.map(day => <span key={day.dayId} className={`rounded border px-2 py-1 ${day.status==='completed'?'border-emerald-200 bg-emerald-50 text-emerald-800':day.status==='available'?'border-blue-100 bg-blue-50 text-blue-800':'border-gray-200 bg-gray-50 text-gray-600'}`}>{day.dayName}: {day.status==='completed'?'Completed':day.status==='available'?'Not completed yet':'Missed'}{day.completedAt?` · ${formatAppDateTime(day.completedAt)}`:''}</span>)}</div>
+                    </div>)}</div>
+                    {plan.recentActivity.length > 0 && <><h4 className="mt-4 font-bold uppercase text-gray-600">Recent completions</h4><ul className="mt-1 space-y-1 text-gray-600">{plan.recentActivity.slice(0,5).map((activity,index)=><li key={`${activity.completedAt}-${index}`}>Week of {formatAppDate(activity.programWeekStart)} · {formatAppDateTime(activity.completedAt)}</li>)}</ul></>}
                   </div>)}
                 </div>
               ) : <p className="text-gray-500">No program has been assigned.</p>}

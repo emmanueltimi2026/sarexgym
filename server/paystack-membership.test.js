@@ -4,6 +4,8 @@ import { readFile } from 'node:fs/promises';
 import { finalizePaystackMembershipPayment } from './paystack-membership.js';
 import { createPaidSubscriptionPeriod } from './subscriptions.js';
 
+const addDays = (date, days) => { const result = new Date(date); result.setUTCDate(result.getUTCDate() + days); return result; };
+
 test('different-plan Paystack renewal confirms after creating a scheduled subscription', async () => {
   const db = fakePaystackDb({ orderPlanId: 'premium-plan', currentPlanId: 'standard-plan' });
 
@@ -24,7 +26,7 @@ test('different-plan Paystack renewal confirms after creating a scheduled subscr
   assert.equal(db.activeSubscription.plan_id, 'standard-plan');
   assert.equal(db.createdPayment.status, 'successful');
   assert.equal(db.createdPayment.subscription_id, db.createdSubscription.id);
-  assert.equal(db.createdSubscription.starts_at.toISOString(), '2026-10-18T00:00:00.000Z');
+  assert.equal(db.createdSubscription.starts_at.toISOString(), db.activeSubscription.ends_at.toISOString());
 });
 
 test('same-plan Paystack renewal still confirms successfully', async () => {
@@ -48,6 +50,8 @@ test('same-plan Paystack renewal still confirms successfully', async () => {
 });
 
 test('Paystack membership purchase queues after existing scheduled subscriptions', async () => {
+  const queuedStart = addDays(new Date(), 30);
+  const queuedEnd = addDays(queuedStart, 30);
   const db = fakePaystackDb({
     orderPlanId: 'premium-plan',
     currentPlanId: 'standard-plan',
@@ -56,8 +60,8 @@ test('Paystack membership purchase queues after existing scheduled subscriptions
       member_id: 'member-1',
       plan_id: 'foundation-plan',
       status: 'scheduled',
-      starts_at: new Date('2026-10-18T00:00:00.000Z'),
-      ends_at: new Date('2026-11-17T00:00:00.000Z')
+      starts_at: queuedStart,
+      ends_at: queuedEnd
     }
   });
 
@@ -71,8 +75,8 @@ test('Paystack membership purchase queues after existing scheduled subscriptions
     memberId: 'member-1'
   });
 
-  assert.equal(db.createdSubscription.starts_at.toISOString(), '2026-11-17T00:00:00.000Z');
-  assert.equal(db.createdSubscription.ends_at.toISOString(), '2026-12-17T00:00:00.000Z');
+  assert.equal(db.createdSubscription.starts_at.toISOString(), queuedEnd.toISOString());
+  assert.equal(db.createdSubscription.ends_at.toISOString(), addDays(queuedEnd, 30).toISOString());
 });
 
 test('trainer assignment requests are sent to active staff after payment', async () => {
@@ -177,8 +181,8 @@ function fakePaystackDb({ orderPlanId, currentPlanId, latestQueued = null, train
       member_id: 'member-1',
       plan_id: currentPlanId,
       status: 'active',
-      starts_at: new Date('2026-09-18T00:00:00.000Z'),
-      ends_at: new Date('2026-10-18T00:00:00.000Z')
+      starts_at: addDays(new Date(), -12),
+      ends_at: addDays(new Date(), 18)
     } : null,
     pendingSubscription: pendingPlanId ? { id: 'signup-pending', member_id: 'member-1', plan_id: pendingPlanId, status: 'pending', starts_at: new Date('2026-09-18T00:00:00.000Z'), ends_at: new Date('2026-10-18T00:00:00.000Z') } : null,
     createdSubscription: null,

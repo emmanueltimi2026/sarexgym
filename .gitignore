@@ -80,3 +80,4 @@ server\workout-edit-http.test.js
 server\workout-progress-http.test.js
 server\workout-progress.test.js
 server\workout-routine.test.js
+server\workout-cycles.test.js
