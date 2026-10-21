@@ -31,7 +31,8 @@ export const StaffMembers: React.FC = () => {
 
 
   useEffect(() => setPage(1), [searchQuery, statusFilter]);
-  const visibleMembers = filteredMembers.slice((page - 1) * pageSize, page * pageSize);
+  const currentPage = Math.min(page, Math.max(1, Math.ceil(filteredMembers.length / pageSize)));
+  const visibleMembers = filteredMembers.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
   return (
     <AppLayout
@@ -143,7 +144,7 @@ export const StaffMembers: React.FC = () => {
             </tbody>
           </table>
         </div>
-        <Pagination page={page} pageSize={pageSize} total={filteredMembers.length} onPageChange={setPage} />
+        <Pagination page={currentPage} pageSize={pageSize} total={filteredMembers.length} onPageChange={setPage} />
       </div>
 
     </AppLayout>

@@ -52,7 +52,8 @@ export const AdminAttendance: React.FC = () => {
     return matchesSearch && matchesStatus;
   });
   useEffect(() => setPage(1), [search, statusFilter]);
-  const visibleAttendance = filtered.slice((page - 1) * pageSize, page * pageSize);
+  const currentPage = Math.min(page, Math.max(1, Math.ceil(filtered.length / pageSize)));
+  const visibleAttendance = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
   return (
     <AppLayout
@@ -167,7 +168,7 @@ export const AdminAttendance: React.FC = () => {
             </tbody>
           </table>
         </div>
-        <Pagination page={page} pageSize={pageSize} total={filtered.length} onPageChange={setPage} />
+        <Pagination page={currentPage} pageSize={pageSize} total={filtered.length} onPageChange={setPage} />
       </div>
     </AppLayout>
   );

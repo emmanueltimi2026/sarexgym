@@ -36,7 +36,8 @@ export const AdminMembers: React.FC = () => {
     return matchesSearch && matchesStatus && matchesPlan;
   });
   useEffect(() => setPage(1), [search, statusFilter, planFilter]);
-  const visibleMembers = filteredMembers.slice((page - 1) * pageSize, page * pageSize);
+  const currentPage = Math.min(page, Math.max(1, Math.ceil(filteredMembers.length / pageSize)));
+  const visibleMembers = filteredMembers.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
   const handleEditSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -178,7 +179,7 @@ export const AdminMembers: React.FC = () => {
             </tbody>
           </table>
         </div>
-        <Pagination page={page} pageSize={pageSize} total={filteredMembers.length} onPageChange={setPage} />
+        <Pagination page={currentPage} pageSize={pageSize} total={filteredMembers.length} onPageChange={setPage} />
       </div>
 
       

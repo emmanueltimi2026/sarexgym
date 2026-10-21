@@ -24,7 +24,8 @@ export const StaffAttendance: React.FC = () => {
     return matchesSearch && matchesStatus;
   });
   useEffect(() => setPage(1), [search, statusFilter]);
-  const visibleLogs = filteredLogs.slice((page - 1) * pageSize, page * pageSize);
+  const currentPage = Math.min(page, Math.max(1, Math.ceil(filteredLogs.length / pageSize)));
+  const visibleLogs = filteredLogs.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
   return (
     <AppLayout
@@ -138,7 +139,7 @@ export const StaffAttendance: React.FC = () => {
             </tbody>
           </table>
         </div>
-        <Pagination page={page} pageSize={pageSize} total={filteredLogs.length} onPageChange={setPage} />
+        <Pagination page={currentPage} pageSize={pageSize} total={filteredLogs.length} onPageChange={setPage} />
       </div>
     </AppLayout>
   );

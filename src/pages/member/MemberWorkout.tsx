@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useGym } from '../../context/GymContext';
 import { AppLayout } from '../../components/layout/AppLayout';
-import { Dumbbell, CheckCircle2, Clock, CalendarDays, UserRound, ChevronDown, ListChecks, Layers3, History } from 'lucide-react';
+import { Dumbbell, CheckCircle2, Clock, CalendarDays, UserRound, ChevronDown, ChevronLeft, ChevronRight, ListChecks, Layers3, History } from 'lucide-react';
 import { apiUrl } from '../../lib/secureFetch';
 import { formatAppDate, formatAppDateTime } from '../../utils/dateTime';
 
@@ -22,6 +22,7 @@ export const MemberWorkout: React.FC = () => {
   const [completionError, setCompletionError] = useState('');
   const [savingDay, setSavingDay] = useState<number | null>(null);
   const [expandedExercise, setExpandedExercise] = useState<string | null>(null);
+  const [historyPage, setHistoryPage] = useState(1);
   const routines = currentPlan?.routine || [];
   const activeRoutine = routines[activeDayIndex] || routines[0] || null;
   const activeDayProgress = cycle?.currentWeek.days.find(day => day.dayIndex === activeDayIndex);
@@ -47,6 +48,7 @@ export const MemberWorkout: React.FC = () => {
   useEffect(() => {
     setActiveDayIndex(0);
     setExpandedExercise(null);
+    setHistoryPage(1);
     setCycle(null);
     const controller = new AbortController();
     void loadProgress(controller.signal);
@@ -81,6 +83,10 @@ export const MemberWorkout: React.FC = () => {
   const exerciseCount = activeRoutine?.exercises.length || 0;
   const prescribedSets = activeRoutine?.exercises.reduce((total, exercise) => total + exercise.sets, 0) || 0;
   const week = cycle?.currentWeek;
+  const historyPageSize = 5;
+  const historyPages = Math.max(1, Math.ceil((cycle?.history.length || 0) / historyPageSize));
+  const currentHistoryPage = Math.min(historyPage, historyPages);
+  const visibleHistory = cycle?.history.slice((currentHistoryPage - 1) * historyPageSize, currentHistoryPage * historyPageSize) || [];
 
   if (!currentMember.workoutPlanEnabled) return <AppLayout pageTitle="Workout Plan" pageSubtitle="Trainer-guided routines are available as an optional membership service.">
     <div className="rounded-lg border border-gray-200 bg-white p-8 text-center"><Dumbbell className="mx-auto h-10 w-10 text-gray-300"/><h2 className="mt-4 text-lg font-black">Workout plan support is not active</h2><p className="mx-auto mt-2 max-w-md text-sm leading-6 text-gray-500">Contact the SAREX team if you would like a trainer to create routines and track your progress.</p></div>
@@ -152,7 +158,15 @@ export const MemberWorkout: React.FC = () => {
       </div>
       {cycle && cycle.history.length > 0 && <section className="mt-5 rounded-lg border border-gray-200 bg-white p-4 sm:p-5">
         <div className="mb-4 flex items-center gap-2"><History className="h-4 w-4 text-[#EF1B23]"/><h3 className="text-sm font-bold text-[#111111]">Workout history</h3></div>
-        <div className="space-y-3">{cycle.history.map(item => <article key={item.weekNumber} className="rounded border border-gray-100 bg-gray-50 p-3 sm:p-4"><div className="flex flex-wrap items-center justify-between gap-2"><div><strong className="text-sm">Week {item.weekNumber}</strong><p className="mt-0.5 text-xs text-gray-500">{formatAppDate(item.startDate)} – {formatAppDate(item.endDate)}</p></div><div className="text-right"><strong className="text-sm">{item.completedWorkouts} / {item.assignedWorkouts}</strong><span className="ml-2 text-xs font-bold text-[#EF1B23]">{item.percentage}%</span></div></div><div className="mt-3 flex flex-wrap gap-2">{item.days.map(day => <span key={day.dayId} className={`rounded border px-2.5 py-1.5 text-[11px] ${day.status === 'completed' ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : day.status === 'missed' ? 'border-gray-200 bg-white text-gray-500' : 'border-blue-100 bg-blue-50 text-blue-800'}`}><strong>{day.dayName}</strong> · {day.status === 'completed' ? `Completed${day.completedAt ? ` ${formatAppDate(day.completedAt)}` : ''}` : day.status === 'missed' ? 'Not completed' : 'Available'}</span>)}</div></article>)}</div>
+        <div className="space-y-3">{visibleHistory.map(item => <article key={item.weekNumber} className="rounded border border-gray-100 bg-gray-50 p-3 sm:p-4"><div className="flex flex-wrap items-center justify-between gap-2"><div><strong className="text-sm">Week {item.weekNumber}</strong><p className="mt-0.5 text-xs text-gray-500">{formatAppDate(item.startDate)} – {formatAppDate(item.endDate)}</p></div><div className="text-right"><strong className="text-sm">{item.completedWorkouts} / {item.assignedWorkouts}</strong><span className="ml-2 text-xs font-bold text-[#EF1B23]">{item.percentage}%</span></div></div><div className="mt-3 flex flex-wrap gap-2">{item.days.map(day => <span key={day.dayId} className={`rounded border px-2.5 py-1.5 text-[11px] ${day.status === 'completed' ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : day.status === 'missed' ? 'border-gray-200 bg-white text-gray-500' : 'border-blue-100 bg-blue-50 text-blue-800'}`}><strong>{day.dayName}</strong> · {day.status === 'completed' ? `Completed${day.completedAt ? ` ${formatAppDate(day.completedAt)}` : ''}` : day.status === 'missed' ? 'Not completed' : 'Available'}</span>)}</div></article>)}</div>
+        {historyPages > 1 && <nav aria-label="Workout history pages" className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-gray-100 pt-3">
+          <span className="text-xs text-gray-500">Showing {(currentHistoryPage - 1) * historyPageSize + 1}–{Math.min(currentHistoryPage * historyPageSize, cycle.history.length)} of {cycle.history.length} weeks</span>
+          <div className="flex items-center gap-2">
+            <button type="button" onClick={() => setHistoryPage(page => Math.max(1, page - 1))} disabled={currentHistoryPage === 1} className="inline-flex min-h-9 items-center gap-1 rounded border border-gray-200 px-3 text-xs font-semibold text-gray-700 hover:border-gray-400 disabled:cursor-not-allowed disabled:opacity-40"><ChevronLeft className="h-4 w-4"/>Previous</button>
+            <span aria-live="polite" className="min-w-14 text-center text-xs font-semibold text-gray-600">{currentHistoryPage} / {historyPages}</span>
+            <button type="button" onClick={() => setHistoryPage(page => Math.min(historyPages, page + 1))} disabled={currentHistoryPage === historyPages} className="inline-flex min-h-9 items-center gap-1 rounded border border-gray-200 px-3 text-xs font-semibold text-gray-700 hover:border-gray-400 disabled:cursor-not-allowed disabled:opacity-40">Next<ChevronRight className="h-4 w-4"/></button>
+          </div>
+        </nav>}
       </section>}
     </div>
   </AppLayout>;

@@ -68,7 +68,8 @@ export const AdminPayments: React.FC = () => {
     return matchesSearch && matchesMethod && matchesStatus;
   });
   useEffect(() => setPage(1), [search, methodFilter, statusFilter]);
-  const visiblePayments = filtered.slice((page - 1) * pageSize, page * pageSize);
+  const currentPage = Math.min(page, Math.max(1, Math.ceil(filtered.length / pageSize)));
+  const visiblePayments = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
   const selectedPaymentMember = members.find(member => member.id === paymentForm.memberId) || null;
   const selectedPaymentPlan = plans.find(plan => plan.id === paymentForm.planId) || null;
   const isDifferentPlanPayment = Boolean(selectedPaymentMember?.membershipStatus === 'Active' && selectedPaymentPlan && selectedPaymentPlan.id !== selectedPaymentMember.membershipPlanId);
@@ -222,7 +223,7 @@ export const AdminPayments: React.FC = () => {
             </tbody>
           </table>
         </div>
-        <Pagination page={page} pageSize={pageSize} total={filtered.length} onPageChange={setPage} />
+        <Pagination page={currentPage} pageSize={pageSize} total={filtered.length} onPageChange={setPage} />
       </div>
 
       
