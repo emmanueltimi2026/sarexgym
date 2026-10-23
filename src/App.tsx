@@ -8,6 +8,7 @@ import { PageTransition } from './components/public/PublicMotion';
 import { PortalLayoutHost } from './components/layout/AppLayout';
 import { logAuthDiagnostic } from './lib/authDiagnostics';
 import { apiUrl } from './lib/secureFetch';
+import { PwaExperience } from './components/pwa/PwaExperience';
 
 const lazyPage = (loader: () => Promise<Record<string, unknown>>, exportName: string) =>
   lazy(async () => ({ default: (await loader())[exportName] as React.ComponentType<any> }));
@@ -340,7 +341,9 @@ const AppRouter: React.FC = () => {
 export default function App() {
   return (
     <GymProvider>
-      <AppRouter />
+      <PwaExperience>
+        <AppRouter />
+      </PwaExperience>
     </GymProvider>
   );
 }

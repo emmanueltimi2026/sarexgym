@@ -3,7 +3,11 @@ import react from '@vitejs/plugin-react';
 import {defineConfig} from 'vite';
 
 export default defineConfig(() => {
+  const buildId = process.env.VERCEL_GIT_COMMIT_SHA || process.env.GITHUB_SHA || new Date().toISOString();
   return {
+    define: {
+      __SAREX_BUILD_ID__: JSON.stringify(buildId),
+    },
     plugins: [react(), tailwindcss()],
     server: {
       headers: {
