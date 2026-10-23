@@ -1,8 +1,9 @@
 /* Static-only offline support. API and navigation responses always go to the network. */
 const buildId = new URL(self.location.href).searchParams.get('build') || 'dev';
 const cachePrefix = 'sarex-static-';
+const offlineCachePrefix = 'sarex-offline-';
 const staticCacheName = `${cachePrefix}${buildId}`;
-const offlineCacheName = 'sarex-offline-v1';
+const offlineCacheName = `${offlineCachePrefix}${buildId}`;
 const offlineUrl = '/offline.html';
 const offlineAssets = [offlineUrl, '/icons/icon-192.png', '/icons/icon-512.png', '/manifest.webmanifest'];
 
@@ -12,13 +13,9 @@ self.addEventListener('install', (event) => {
 
 self.addEventListener('activate', (event) => {
   event.waitUntil(caches.keys().then(keys => Promise.all(keys
-    .filter(key => key.startsWith(cachePrefix) && key !== staticCacheName)
+    .filter(key => (key.startsWith(cachePrefix) && key !== staticCacheName)
+      || (key.startsWith(offlineCachePrefix) && key !== offlineCacheName))
     .map(key => caches.delete(key)))));
-  self.clients.claim();
-});
-
-self.addEventListener('message', (event) => {
-  if (event.data?.type === 'SKIP_WAITING') self.skipWaiting();
 });
 
 self.addEventListener('fetch', (event) => {

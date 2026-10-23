@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { RefreshCw, WifiOff } from 'lucide-react';
+import { WifiOff } from 'lucide-react';
 import { useGym } from '../../context/GymContext';
 import {
   INSTALL_DISMISSED_UNTIL_KEY,
@@ -41,10 +41,7 @@ export const PwaExperience: React.FC<React.PropsWithChildren> = ({ children }) =
   const [modalOpen, setModalOpen] = useState(false);
   const [isOffline, setIsOffline] = useState(!navigator.onLine);
   const [showOnlineNotice, setShowOnlineNotice] = useState(false);
-  const [updateReady, setUpdateReady] = useState(false);
-  const [registration, setRegistration] = useState<ServiceWorkerRegistration | null>(null);
   const [installVisible, setInstallVisible] = useState(false);
-  const activateUpdateRef = useRef(false);
   const onlineNoticeTimer = useRef<number | undefined>(undefined);
   const engagementTimer = useRef<number | undefined>(undefined);
 
@@ -72,22 +69,13 @@ export const PwaExperience: React.FC<React.PropsWithChildren> = ({ children }) =
     displayMode.addEventListener('change', onDisplayModeChange);
 
     let active = true;
+    let updateWhenVisible: (() => void) | undefined;
     if ('serviceWorker' in navigator) {
       const buildId = typeof __SAREX_BUILD_ID__ === 'string' ? __SAREX_BUILD_ID__ : 'dev';
       navigator.serviceWorker.register(`/service-worker.js?build=${encodeURIComponent(buildId)}`, { scope: '/' })
         .then((nextRegistration) => {
           if (!active) return;
-          setRegistration(nextRegistration);
-          if (nextRegistration.waiting && navigator.serviceWorker.controller) setUpdateReady(true);
-
-          nextRegistration.addEventListener('updatefound', () => {
-            const installing = nextRegistration.installing;
-            installing?.addEventListener('statechange', () => {
-              if (installing.state === 'installed' && navigator.serviceWorker.controller) setUpdateReady(true);
-            });
-          });
-
-          const updateWhenVisible = () => {
+          updateWhenVisible = () => {
             if (document.visibilityState === 'visible') void nextRegistration.update().catch(() => undefined);
           };
           document.addEventListener('visibilitychange', updateWhenVisible);
@@ -96,17 +84,12 @@ export const PwaExperience: React.FC<React.PropsWithChildren> = ({ children }) =
         .catch(() => undefined);
     }
 
-    const onControllerChange = () => {
-      if (activateUpdateRef.current) window.location.reload();
-    };
-    navigator.serviceWorker?.addEventListener('controllerchange', onControllerChange);
-
     return () => {
       active = false;
+      if (updateWhenVisible) document.removeEventListener('visibilitychange', updateWhenVisible);
       window.removeEventListener('beforeinstallprompt', onBeforeInstallPrompt);
       window.removeEventListener('appinstalled', onAppInstalled);
       displayMode.removeEventListener('change', onDisplayModeChange);
-      navigator.serviceWorker?.removeEventListener('controllerchange', onControllerChange);
     };
   }, []);
 
@@ -195,13 +178,6 @@ export const PwaExperience: React.FC<React.PropsWithChildren> = ({ children }) =
     }
   }, [deferredPrompt, dismissInstall, installed]);
 
-  const activateUpdate = () => {
-    const waitingWorker = registration?.waiting;
-    if (!waitingWorker) return;
-    activateUpdateRef.current = true;
-    waitingWorker.postMessage({ type: 'SKIP_WAITING' });
-  };
-
   return (
     <>
       {children}
@@ -233,13 +209,6 @@ export const PwaExperience: React.FC<React.PropsWithChildren> = ({ children }) =
               <button type="button" onClick={() => void install()} className="rounded-lg bg-[#EF1B23] px-3 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-red-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#151515]">Install</button>
             </div>
           )}
-        </aside>
-      )}
-      {updateReady && (
-        <aside role="status" className="fixed inset-x-3 bottom-3 z-[95] mx-auto flex max-w-lg items-center gap-3 rounded-2xl border border-gray-200 bg-white p-4 text-[#151515] shadow-2xl sm:inset-x-auto sm:bottom-5 sm:right-5">
-          <RefreshCw className="h-5 w-5 shrink-0 text-[#EF1B23]" aria-hidden="true" />
-          <div className="min-w-0 flex-1"><p className="font-bold">A new version is ready</p><p className="text-xs text-gray-600">Update SAREX when you’re ready.</p></div>
-          <button type="button" onClick={activateUpdate} className="rounded-lg bg-[#EF1B23] px-3 py-2 text-xs font-bold text-white hover:bg-red-700">Update</button>
         </aside>
       )}
     </>

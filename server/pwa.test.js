@@ -102,6 +102,37 @@ test('service worker caches same-origin static assets but does not cache navigat
   assert.equal([...worker.cacheData.values()].some(cache => cache.has(`${origin}/assets/app-hash.js`)), true);
 });
 
+test('new service worker waits for old controlled tabs and cleans only superseded SAREX caches on activation', async () => {
+  const worker = await loadWorker();
+  worker.cacheNames.add('sarex-static-old-build');
+  worker.cacheNames.add('sarex-offline-old-build');
+  worker.cacheNames.add('unrelated-cache');
+  worker.cacheData.set('sarex-static-old-build', new Map());
+  worker.cacheData.set('sarex-offline-old-build', new Map());
+  worker.cacheData.set('unrelated-cache', new Map());
+
+  let installPromise;
+  worker.listeners.get('install')({ waitUntil: promise => { installPromise = promise; } });
+  await installPromise;
+  assert.equal(worker.skippedWaiting, false, 'the new worker must not skip the browser waiting lifecycle');
+
+  let activationPromise;
+  worker.listeners.get('activate')({ waitUntil: promise => { activationPromise = promise; } });
+  await activationPromise;
+  assert.equal(worker.cacheNames.has('sarex-static-old-build'), false);
+  assert.equal(worker.cacheNames.has('sarex-offline-old-build'), false);
+  assert.equal(worker.cacheNames.has('sarex-offline-test-build'), true, 'the new build has its own refreshed offline asset cache');
+  assert.equal(worker.cacheNames.has('unrelated-cache'), true);
+});
+
+test('PWA update flow has no update toast, forced reload, or skip-waiting action', async () => {
+  const source = await readFile(new URL('src/components/pwa/PwaExperience.tsx', projectRoot), 'utf8');
+  const worker = await readFile(new URL('public/service-worker.js', projectRoot), 'utf8');
+  assert.doesNotMatch(source, /updateReady|Update SAREX|A new version is ready|location\.reload\(\)|SKIP_WAITING/);
+  assert.doesNotMatch(worker, /skipWaiting|clients\.claim/);
+  assert.match(source, /nextRegistration\.update\(\)/, 'the browser is asked to check and download updates quietly');
+});
+
 test('PWA manifest declares install icons and stable member shortcuts', async () => {
   const manifest = JSON.parse(await readFile(new URL('public/manifest.webmanifest', projectRoot), 'utf8'));
   assert.equal(manifest.name, 'SAREX Fitness Clinic');
