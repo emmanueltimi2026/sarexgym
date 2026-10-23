@@ -1,4 +1,4 @@
-/* Static-only offline support. API and navigation responses always go to the network. */
+/* Silent PWA updates. API and navigation responses always go to the network. */
 const buildId = new URL(self.location.href).searchParams.get('build') || 'dev';
 const cachePrefix = 'sarex-static-';
 const offlineCachePrefix = 'sarex-offline-';
@@ -8,14 +8,19 @@ const offlineUrl = '/offline.html';
 const offlineAssets = [offlineUrl, '/icons/icon-192.png', '/icons/icon-512.png', '/manifest.webmanifest'];
 
 self.addEventListener('install', (event) => {
-  event.waitUntil(caches.open(offlineCacheName).then(cache => cache.addAll(offlineAssets)));
+  event.waitUntil(Promise.all([
+    caches.open(offlineCacheName).then(cache => cache.addAll(offlineAssets)),
+    self.skipWaiting(),
+  ]));
 });
 
 self.addEventListener('activate', (event) => {
-  event.waitUntil(caches.keys().then(keys => Promise.all(keys
-    .filter(key => (key.startsWith(cachePrefix) && key !== staticCacheName)
-      || (key.startsWith(offlineCachePrefix) && key !== offlineCacheName))
-    .map(key => caches.delete(key)))));
+  event.waitUntil(caches.keys()
+    .then(keys => Promise.all(keys
+      .filter(key => (key.startsWith(cachePrefix) && key !== staticCacheName)
+        || (key.startsWith(offlineCachePrefix) && key !== offlineCacheName))
+      .map(key => caches.delete(key))))
+    .then(() => self.clients.claim()));
 });
 
 self.addEventListener('fetch', (event) => {

@@ -23,6 +23,7 @@ const loadWorker = async ({ fetchImpl = async () => new Response('network') } = 
   const cacheData = new Map();
   const cacheNames = new Set();
   let skippedWaiting = false;
+  let claimedClients = false;
 
   const keyFor = input => new URL(typeof input === 'string' ? input : input.url, origin).href;
   const cacheStorage = {
@@ -51,7 +52,7 @@ const loadWorker = async ({ fetchImpl = async () => new Response('network') } = 
 
   const self = {
     location: new URL(`${origin}/service-worker.js?build=test-build`),
-    clients: { claim: async () => undefined },
+    clients: { claim: async () => { claimedClients = true; } },
     addEventListener: (name, listener) => listeners.set(name, listener),
     skipWaiting: () => { skippedWaiting = true; },
   };
@@ -62,13 +63,15 @@ const loadWorker = async ({ fetchImpl = async () => new Response('network') } = 
     listeners.get('fetch')({ request, respondWith: promise => { responsePromise = Promise.resolve(promise); } });
     return responsePromise;
   };
-  return { cacheData, cacheNames, dispatchFetch, listeners, get skippedWaiting() { return skippedWaiting; } };
+  return { cacheData, cacheNames, dispatchFetch, listeners, get skippedWaiting() { return skippedWaiting; }, get claimedClients() { return claimedClients; } };
 };
 
 test('PWA service worker leaves same-origin API requests unintercepted', async () => {
   let networkRequests = 0;
   const worker = await loadWorker({ fetchImpl: async () => { networkRequests += 1; return new Response('live API'); } });
+  const apiRootResponse = await worker.dispatchFetch(new Request(`${origin}/api`));
   const response = await worker.dispatchFetch(new Request(`${origin}/api/v1/session`));
+  assert.equal(apiRootResponse, undefined, 'the API root is bypassed too');
   assert.equal(response, undefined, 'API calls are handled directly by the browser network stack');
   assert.equal(networkRequests, 0, 'the worker neither caches nor proxies API traffic');
   assert.equal(worker.cacheNames.size, 0);
@@ -102,7 +105,7 @@ test('service worker caches same-origin static assets but does not cache navigat
   assert.equal([...worker.cacheData.values()].some(cache => cache.has(`${origin}/assets/app-hash.js`)), true);
 });
 
-test('new service worker waits for old controlled tabs and cleans only superseded SAREX caches on activation', async () => {
+test('new service worker skips waiting, claims clients without reloading, and cleans superseded SAREX caches', async () => {
   const worker = await loadWorker();
   worker.cacheNames.add('sarex-static-old-build');
   worker.cacheNames.add('sarex-offline-old-build');
@@ -114,22 +117,24 @@ test('new service worker waits for old controlled tabs and cleans only supersede
   let installPromise;
   worker.listeners.get('install')({ waitUntil: promise => { installPromise = promise; } });
   await installPromise;
-  assert.equal(worker.skippedWaiting, false, 'the new worker must not skip the browser waiting lifecycle');
+  assert.equal(worker.skippedWaiting, true, 'the updated worker activates without waiting for a user action');
 
   let activationPromise;
   worker.listeners.get('activate')({ waitUntil: promise => { activationPromise = promise; } });
   await activationPromise;
+  assert.equal(worker.claimedClients, true, 'the updated worker takes control without a page reload');
   assert.equal(worker.cacheNames.has('sarex-static-old-build'), false);
   assert.equal(worker.cacheNames.has('sarex-offline-old-build'), false);
   assert.equal(worker.cacheNames.has('sarex-offline-test-build'), true, 'the new build has its own refreshed offline asset cache');
   assert.equal(worker.cacheNames.has('unrelated-cache'), true);
 });
 
-test('PWA update flow has no update toast, forced reload, or skip-waiting action', async () => {
+test('PWA update flow has no toast or forced reload and uses silent worker activation', async () => {
   const source = await readFile(new URL('src/components/pwa/PwaExperience.tsx', projectRoot), 'utf8');
   const worker = await readFile(new URL('public/service-worker.js', projectRoot), 'utf8');
-  assert.doesNotMatch(source, /updateReady|Update SAREX|A new version is ready|location\.reload\(\)|SKIP_WAITING/);
-  assert.doesNotMatch(worker, /skipWaiting|clients\.claim/);
+  assert.doesNotMatch(source, /updateReady|Update SAREX|A new version is ready|location\.reload\(\)|SKIP_WAITING|>\s*Update\s*</);
+  assert.match(worker, /self\.skipWaiting\(\)/, 'new worker activates automatically after installation');
+  assert.match(worker, /self\.clients\.claim\(\)/, 'new worker claims open tabs without reloading their documents');
   assert.match(source, /nextRegistration\.update\(\)/, 'the browser is asked to check and download updates quietly');
 });
 
