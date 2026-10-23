@@ -1,108 +1,74 @@
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
-import { Download, RefreshCw, Share, WifiOff, X } from 'lucide-react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { RefreshCw, WifiOff } from 'lucide-react';
+import { useGym } from '../../context/GymContext';
+import {
+  INSTALL_DISMISSED_UNTIL_KEY,
+  INSTALL_SUCCEEDED_KEY,
+  isStandaloneDisplayMode,
+  persistInstallDismissal,
+  persistInstallSuccess,
+  requestInstall,
+  shouldShowInstallToast,
+} from '../../lib/pwaInstall.js';
 
 type InstallPromptEvent = Event & {
   prompt: () => Promise<void>;
   userChoice: Promise<{ outcome: 'accepted' | 'dismissed'; platform: string }>;
 };
 
-type PwaContextValue = {
-  canInstall: boolean;
-  isIos: boolean;
-  installed: boolean;
-  openInstall: () => void;
-};
-
-const PwaContext = createContext<PwaContextValue | null>(null);
-const DISMISSED_UNTIL_KEY = 'sarex.pwa.install-dismissed-until';
-const LAST_VISIT_KEY = 'sarex.pwa.last-visit';
-const VISIT_COUNT_KEY = 'sarex.pwa.visit-count';
-const DISMISS_FOR_MS = 30 * 24 * 60 * 60 * 1000;
-
 const isIosDevice = () => /iPhone|iPad|iPod/i.test(navigator.userAgent)
   || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 
-const isStandaloneApp = () => window.matchMedia('(display-mode: standalone)').matches
-  || Boolean((navigator as Navigator & { standalone?: boolean }).standalone);
+const isStandaloneApp = () => isStandaloneDisplayMode(
+  window.matchMedia('(display-mode: standalone)').matches,
+  Boolean((navigator as Navigator & { standalone?: boolean }).standalone),
+);
 
-const dismissedForNow = () => {
-  try {
-    const dismissedUntil = Number(localStorage.getItem(DISMISSED_UNTIL_KEY) || 0);
-    return dismissedUntil > Date.now();
-  } catch {
-    return false;
-  }
+const getDismissedUntil = () => {
+  try { return localStorage.getItem(INSTALL_DISMISSED_UNTIL_KEY); } catch { return null; }
 };
 
-const recordVisitAndShouldNudge = () => {
-  try {
-    const now = Date.now();
-    const lastVisit = Number(localStorage.getItem(LAST_VISIT_KEY) || 0);
-    let visits = Number(localStorage.getItem(VISIT_COUNT_KEY) || 0);
-    if (!lastVisit || now - lastVisit >= 24 * 60 * 60 * 1000) {
-      visits += 1;
-      localStorage.setItem(VISIT_COUNT_KEY, String(visits));
-      localStorage.setItem(LAST_VISIT_KEY, String(now));
-    }
-    return visits >= 2;
-  } catch {
-    return false;
-  }
-};
-
-export const usePwaInstall = () => useContext(PwaContext);
-
-export const PwaInstallAction: React.FC<{ className?: string; onClick?: () => void }> = ({ className = '', onClick }) => {
-  const pwa = usePwaInstall();
-  if (!pwa || pwa.installed || (!pwa.canInstall && !pwa.isIos)) return null;
-
-  return (
-    <button type="button" onClick={() => { pwa.openInstall(); onClick?.(); }} className={className}>
-      <Download className="h-4 w-4" aria-hidden="true" />
-      <span>Install App</span>
-    </button>
-  );
+const isAlreadyInstalled = () => {
+  try { return localStorage.getItem(INSTALL_SUCCEEDED_KEY) === 'true'; } catch { return false; }
 };
 
 export const PwaExperience: React.FC<React.PropsWithChildren> = ({ children }) => {
+  const { currentPath } = useGym();
   const [deferredPrompt, setDeferredPrompt] = useState<InstallPromptEvent | null>(null);
   const [isIos, setIsIos] = useState(false);
   const [installed, setInstalled] = useState(false);
-  const [showInstallNudge, setShowInstallNudge] = useState(false);
-  const [showIosGuide, setShowIosGuide] = useState(false);
+  const [engaged, setEngaged] = useState(false);
+  const [modalOpen, setModalOpen] = useState(false);
   const [isOffline, setIsOffline] = useState(!navigator.onLine);
   const [showOnlineNotice, setShowOnlineNotice] = useState(false);
   const [updateReady, setUpdateReady] = useState(false);
   const [registration, setRegistration] = useState<ServiceWorkerRegistration | null>(null);
+  const [installVisible, setInstallVisible] = useState(false);
   const activateUpdateRef = useRef(false);
   const onlineNoticeTimer = useRef<number | undefined>(undefined);
+  const engagementTimer = useRef<number | undefined>(undefined);
 
   useEffect(() => {
     const appleDevice = isIosDevice();
     const standalone = isStandaloneApp();
-    const shouldNudge = recordVisitAndShouldNudge();
     setIsIos(appleDevice);
-    setInstalled(standalone);
-    setShowInstallNudge(!standalone && shouldNudge && !dismissedForNow());
+    setInstalled(standalone || isAlreadyInstalled());
 
     const onBeforeInstallPrompt = (event: Event) => {
       event.preventDefault();
-      const promptEvent = event as InstallPromptEvent;
-      setDeferredPrompt(promptEvent);
-      setInstalled(isStandaloneApp());
-      if (!isStandaloneApp() && !dismissedForNow() && shouldNudge) setShowInstallNudge(true);
+      setDeferredPrompt(event as InstallPromptEvent);
+      setInstalled(isStandaloneApp() || isAlreadyInstalled());
     };
     const onAppInstalled = () => {
       setInstalled(true);
       setDeferredPrompt(null);
-      setShowInstallNudge(false);
-      setShowIosGuide(false);
+      setInstallVisible(false);
+      persistInstallSuccess(localStorage);
     };
-    const onDisplayModeChange = () => setInstalled(isStandaloneApp());
-
+    const onDisplayModeChange = () => setInstalled(isStandaloneApp() || isAlreadyInstalled());
+    const displayMode = window.matchMedia('(display-mode: standalone)');
     window.addEventListener('beforeinstallprompt', onBeforeInstallPrompt);
     window.addEventListener('appinstalled', onAppInstalled);
-    const displayMode = window.matchMedia('(display-mode: standalone)');
     displayMode.addEventListener('change', onDisplayModeChange);
 
     let active = true;
@@ -144,6 +110,50 @@ export const PwaExperience: React.FC<React.PropsWithChildren> = ({ children }) =
     };
   }, []);
 
+  // A successful sign-in is a meaningful point to offer installation. Public visitors
+  // qualify after a short period of visible use and an intentional interaction.
+  useEffect(() => {
+    const qualifyAfterEngagement = () => {
+      window.clearTimeout(engagementTimer.current);
+      if (document.visibilityState !== 'visible') return;
+      engagementTimer.current = window.setTimeout(() => setEngaged(true), 12_000);
+    };
+    const onSessionChanged = () => setEngaged(true);
+    document.addEventListener('pointerdown', qualifyAfterEngagement, { passive: true });
+    document.addEventListener('keydown', qualifyAfterEngagement);
+    document.addEventListener('visibilitychange', qualifyAfterEngagement);
+    window.addEventListener('sarex:session-changed', onSessionChanged);
+    return () => {
+      window.clearTimeout(engagementTimer.current);
+      document.removeEventListener('pointerdown', qualifyAfterEngagement);
+      document.removeEventListener('keydown', qualifyAfterEngagement);
+      document.removeEventListener('visibilitychange', qualifyAfterEngagement);
+      window.removeEventListener('sarex:session-changed', onSessionChanged);
+    };
+  }, []);
+
+  useEffect(() => {
+    const hasModal = () => setModalOpen(Boolean(document.querySelector('[aria-modal="true"]')));
+    hasModal();
+    const observer = new MutationObserver(hasModal);
+    observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['aria-modal'] });
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    const available = isIos || Boolean(deferredPrompt);
+    const nextVisible = shouldShowInstallToast({
+      available,
+      installed,
+      standalone: isStandaloneApp(),
+      dismissedUntil: getDismissedUntil(),
+      route: currentPath,
+      modalOpen,
+      engaged,
+    });
+    setInstallVisible(nextVisible);
+  }, [currentPath, deferredPrompt, engaged, installed, isIos, modalOpen]);
+
   useEffect(() => {
     const onOffline = () => {
       setIsOffline(true);
@@ -164,25 +174,26 @@ export const PwaExperience: React.FC<React.PropsWithChildren> = ({ children }) =
     };
   }, []);
 
-  const dismissNudge = useCallback(() => {
-    setShowInstallNudge(false);
-    try { localStorage.setItem(DISMISSED_UNTIL_KEY, String(Date.now() + DISMISS_FOR_MS)); } catch { /* Storage can be disabled. */ }
+  const dismissInstall = useCallback(() => {
+    setInstallVisible(false);
+    persistInstallDismissal(localStorage);
   }, []);
 
-  const openInstall = useCallback(() => {
-    if (installed) return;
-    if (isIos) {
-      setShowIosGuide(true);
-      return;
+  const install = useCallback(async () => {
+    if (installed || !deferredPrompt) return;
+    const promptEvent = deferredPrompt;
+    setDeferredPrompt(null);
+    try {
+      const choice = await requestInstall(promptEvent);
+      if (choice?.outcome === 'accepted') {
+        setInstallVisible(false);
+      } else if (choice?.outcome === 'dismissed') {
+        dismissInstall();
+      }
+    } catch {
+      // The browser owns the native prompt; keep the page usable if it rejects.
     }
-    if (!deferredPrompt) return;
-    void deferredPrompt.prompt().then(async () => {
-      const choice = await deferredPrompt.userChoice;
-      if (choice.outcome === 'accepted') setShowInstallNudge(false);
-      else dismissNudge();
-      setDeferredPrompt(null);
-    }).catch(() => setDeferredPrompt(null));
-  }, [deferredPrompt, dismissNudge, installed, isIos]);
+  }, [deferredPrompt, dismissInstall, installed]);
 
   const activateUpdate = () => {
     const waitingWorker = registration?.waiting;
@@ -191,15 +202,8 @@ export const PwaExperience: React.FC<React.PropsWithChildren> = ({ children }) =
     waitingWorker.postMessage({ type: 'SKIP_WAITING' });
   };
 
-  const closeIosGuide = () => {
-    setShowIosGuide(false);
-    dismissNudge();
-  };
-
-  const contextValue = useMemo(() => ({ canInstall: Boolean(deferredPrompt), isIos, installed, openInstall }), [deferredPrompt, isIos, installed, openInstall]);
-
   return (
-    <PwaContext.Provider value={contextValue}>
+    <>
       {children}
       {isOffline && (
         <div role="status" className="fixed inset-x-3 bottom-3 z-[100] mx-auto flex max-w-md items-center gap-3 rounded-xl border border-white/10 bg-[#151515] px-4 py-3 text-sm text-white shadow-2xl sm:inset-x-auto sm:left-4 sm:mx-0">
@@ -212,17 +216,23 @@ export const PwaExperience: React.FC<React.PropsWithChildren> = ({ children }) =
           <span className="h-2 w-2 rounded-full bg-white" aria-hidden="true" /> Back online
         </div>
       )}
-      {showInstallNudge && !installed && (
-        <aside aria-label="Install SAREX" className="fixed inset-x-3 bottom-16 z-[90] mx-auto flex max-w-lg items-center gap-3 rounded-2xl border border-gray-200 bg-white p-4 text-[#151515] shadow-2xl sm:inset-x-auto sm:bottom-5 sm:right-5">
-          <img src="/icons/icon-192.png" width="44" height="44" alt="" className="h-11 w-11 rounded-xl" />
+      {installVisible && !installed && (
+        <aside role="status" aria-live="polite" aria-label="SAREX installation option" className="fixed inset-x-3 bottom-4 z-[90] mx-auto flex max-w-md items-center gap-3 rounded-2xl border border-gray-200/90 bg-white/95 p-3.5 text-[#151515] shadow-[0_14px_45px_rgba(17,17,17,.18)] backdrop-blur-md sm:inset-x-auto sm:bottom-5 sm:right-5 sm:w-[390px]">
+          <img src="/icons/icon-192.png" width="42" height="42" alt="" className="h-10 w-10 shrink-0 rounded-xl shadow-sm" />
           <div className="min-w-0 flex-1">
-            <p className="font-bold">Install SAREX</p>
-            <p className="mt-0.5 text-xs text-gray-600">Quick access to your membership and workouts.</p>
+            <p className="text-sm font-extrabold">SAREX Fitness</p>
+            <p className="mt-0.5 text-xs leading-relaxed text-gray-600">
+              {isIos ? 'Add SAREX to your Home Screen. Tap the Share button, then choose “Add to Home Screen”.' : 'Add SAREX to your Home Screen for faster access to your membership, workouts and QR check-in.'}
+            </p>
           </div>
-          <button type="button" onClick={openInstall} className="rounded-lg bg-[#EF1B23] px-3 py-2 text-xs font-bold text-white hover:bg-red-700">
-            {isIos ? 'How to install' : 'Install App'}
-          </button>
-          <button type="button" onClick={dismissNudge} aria-label="Not now" className="rounded-full p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-900"><X className="h-4 w-4" /></button>
+          {isIos ? (
+            <button type="button" onClick={dismissInstall} className="shrink-0 rounded-lg bg-[#151515] px-3 py-2 text-xs font-bold text-white transition hover:bg-black focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#EF1B23]">Got it</button>
+          ) : (
+            <div className="flex shrink-0 flex-col-reverse items-end gap-1 sm:flex-row sm:items-center sm:gap-2">
+              <button type="button" onClick={dismissInstall} className="rounded-md px-2 py-1.5 text-xs font-semibold text-gray-500 transition hover:bg-gray-100 hover:text-gray-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#EF1B23]">Not now</button>
+              <button type="button" onClick={() => void install()} className="rounded-lg bg-[#EF1B23] px-3 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-red-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#151515]">Install</button>
+            </div>
+          )}
         </aside>
       )}
       {updateReady && (
@@ -232,23 +242,6 @@ export const PwaExperience: React.FC<React.PropsWithChildren> = ({ children }) =
           <button type="button" onClick={activateUpdate} className="rounded-lg bg-[#EF1B23] px-3 py-2 text-xs font-bold text-white hover:bg-red-700">Update</button>
         </aside>
       )}
-      {showIosGuide && (
-        <div className="fixed inset-0 z-[110] flex items-end justify-center bg-black/60 p-3 backdrop-blur-sm sm:items-center" onMouseDown={event => { if (event.target === event.currentTarget) closeIosGuide(); }}>
-          <section role="dialog" aria-modal="true" aria-labelledby="ios-install-title" className="w-full max-w-md rounded-3xl bg-white p-6 text-[#151515] shadow-2xl sm:p-7">
-            <div className="flex items-start justify-between gap-4">
-              <div><p className="text-xs font-bold uppercase tracking-[.18em] text-[#EF1B23]">SAREX Fitness Clinic</p><h2 id="ios-install-title" className="mt-2 text-xl font-extrabold">Install SAREX on your iPhone</h2></div>
-              <button type="button" aria-label="Close installation instructions" onClick={closeIosGuide} className="rounded-full p-2 text-gray-500 hover:bg-gray-100"><X className="h-5 w-5" /></button>
-            </div>
-            <ol className="mt-6 space-y-4 text-sm text-gray-700">
-              <li className="flex items-center gap-3"><span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-red-50 text-[#EF1B23]"><Share className="h-4 w-4" /></span><span>In Safari, tap the <strong>Share</strong> button.</span></li>
-              <li className="flex items-center gap-3"><span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-red-50 text-[#EF1B23]"><span className="text-xs font-black">2</span></span><span>Choose <strong>Add to Home Screen</strong>.</span></li>
-              <li className="flex items-center gap-3"><span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-red-50 text-[#EF1B23]"><span className="text-xs font-black">3</span></span><span>Tap <strong>Add</strong> to finish.</span></li>
-            </ol>
-            <p className="mt-5 rounded-xl bg-gray-50 p-3 text-xs leading-relaxed text-gray-600">iPhone and iPad installation is completed from the browser share menu. This app can’t open that menu automatically.</p>
-            <button type="button" onClick={closeIosGuide} className="mt-5 w-full rounded-xl bg-[#EF1B23] px-4 py-3 text-sm font-bold text-white hover:bg-red-700">Got it</button>
-          </section>
-        </div>
-      )}
-    </PwaContext.Provider>
+    </>
   );
 };

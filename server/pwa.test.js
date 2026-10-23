@@ -3,6 +3,16 @@ import { readFile } from 'node:fs/promises';
 import { stat } from 'node:fs/promises';
 import { runInNewContext } from 'node:vm';
 import test from 'node:test';
+import {
+  INSTALL_DISMISS_FOR_MS,
+  INSTALL_DISMISSED_UNTIL_KEY,
+  INSTALL_SUCCEEDED_KEY,
+  isStandaloneDisplayMode,
+  persistInstallDismissal,
+  persistInstallSuccess,
+  requestInstall,
+  shouldShowInstallToast,
+} from '../src/lib/pwaInstall.js';
 
 const projectRoot = new URL('../', import.meta.url);
 const origin = 'https://sarex.test';
@@ -116,4 +126,66 @@ test('PWA install assets exist and Vercel serves worker updates without stale ca
     && entry.headers.some(header => header.key === 'Cache-Control' && header.value.includes('no-store'))));
   assert.ok(vercel.rewrites[1].source.includes('service-worker'));
   assert.ok(await stat(new URL('public/offline.html', projectRoot)));
+});
+
+const installToastArgs = overrides => ({
+  available: true,
+  installed: false,
+  standalone: false,
+  dismissedUntil: 0,
+  now: 1_000,
+  route: '/member/dashboard',
+  modalOpen: false,
+  engaged: true,
+  ...overrides,
+});
+
+test('install toast appears when a browser install prompt is available after engagement', () => {
+  assert.equal(shouldShowInstallToast(installToastArgs({ available: true })), true);
+  assert.equal(shouldShowInstallToast(installToastArgs({ engaged: false })), false);
+});
+
+test('Install invokes the saved browser prompt from the button action and returns its choice', async () => {
+  let calls = 0;
+  const promptEvent = {
+    prompt: async () => { calls += 1; },
+    userChoice: Promise.resolve({ outcome: 'accepted', platform: 'web' }),
+  };
+  assert.deepEqual(await requestInstall(promptEvent), { outcome: 'accepted', platform: 'web' });
+  assert.equal(calls, 1);
+  assert.equal(await requestInstall(null), null);
+});
+
+test('dismissal persists for fourteen days and suppresses the toast until expiry', () => {
+  const now = 10_000;
+  const values = new Map();
+  persistInstallDismissal({ setItem: (key, value) => values.set(key, value) }, now);
+  const dismissedUntil = Number(values.get(INSTALL_DISMISSED_UNTIL_KEY));
+  assert.equal(dismissedUntil, now + INSTALL_DISMISS_FOR_MS);
+  assert.equal(shouldShowInstallToast(installToastArgs({ now, dismissedUntil })), false);
+  assert.equal(shouldShowInstallToast(installToastArgs({ now: dismissedUntil + 1, dismissedUntil })), true);
+  assert.equal(INSTALL_DISMISSED_UNTIL_KEY, 'sarex.pwa.install-dismissed-until');
+});
+
+test('standalone, installed, modal, and critical check-in or payment flows suppress install UI', () => {
+  assert.equal(isStandaloneDisplayMode(true), true);
+  assert.equal(isStandaloneDisplayMode(false, true), true);
+  assert.equal(shouldShowInstallToast(installToastArgs({ standalone: true })), false);
+  assert.equal(shouldShowInstallToast(installToastArgs({ installed: true })), false);
+  assert.equal(shouldShowInstallToast(installToastArgs({ modalOpen: true })), false);
+  assert.equal(shouldShowInstallToast(installToastArgs({ route: '/member/check-in' })), false);
+  assert.equal(shouldShowInstallToast(installToastArgs({ route: '/checkout/secure' })), false);
+  assert.equal(shouldShowInstallToast(installToastArgs({ route: '/payment/checkout' })), false);
+});
+
+test('iOS can show Home Screen guidance without a native browser prompt', () => {
+  assert.equal(shouldShowInstallToast(installToastArgs({ available: true })), true);
+  assert.equal(shouldShowInstallToast(installToastArgs({ available: false })), false);
+});
+
+test('appinstalled success is persisted so later visits remain suppressed', () => {
+  const values = new Map();
+  persistInstallSuccess({ setItem: (key, value) => values.set(key, value) });
+  assert.equal(values.get(INSTALL_SUCCEEDED_KEY), 'true');
+  assert.equal(shouldShowInstallToast(installToastArgs({ installed: values.get(INSTALL_SUCCEEDED_KEY) === 'true' })), false);
 });

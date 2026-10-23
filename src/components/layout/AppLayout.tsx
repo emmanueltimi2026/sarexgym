@@ -6,7 +6,6 @@ import { preloadPortalRoute } from '../../lib/preloadPortalRoute';
 import { apiUrl } from '../../lib/secureFetch';
 import { formatAppDateTime } from '../../utils/dateTime';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
-import { PwaInstallAction } from '../pwa/PwaExperience';
 import {
   LayoutDashboard,
   Users,
@@ -450,7 +449,6 @@ const AppLayoutFrame: React.FC<AppLayoutProps> = ({
                         Profile
                       </button>
                     )}
-                    <PwaInstallAction className="flex w-full items-center gap-2 px-4 py-2 text-left text-gray-700 hover:bg-gray-50" />
                     <button
                       onClick={() => navigate('/')}
                       className="w-full text-left px-4 py-2 text-gray-700 hover:bg-gray-50 flex items-center gap-2"
