@@ -22,6 +22,11 @@ const schema = z.object({
   ),
   RESEND_API_KEY: z.preprocess(value => typeof value === 'string' && value.trim() === '' ? undefined : value, z.string().min(10).optional()),
   EMAIL_FROM: z.preprocess(value => typeof value === 'string' && value.trim() === '' ? undefined : value, z.string().email().optional()),
+  AI_PROVIDER: z.enum(['openai-compatible', 'groq']).default('openai-compatible'),
+  AI_API_KEY: z.preprocess(value => typeof value === 'string' && value.trim() === '' ? undefined : value, z.string().min(10).optional()),
+  AI_API_BASE_URL: z.preprocess(value => typeof value === 'string' && value.trim() === '' ? undefined : value, z.string().url().optional()),
+  AI_MODEL: z.preprocess(value => typeof value === 'string' && value.trim() === '' ? undefined : value, z.string().trim().min(1).max(120).optional()),
+  AI_TIMEOUT_MS: z.coerce.number().int().min(1000).max(60000).default(20000),
   CLOUDINARY_CLOUD_NAME: z.preprocess(value => typeof value === 'string' && value.trim() === '' ? undefined : value, z.string().min(2).optional()),
   CLOUDINARY_API_KEY: z.preprocess(value => typeof value === 'string' && value.trim() === '' ? undefined : value, z.string().min(2).optional()),
   CLOUDINARY_API_SECRET: z.preprocess(value => typeof value === 'string' && value.trim() === '' ? undefined : value, z.string().min(8).optional()),
@@ -33,7 +38,11 @@ export function loadConfig(env = process.env) {
   if (!parsed.success) {
     throw new Error(`Invalid server configuration: ${parsed.error.issues.map(i => `${i.path.join('.')}: ${i.message}`).join('; ')}`);
   }
-  const data=parsed.data, production=data.NODE_ENV==='production';
+  const data={
+    ...parsed.data,
+    AI_API_BASE_URL: parsed.data.AI_API_BASE_URL || (parsed.data.AI_PROVIDER === 'groq' ? 'https://api.groq.com/openai/v1' : 'https://api.openai.com/v1'),
+    AI_MODEL: parsed.data.AI_MODEL || (parsed.data.AI_PROVIDER === 'groq' ? 'openai/gpt-oss-20b' : 'gpt-4o-mini')
+  }, production=data.NODE_ENV==='production';
   if (production && !data.PAYSTACK_SECRET_KEY) throw new Error('PAYSTACK_SECRET_KEY is required in production');
   if (production && !data.FRONTEND_URL) throw new Error('FRONTEND_URL is required in production');
   if (production && !data.CSRF_SECRET) throw new Error('CSRF_SECRET is required in production');

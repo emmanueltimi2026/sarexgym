@@ -42,6 +42,35 @@ export const requireAuth = db => async (req, res, next) => {
   } catch (error) { next(error); }
 };
 
+// Assistant requests are available to guests, but a supplied session must be
+// valid. Never silently downgrade an expired authenticated session to guest.
+export const optionalAuth = db => async (req, res, next) => {
+  try {
+    const config = req.app.locals.config;
+    const raw = req.cookies?.[config.SESSION_COOKIE_NAME];
+    if (!raw) { req.actor = null; return next(); }
+    const { rows } = await db.query(`SELECT s.id session_id, u.id, u.email, u.status,
+      u.must_change_password,
+      COALESCE(array_agg(DISTINCT p.code) FILTER (WHERE p.code IS NOT NULL), '{}') permissions,
+      COALESCE(array_agg(DISTINCT r.code) FILTER (WHERE r.code IS NOT NULL), '{}') roles
+      FROM sessions s JOIN users u ON u.id=s.user_id
+      LEFT JOIN user_roles ur ON ur.user_id=u.id LEFT JOIN roles r ON r.id=ur.role_id
+      LEFT JOIN role_permissions rp ON rp.role_id=ur.role_id LEFT JOIN permissions p ON p.id=rp.permission_id
+      WHERE s.token_hash=$1 AND s.revoked_at IS NULL AND s.expires_at>now()
+        AND s.last_seen_at > now() - make_interval(hours => $2)
+      GROUP BY s.id,u.id,u.email,u.status,u.must_change_password`,
+    [sha256(raw), config.SESSION_IDLE_TIMEOUT_HOURS]);
+    const actor = rows[0];
+    if (!actor || actor.status !== 'active') {
+      res.clearCookie(config.SESSION_COOKIE_NAME, sessionCookieOptions(config));
+      return res.status(401).json({ error: { code: 'INVALID_SESSION', message: 'Your session has expired. Please sign in again.', requestId: req.requestId } });
+    }
+    await db.query('UPDATE sessions SET last_seen_at=now() WHERE id=$1', [actor.session_id]);
+    req.actor = actor;
+    next();
+  } catch (error) { next(error); }
+};
+
 export const requirePermission = permission => (req, res, next) => req.actor?.permissions?.includes(permission)
   ? next()
   : res.status(403).json({ error: { code: 'FORBIDDEN', message: 'You do not have permission to perform this action', requestId: req.requestId } });

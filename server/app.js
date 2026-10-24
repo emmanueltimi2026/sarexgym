@@ -4,7 +4,7 @@ import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import crypto from 'node:crypto';
 import { z } from 'zod';
-import { errorHandler, requestContext, requireAuth, requirePermission } from './middleware.js';
+import { errorHandler, requestContext, requireAuth, requirePermission, optionalAuth } from './middleware.js';
 import { hashPassword, randomToken, sha256, verifyPassword, timingSafeEqualText } from './security.js';
 import { installProtectedRoutes, installPublicRoutes } from './routes.js';
 import { clearSessionCookie, csrfTokenForRequest, requireCsrf, sessionCookieOptions } from './http-security.js';
@@ -16,11 +16,13 @@ import { activateDueScheduledSubscriptions } from './subscriptions.js';
 import { requireCronSecret, runActivateSubscriptionsJob, runExpiryNotificationsJob, runWithTimeout } from './jobs.js';
 import { finalizePaystackMembershipPayment } from './paystack-membership.js';
 import { finalizePaystackEventPayment } from './paystack-events.js';
+import { createAiProvider } from './ai/provider.js';
+import { handleAssistantChat } from './ai/assistant.js';
 
 const asyncRoute = fn => (req,res,next)=>Promise.resolve(fn(req,res,next)).catch(next);
 const loginSchema=z.object({email:z.string().trim().email().max(254).transform(v=>v.toLowerCase()),password:z.string().min(8).max(200),remember:z.boolean().optional().default(true)}).strict();
 
-export function createApp({db,config}) {
+export function createApp({db,config,assistantProvider}) {
  const app=express(); app.disable('x-powered-by'); app.locals.config=config;
  if(config.TRUST_PROXY==='true') app.set('trust proxy',1);
  const frontendOrigin=config.FRONTEND_URL||config.APP_ORIGIN;
@@ -65,10 +67,24 @@ export function createApp({db,config}) {
  const checkInLimit=createSharedRateLimit({db,config,name:'check-in',windowMs:60_000,limit:30,key:req=>sha256(req.actor?.id||req.ip||'unknown')});
  const paymentLimit=createSharedRateLimit({db,config,name:'payment',windowMs:10*60_000,limit:20,key:req=>sha256(req.actor?.id||req.ip||'unknown')});
  const cronLimit=createSharedRateLimit({db,config,name:'internal-cron',windowMs:60_000,limit:10,key:req=>sha256(req.ip||'unknown')});
+ const assistantGuestLimit=createSharedRateLimit({db,config,name:'assistant-guest',windowMs:15*60_000,limit:10,key:req=>sha256(`guest:${req.ip||'unknown'}`)});
+ const assistantUserLimit=createSharedRateLimit({db,config,name:'assistant-user',windowMs:15*60_000,limit:30,key:req=>sha256(`user:${req.actor?.id||'unknown'}`)});
+ const assistantLimit=(req,res,next)=>(req.actor?assistantUserLimit:assistantGuestLimit)(req,res,next);
  const sendJobResult=(res,result)=>res.status(result.alreadyRunning?202:200).json({ok:true,job:result.job,alreadyRunning:Boolean(result.alreadyRunning),scanned:result.scanned||0,activated:result.activated||0,expired:result.expired||0,created:result.created||0,skipped:result.skipped||0,emailSent:result.emailSent||0,emailFailed:result.emailFailed||0,failures:result.failures||0,durationMs:result.durationMs});
  app.post('/api/internal/jobs/activate-subscriptions',cronLimit,requireCronSecret,asyncRoute(async(req,res)=>sendJobResult(res,await runWithTimeout(()=>runActivateSubscriptionsJob({db,config,requestId:req.requestId})))));
  app.post('/api/internal/jobs/expiry-notifications',cronLimit,requireCronSecret,asyncRoute(async(req,res)=>sendJobResult(res,await runWithTimeout(()=>runExpiryNotificationsJob({db,config,requestId:req.requestId})))));
  installPublicRoutes(app,{db,config,loginLimit});
+ app.post('/api/v1/assistant/chat',optionalAuth(db),assistantLimit,asyncRoute(async(req,res)=>{
+   try {
+     const result=await handleAssistantChat({db,actor:req.actor,body:req.body,provider:assistantProvider||createAiProvider(config)});
+     res.set('Cache-Control','no-store').json(result);
+   } catch(error) {
+     if(error?.name==='ZodError') return res.status(400).json({error:{code:'VALIDATION_ERROR',message:'Please enter a message of up to 2,000 characters.',requestId:req.requestId}});
+     if(error?.code==='AI_CONTEXT_UNAVAILABLE') return res.status(503).json({error:{code:'ASSISTANT_UNAVAILABLE',message:'SAREX AI could not load the information needed. Please try again.',requestId:req.requestId}});
+     if(Number.isInteger(error?.status)) return res.status(error.status).json({error:{code:error.code||'ASSISTANT_UNAVAILABLE',message:error.message,requestId:req.requestId}});
+     throw error;
+   }
+ }));
  app.post('/api/v1/auth/login',loginLimit,asyncRoute(async(req,res)=>{
    const input=loginSchema.parse(req.body); const result=await db.query(`SELECT u.id,u.email,u.password_hash,u.status,u.must_change_password,COALESCE(array_agg(r.code) FILTER (WHERE r.code IS NOT NULL),'{}') roles FROM users u LEFT JOIN user_roles ur ON ur.user_id=u.id LEFT JOIN roles r ON r.id=ur.role_id WHERE lower(u.email)=$1 GROUP BY u.id`,[input.email]); const user=result.rows[0];
    const valid=user&&await verifyPassword(input.password,user.password_hash);

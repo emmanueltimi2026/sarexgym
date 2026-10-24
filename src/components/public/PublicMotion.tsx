@@ -182,7 +182,7 @@ export const PublicScrollProgress: React.FC = () => {
   );
 };
 
-interface PremiumImageProps extends React.ImgHTMLAttributes<HTMLImageElement> {
+interface PremiumImageProps extends Omit<React.ImgHTMLAttributes<HTMLImageElement>, 'onDrag' | 'onDragStart' | 'onDragEnd' | 'onAnimationStart' | 'onAnimationEnd'> {
   revealScale?: number;
 }
 

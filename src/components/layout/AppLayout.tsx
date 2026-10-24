@@ -379,7 +379,7 @@ const AppLayoutFrame: React.FC<AppLayoutProps> = ({
                   onClick={() => {
                     const willOpen = !showNotifications;
                     setShowNotifications(willOpen);
-                    if (willOpen) void refreshNotifications();
+                    if (willOpen) void refreshNotifications(new AbortController().signal);
                   }}
                   className="p-2 text-gray-600 hover:text-black hover:bg-gray-100 rounded-full transition-colors relative"
                   aria-label="Notifications"

@@ -4,14 +4,14 @@ import { stat } from 'node:fs/promises';
 import { runInNewContext } from 'node:vm';
 import test from 'node:test';
 import {
-  INSTALL_DISMISS_FOR_MS,
-  INSTALL_DISMISSED_UNTIL_KEY,
+  INSTALL_REQUEST_EVENT,
+  INSTALL_SUCCEEDED_EVENT,
   INSTALL_SUCCEEDED_KEY,
+  isInstalledApp,
+  isIosDevice,
   isStandaloneDisplayMode,
-  persistInstallDismissal,
   persistInstallSuccess,
   requestInstall,
-  shouldShowInstallToast,
 } from '../src/lib/pwaInstall.js';
 
 const projectRoot = new URL('../', import.meta.url);
@@ -164,24 +164,20 @@ test('PWA install assets exist and Vercel serves worker updates without stale ca
   assert.ok(await stat(new URL('public/offline.html', projectRoot)));
 });
 
-const installToastArgs = overrides => ({
-  available: true,
-  installed: false,
-  standalone: false,
-  dismissedUntil: 0,
-  now: 1_000,
-  route: '/member/dashboard',
-  modalOpen: false,
-  engaged: true,
-  ...overrides,
+test('public footer owns the only custom install action; no automatic install toast remains', async () => {
+  const [pwa, layout, assistant] = await Promise.all([
+    readFile(new URL('src/components/pwa/PwaExperience.tsx', projectRoot), 'utf8'),
+    readFile(new URL('src/components/public/PublicLayout.tsx', projectRoot), 'utf8'),
+    readFile(new URL('src/components/assistant/AssistantWidget.tsx', projectRoot), 'utf8'),
+  ]);
+  assert.doesNotMatch(pwa + layout, /SAREX installation option|beforeinstallprompt.{0,100}preventDefault|automatic install popup/i);
+  assert.match(layout, />Install SAREX</);
+  assert.match(layout, /INSTALL_REQUEST_EVENT/);
+  assert.doesNotMatch(assistant, /installation option|Install SAREX/);
+  assert.match(assistant, /fixed right-3 bottom-/);
 });
 
-test('install toast appears when a browser install prompt is available after engagement', () => {
-  assert.equal(shouldShowInstallToast(installToastArgs({ available: true })), true);
-  assert.equal(shouldShowInstallToast(installToastArgs({ engaged: false })), false);
-});
-
-test('Install invokes the saved browser prompt from the button action and returns its choice', async () => {
+test('footer fallback invokes a saved native prompt only from its button action', async () => {
   let calls = 0;
   const promptEvent = {
     prompt: async () => { calls += 1; },
@@ -192,36 +188,30 @@ test('Install invokes the saved browser prompt from the button action and return
   assert.equal(await requestInstall(null), null);
 });
 
-test('dismissal persists for fourteen days and suppresses the toast until expiry', () => {
-  const now = 10_000;
-  const values = new Map();
-  persistInstallDismissal({ setItem: (key, value) => values.set(key, value) }, now);
-  const dismissedUntil = Number(values.get(INSTALL_DISMISSED_UNTIL_KEY));
-  assert.equal(dismissedUntil, now + INSTALL_DISMISS_FOR_MS);
-  assert.equal(shouldShowInstallToast(installToastArgs({ now, dismissedUntil })), false);
-  assert.equal(shouldShowInstallToast(installToastArgs({ now: dismissedUntil + 1, dismissedUntil })), true);
-  assert.equal(INSTALL_DISMISSED_UNTIL_KEY, 'sarex.pwa.install-dismissed-until');
-});
-
-test('standalone, installed, modal, and critical check-in or payment flows suppress install UI', () => {
+test('standalone, persisted installation, and installed related apps hide the footer fallback', () => {
   assert.equal(isStandaloneDisplayMode(true), true);
   assert.equal(isStandaloneDisplayMode(false, true), true);
-  assert.equal(shouldShowInstallToast(installToastArgs({ standalone: true })), false);
-  assert.equal(shouldShowInstallToast(installToastArgs({ installed: true })), false);
-  assert.equal(shouldShowInstallToast(installToastArgs({ modalOpen: true })), false);
-  assert.equal(shouldShowInstallToast(installToastArgs({ route: '/member/check-in' })), false);
-  assert.equal(shouldShowInstallToast(installToastArgs({ route: '/checkout/secure' })), false);
-  assert.equal(shouldShowInstallToast(installToastArgs({ route: '/payment/checkout' })), false);
+  assert.equal(isInstalledApp({ standalone: true }), true);
+  assert.equal(isInstalledApp({ persisted: true }), true);
+  assert.equal(isInstalledApp({ relatedApps: [{ id: 'sarex' }] }), true);
+  assert.equal(isInstalledApp({ standalone: false, persisted: false }), false);
 });
 
-test('iOS can show Home Screen guidance without a native browser prompt', () => {
-  assert.equal(shouldShowInstallToast(installToastArgs({ available: true })), true);
-  assert.equal(shouldShowInstallToast(installToastArgs({ available: false })), false);
+test('iPhone, iPad, and touch Macs use manual Home Screen instructions', async () => {
+  assert.equal(isIosDevice('Mozilla/5.0 (iPhone)'), true);
+  assert.equal(isIosDevice('', 'MacIntel', 5), true);
+  assert.equal(isIosDevice('Mozilla/5.0 (Windows NT 10.0)', 'Win32', 0), false);
+  const layout = await readFile(new URL('src/components/public/PublicLayout.tsx', projectRoot), 'utf8');
+  assert.match(layout, /Tap <strong className="text-gray-900">Share<\/strong>/);
+  assert.match(layout, /Add to Home Screen/);
+  assert.match(layout, /Tap <strong className="text-gray-900">Add<\/strong>/);
 });
 
 test('appinstalled success is persisted so later visits remain suppressed', () => {
   const values = new Map();
   persistInstallSuccess({ setItem: (key, value) => values.set(key, value) });
   assert.equal(values.get(INSTALL_SUCCEEDED_KEY), 'true');
-  assert.equal(shouldShowInstallToast(installToastArgs({ installed: values.get(INSTALL_SUCCEEDED_KEY) === 'true' })), false);
+  assert.equal(isInstalledApp({ persisted: values.get(INSTALL_SUCCEEDED_KEY) === 'true' }), true);
+  assert.equal(INSTALL_REQUEST_EVENT, 'sarex:pwa-install-request');
+  assert.equal(INSTALL_SUCCEEDED_EVENT, 'sarex:pwa-installed');
 });

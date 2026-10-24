@@ -9,6 +9,7 @@ import { PortalLayoutHost } from './components/layout/AppLayout';
 import { logAuthDiagnostic } from './lib/authDiagnostics';
 import { apiUrl } from './lib/secureFetch';
 import { PwaExperience } from './components/pwa/PwaExperience';
+import { AssistantWidget } from './components/assistant/AssistantWidget';
 
 const lazyPage = (loader: () => Promise<Record<string, unknown>>, exportName: string) =>
   lazy(async () => ({ default: (await loader())[exportName] as React.ComponentType<any> }));
@@ -344,6 +345,7 @@ export default function App() {
       <PwaExperience>
         <AppRouter />
       </PwaExperience>
+      <AssistantWidget />
     </GymProvider>
   );
 }

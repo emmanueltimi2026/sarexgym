@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useGym } from '../../context/GymContext';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { PublicScrollProgress } from './PublicMotion';
+import { INSTALL_REQUEST_EVENT, INSTALL_SUCCEEDED_EVENT, INSTALL_SUCCEEDED_KEY, isInstalledApp, isIosDevice, persistInstallSuccess } from '../../lib/pwaInstall.js';
 
 import {
   Menu,
@@ -19,7 +20,11 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ children }) => {
   const { currentPath, navigate, settings, role } = useGym();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const mobileMenuRef = useRef<HTMLDivElement>(null);
+  const installButtonRef = useRef<HTMLButtonElement>(null);
   const reduceMotion = useReducedMotion();
+  const [isInstalled, setIsInstalled] = useState(false);
+  const [showInstallGuide, setShowInstallGuide] = useState(false);
+  const [isAppleMobile, setIsAppleMobile] = useState(false);
 
   const navLinks = [
     { label: 'HOME', path: '/' },
@@ -39,6 +44,71 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ children }) => {
     document.addEventListener('mousedown', closeMenus);
     return () => document.removeEventListener('mousedown', closeMenus);
   }, [mobileMenuOpen]);
+
+  useEffect(() => {
+    const displayMode = window.matchMedia('(display-mode: standalone)');
+    const syncInstalled = () => {
+      let persisted = false;
+      try { persisted = localStorage.getItem(INSTALL_SUCCEEDED_KEY) === 'true'; } catch { /* Storage can be disabled. */ }
+      setIsInstalled(isInstalledApp({
+        standalone: displayMode.matches,
+        navigatorStandalone: Boolean((navigator as Navigator & { standalone?: boolean }).standalone),
+        persisted,
+      }));
+    };
+    const onInstalled = () => {
+      persistInstallSuccess(localStorage);
+      setIsInstalled(true);
+      setShowInstallGuide(false);
+    };
+    const onStorage = (event: StorageEvent) => {
+      if (event.key === INSTALL_SUCCEEDED_KEY) syncInstalled();
+    };
+    const ua = navigator.userAgent;
+    setIsAppleMobile(isIosDevice(ua, navigator.platform, navigator.maxTouchPoints));
+    syncInstalled();
+    const relatedAppsNavigator = navigator as Navigator & { getInstalledRelatedApps?: () => Promise<unknown[]> };
+    if (relatedAppsNavigator.getInstalledRelatedApps) {
+      void relatedAppsNavigator.getInstalledRelatedApps().then(apps => {
+        if (apps.length > 0) setIsInstalled(true);
+      }).catch(() => undefined);
+    }
+    displayMode.addEventListener('change', syncInstalled);
+    window.addEventListener('appinstalled', onInstalled);
+    window.addEventListener(INSTALL_SUCCEEDED_EVENT, onInstalled);
+    window.addEventListener('storage', onStorage);
+    return () => {
+      displayMode.removeEventListener('change', syncInstalled);
+      window.removeEventListener('appinstalled', onInstalled);
+      window.removeEventListener(INSTALL_SUCCEEDED_EVENT, onInstalled);
+      window.removeEventListener('storage', onStorage);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!showInstallGuide) return;
+    const previousFocus = document.activeElement as HTMLElement | null;
+    const onEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setShowInstallGuide(false);
+    };
+    window.addEventListener('keydown', onEscape);
+    const closeButton = document.getElementById('sarex-install-guide-close');
+    closeButton?.focus();
+    return () => {
+      window.removeEventListener('keydown', onEscape);
+      previousFocus?.focus();
+    };
+  }, [showInstallGuide]);
+
+  const handleInstallClick = () => {
+    if (isAppleMobile) {
+      setShowInstallGuide(true);
+      return;
+    }
+    window.dispatchEvent(new CustomEvent(INSTALL_REQUEST_EVENT, {
+      detail: { onUnavailable: () => setShowInstallGuide(true) },
+    }));
+  };
 
   const goToNavLink = (link: typeof navLinks[number]) => {
     navigate(link.path);
@@ -243,9 +313,26 @@ export const PublicLayout: React.FC<PublicLayoutProps> = ({ children }) => {
             <div className="flex flex-col items-center gap-1.5 sm:flex-row sm:gap-6">
               <span className="leading-5">Zero-compromise Fitness Clinic</span>
               <span className="whitespace-nowrap font-athletic font-bold uppercase leading-5 text-[#EF1B23]">Build your strongest self</span>
+              {!isInstalled && <button ref={installButtonRef} type="button" onClick={handleInstallClick} className="inline-flex min-h-10 items-center justify-center rounded-full border border-neutral-700 px-4 py-2 font-semibold text-neutral-300 transition hover:border-[#EF1B23] hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#EF1B23]" aria-label="Install SAREX on this device">Install SAREX</button>}
             </div>
           </div>
         </div>
+        {showInstallGuide && <div className="fixed inset-0 z-[110] flex items-end justify-center bg-black/55 p-3 backdrop-blur-sm sm:items-center" onMouseDown={event => { if (event.target === event.currentTarget) setShowInstallGuide(false); }}>
+          <section role="dialog" aria-modal="true" aria-labelledby="sarex-install-guide-title" className="w-full max-w-sm rounded-3xl border border-neutral-200 bg-white p-5 text-[#17191f] shadow-2xl sm:p-6">
+            <div className="mb-4 flex items-start justify-between gap-3">
+              <div><p className="text-xs font-bold uppercase tracking-[.16em] text-[#ef1b23]">SAREX Fitness</p><h2 id="sarex-install-guide-title" className="mt-1 text-lg font-extrabold">Add SAREX to your Home Screen</h2></div>
+              <button id="sarex-install-guide-close" type="button" onClick={() => setShowInstallGuide(false)} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-gray-500 hover:bg-gray-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#ef1b23]" aria-label="Close install instructions"><X size={18} /></button>
+            </div>
+            <ol className="space-y-3 text-sm text-gray-600">
+              {isAppleMobile ? <>
+                <li className="flex gap-3"><span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#fff0f1] text-xs font-bold text-[#ef1b23]">1</span><span>Tap <strong className="text-gray-900">Share</strong> in your browser.</span></li>
+                <li className="flex gap-3"><span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#fff0f1] text-xs font-bold text-[#ef1b23]">2</span><span>Choose <strong className="text-gray-900">Add to Home Screen</strong>.</span></li>
+                <li className="flex gap-3"><span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#fff0f1] text-xs font-bold text-[#ef1b23]">3</span><span>Tap <strong className="text-gray-900">Add</strong>.</span></li>
+              </> : <li>Open your browser menu and choose <strong className="text-gray-900">Install app</strong> or <strong className="text-gray-900">Add to Home Screen</strong>.</li>}
+            </ol>
+            <button type="button" onClick={() => setShowInstallGuide(false)} className="mt-5 min-h-11 w-full rounded-xl bg-[#17191f] px-4 py-2.5 text-sm font-bold text-white transition hover:bg-black focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#ef1b23]">Got it</button>
+          </section>
+        </div>}
       </footer>
     </div>
   );
