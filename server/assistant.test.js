@@ -10,7 +10,7 @@ import { assistantPrompts, assistantScope, handleAssistantChat, validateAssistan
 import { buildMemberWorkoutIntelligence, getFacilities, getMyCurrentEntitlements, getMyMemberContext, getPublicMembershipPlans } from './ai/context.js';
 import { assistantProviderError, createAiProvider } from './ai/provider.js';
 import { createApp } from './app.js';
-import { guestAssistantSuggestions, isAssistantActionPathAllowed, isAssistantHiddenPath, memberAssistantSuggestions } from '../src/lib/assistantUi.js';
+import { getAssistantExperience, guestAssistantSuggestions, isAssistantActionPathAllowed, isAssistantHiddenPath, memberAssistantSuggestions } from '../src/lib/assistantUi.js';
 
 const answerProvider = { complete: async () => 'A helpful SAREX answer.' };
 
@@ -42,7 +42,7 @@ test('out-of-scope subjects are refused before database or provider work for eve
   }
 });
 
-test('scope classifier distinguishes SAREX operations from fitness and wellness', () => {
+test('deterministic scope rules handle clear SAREX, fitness, and blocked subjects while leaving ambiguous requests for semantics', () => {
   const inScopeSarex = [
     'How do I join SAREX?', 'I want to join', 'What membership plans are available?', 'Help Me Choose a Plan',
     'Which membership should I get?', 'What plan should I subscribe to?', 'Compare your membership plans',
@@ -51,13 +51,66 @@ test('scope classifier distinguishes SAREX operations from fitness and wellness'
     'What events are available?', 'How do I log out?', 'Can I freeze my membership?',
   ];
   const inScopeFitness = [
-    'How do I build my chest?', 'How much rest between sets?', 'Why am I sore after my workout?',
+    'How much rest between sets?', 'Why am I sore after my workout?',
     'How am I doing with my workouts this week?', 'How do workout weeks reset?',
     'How much protein do I need for muscle gain?'
   ];
-  for (const question of inScopeSarex) assert.equal(assistantScope.classifyAssistantScope(question), 'IN_SCOPE_SAREX', question);
-  for (const question of inScopeFitness) assert.equal(assistantScope.classifyAssistantScope(question), 'IN_SCOPE_FITNESS', question);
+  for (const question of inScopeSarex) assert.equal(assistantScope.classifyAssistantScope(question), 'SAREX', question);
+  for (const question of inScopeFitness) assert.equal(assistantScope.classifyAssistantScope(question), 'FITNESS', question);
   assert.equal(assistantScope.classifyAssistantScope('Explain cryptocurrency trading'), 'OUT_OF_SCOPE');
+  for (const question of ['I want to build my butt', 'I want bigger glutes', 'How do I strengthen my hips?', 'I want bigger legs']) {
+    assert.equal(assistantScope.classifyAssistantScope(question), null, `${question} should use semantic classification`);
+  }
+});
+
+test('semantic classification accepts varied body-goal paraphrases and keeps its result private', async () => {
+  const requests = ['I want to build my butt', 'I want bigger glutes', 'How do I strengthen my hips?', 'I want bigger legs'];
+  for (const message of requests) {
+    let classifierPrompt;
+    let callCount = 0;
+    const result = await handleAssistantChat({
+      db: { query: async () => ({ rows: [] }) }, body: { message },
+      provider: { complete: async messages => {
+        callCount += 1;
+        if (messages[0].content === assistantScope.semanticClassifierPrompt) {
+          classifierPrompt = JSON.parse(messages[1].content);
+          return '{"scope":"FITNESS"}';
+        }
+        return 'I can help with a gradual strength plan.';
+      } }
+    });
+    assert.equal(classifierPrompt.currentMessage, message);
+    assert.equal(callCount, 2);
+    assert.equal(result.message, 'I can help with a gradual strength plan.');
+    assert.doesNotMatch(result.message, /FITNESS|SAREX|OUT_OF_SCOPE/);
+  }
+  assert.match(assistantScope.semanticClassifierPrompt, /Classify the meaning of the current user message/i);
+  assert.match(assistantScope.semanticClassifierPrompt, /body composition or appearance goals/i);
+  assert.match(assistantScope.semanticClassifierPrompt, /Return exactly one JSON object/i);
+});
+
+test('ambiguous classifier output fails closed and does not proceed to an answer call', async () => {
+  let calls = 0;
+  const result = await handleAssistantChat({
+    db: { query: async () => ({ rows: [] }) }, body: { message: 'I want to feel more confident in my body' },
+    provider: { complete: async () => { calls += 1; return 'Probably fitness, because...'; } }
+  });
+  assert.equal(calls, 1);
+  assert.equal(result.message, assistantScope.outOfScopeResponse);
+});
+
+test('short experience answers inherit a fitness clarification conversation', async () => {
+  let calls = 0;
+  const result = await handleAssistantChat({
+    db: { query: async () => ({ rows: [] }) },
+    body: { message: 'Beginner.', history: [
+      { role: 'user', content: 'I want to build my legs.' },
+      { role: 'assistant', content: 'What is your experience level?' }
+    ] },
+    provider: { complete: async messages => { calls += 1; assert.doesNotMatch(messages[0].content, /SCOPE CLASSIFIER/); return 'Thanks, I’ll keep the guidance beginner-friendly.'; } }
+  });
+  assert.equal(calls, 1);
+  assert.equal(result.message, 'Thanks, I’ll keep the guidance beginner-friendly.');
 });
 
 test('finance and prompt-injection phrasing cannot move unrelated questions into scope', async () => {
@@ -86,7 +139,7 @@ test('ambiguous follow-ups inherit the most recent topic without reopening a ref
   assert.equal(assistantScope.classifyAssistantScope('Which one is best for me?', [
     { role: 'user', content: 'What membership plans are available?' },
     { role: 'assistant', content: 'Here are the active SAREX membership plans.' },
-  ]), 'IN_SCOPE_SAREX');
+  ]), 'SAREX');
 });
 
 test('system prompt reinforces the restricted SAREX fitness and wellness domain', async () => {
@@ -158,7 +211,7 @@ test('membership follow-ups stay in scope and load current plan records again', 
   });
   assert.equal(assistantScope.classifyAssistantScope('Which one is best for me?', [
     { role: 'user', content: 'What membership plans are available?' }
-  ]), 'IN_SCOPE_SAREX');
+  ]), 'SAREX');
   assert.equal(result.content.type, 'membership_plans');
   assert.equal(result.content.plans.length, 2);
   assert.equal(result.content.plans[1].trainerAccess, true);
@@ -681,10 +734,75 @@ test('guest assistant applies its shared rate limit before provider calls', asyn
   } finally { await new Promise(resolve => server.close(resolve)); }
 });
 
-test('guest and member suggestion sets differ, actions are allowlisted, and critical routes suppress the widget', () => {
-  assert.ok(guestAssistantSuggestions.includes('Membership Plans'));
-  assert.ok(memberAssistantSuggestions.includes('Explain My Progress'));
+test('Ask SAREX suggestions and greetings are tailored to each authenticated role', () => {
+  const guest = getAssistantExperience(null, '/membership');
+  const member = getAssistantExperience('member', '/member/dashboard');
+  const trainer = getAssistantExperience('trainer', '/trainer/dashboard');
+  const staff = getAssistantExperience('staff', '/staff/dashboard');
+  const admin = getAssistantExperience('super_admin', '/admin/dashboard');
+
+  assert.deepEqual(guest.suggestions, guestAssistantSuggestions);
+  for (const prompt of ['Membership Plans', 'Help Me Choose a Plan', 'How Do I Join?', 'Workout Advice', 'SAREX Facilities', 'Upcoming Events', 'Forgot password']) {
+    assert.ok(guest.suggestions.includes(prompt));
+  }
+  for (const prompt of ['How am I doing this week?', 'Explain my workout', 'I missed a workout, what should I do?', 'Help with my membership', 'Explain an exercise', 'Show my workout progress']) {
+    assert.ok(member.suggestions.includes(prompt));
+  }
+  for (const prompt of ['Where can I find my assigned members?', 'How do I review workout progress?', 'Help me understand the trainer workflow', 'Draft a workout idea for review']) {
+    assert.ok(trainer.suggestions.includes(prompt));
+  }
+  for (const prompt of ['How does QR check-in work?', 'How do I handle a denied check-in?', 'How do I renew a membership?', 'How do I record a manual payment?', 'How do I find a member?']) {
+    assert.ok(staff.suggestions.includes(prompt));
+  }
+  for (const prompt of ['How do I find a member account?', 'Where can I review attendance?', 'How do I review payment activity?', 'How do I manage membership plans?']) {
+    assert.ok(admin.suggestions.includes(prompt));
+  }
+  assert.doesNotMatch(admin.suggestions.join(' '), /revenue|performance|trends|expiring soon|operational attention/i);
+  assert.match(member.greeting, /your workouts, progress, membership/i);
+  assert.match(trainer.greeting, /can’t assign or change member workouts/i);
+  assert.match(staff.greeting, /check-ins, memberships, payments/i);
+  assert.match(admin.greeting, /member, plan, attendance, payment and event tools/i);
+  assert.ok(!member.suggestions.some(prompt => /join|choose a plan/i.test(prompt)));
   assert.notDeepEqual(memberAssistantSuggestions, guestAssistantSuggestions);
+});
+
+test('portal suggestions require the backend-authenticated role and public discovery uses guest prompts', () => {
+  const context = getAssistantExperience(null, '/member/workout');
+  assert.equal(context.role, null);
+  assert.deepEqual(context.suggestions, []);
+
+  const memberAfterLogin = getAssistantExperience('member', '/member/workout');
+  const guestAfterLogout = getAssistantExperience(null, '/login');
+  assert.ok(memberAfterLogin.suggestions.includes('Explain this workout'));
+  assert.ok(!memberAfterLogin.suggestions.some(prompt => /how do i join|help me choose a plan/i.test(prompt)));
+  assert.ok(guestAfterLogout.suggestions.includes('How Do I Join?'));
+  assert.ok(getAssistantExperience('member', '/membership').suggestions.includes('Help Me Choose a Plan'));
+  assert.ok(getAssistantExperience('staff', '/staff/check-in').suggestions.includes('How do I handle a denied check-in?'));
+  assert.ok(getAssistantExperience('member', '/member/workout').suggestions.includes('How am I doing this week?'));
+});
+
+test('assistant role suggestions use backend bootstrap state, never a client-supplied role', async () => {
+  const context = await readFile(new URL('../src/context/GymContext.tsx', import.meta.url), 'utf8');
+  const component = await readFile(new URL('../src/components/assistant/AssistantWidget.tsx', import.meta.url), 'utf8');
+  assert.match(context, /const backendRole:UserRole\|null=\['super_admin','staff','trainer','member'\]\.includes\(d\.role\)\?d\.role:null;setAuthenticatedRole\(backendRole\)/);
+  assert.match(context, /setAuthenticatedRole\(null\)/);
+  assert.match(component, /const \{ authenticatedRole, currentPath, navigate \} = useGym\(\)/);
+  assert.match(component, /getAssistantExperience\(authenticatedRole, currentPath\)/);
+  assert.match(component, /\[experience\.greeting\]/);
+  assert.doesNotMatch(component, /CustomEvent|detail\?\.roles|sessionStorage.*role/i);
+});
+
+test('staff check-in and member workout pages receive page-aware suggestions', () => {
+  const staffCheckIn = getAssistantExperience('staff', '/staff/check-in');
+  const staffAttendance = getAssistantExperience('staff', '/staff/attendance');
+  const memberWorkout = getAssistantExperience('member', '/member/workout');
+  assert.ok(staffCheckIn.suggestions.includes('How does QR check-in work?'));
+  assert.ok(staffCheckIn.suggestions.length < getAssistantExperience('staff', '/staff/dashboard').suggestions.length);
+  assert.ok(staffAttendance.suggestions.includes('How do I handle a denied check-in?'));
+  assert.ok(memberWorkout.suggestions.includes('Explain this workout'));
+});
+
+test('assistant actions remain allowlisted and critical routes suppress the widget', () => {
   assert.equal(isAssistantActionPathAllowed('/register'), true);
   assert.equal(isAssistantActionPathAllowed('/forgot-password'), true);
   assert.equal(isAssistantActionPathAllowed('/admin/settings'), true);

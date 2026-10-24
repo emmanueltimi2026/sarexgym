@@ -3,7 +3,7 @@ import { ArrowUp, Dumbbell, LoaderCircle, MessageCircle, X } from 'lucide-react'
 import ReactMarkdown from 'react-markdown';
 import { useGym } from '../../context/GymContext';
 import { apiUrl } from '../../lib/secureFetch';
-import { guestAssistantSuggestions, isAssistantActionPathAllowed, isAssistantHiddenPath, memberAssistantSuggestions } from '../../lib/assistantUi';
+import { getAssistantExperience, isAssistantActionPathAllowed, isAssistantHiddenPath } from '../../lib/assistantUi';
 import { remarkLineBreaks } from '../../lib/assistantMarkdown.js';
 import { AssistantStructuredContent, parseAssistantStructuredContent } from './StructuredAssistantContent.js';
 
@@ -12,8 +12,6 @@ type MembershipPlanContent = { type: 'membership_plans'; plans: { id: string | n
   currency: string; duration: string | null; registrationFee: number | null; trainerAccess: boolean | null; workoutPlan: boolean | null;
   features: string[]; action: AssistantContentAction | null }[] };
 type ChatMessage = { role: 'user' | 'assistant'; content: string; structuredContent?: MembershipPlanContent | null; actions?: AssistantContentAction[] };
-const greeting = 'Hi, I’m the SAREX Fitness Assistant. I can help with memberships, getting started, fitness questions and SAREX services.';
-
 export const AssistantBrandMark: React.FC<{ variant: 'header' | 'avatar' }> = ({ variant }) => variant === 'header'
   ? <span className="flex h-10 w-[72px] shrink-0 items-center justify-center rounded-xl bg-[#17191f] px-2 shadow-sm">
     <img src="/assets/brand/sarex-logo.png" alt="SAREX Fitness Clinic" className="h-auto max-h-7 w-full object-contain" />
@@ -23,12 +21,12 @@ export const AssistantBrandMark: React.FC<{ variant: 'header' | 'avatar' }> = ({
   </span>;
 
 export const AssistantWidget: React.FC = () => {
-  const { role, currentPath, navigate } = useGym();
-  const isMember = role === 'member';
-  const suggestions = isMember ? memberAssistantSuggestions : guestAssistantSuggestions;
+  const { authenticatedRole, currentPath, navigate } = useGym();
+  const experience = getAssistantExperience(authenticatedRole, currentPath);
+  const suggestions = experience.suggestions;
   const [open, setOpen] = useState(false);
   const [suppressed, setSuppressed] = useState(false);
-  const [messages, setMessages] = useState<ChatMessage[]>([{ role: 'assistant', content: greeting }]);
+  const [messages, setMessages] = useState<ChatMessage[]>(() => [{ role: 'assistant', content: experience.greeting }]);
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
   const [notice, setNotice] = useState('');
@@ -36,6 +34,12 @@ export const AssistantWidget: React.FC = () => {
   const messagesRef = useRef<HTMLDivElement>(null);
   const launcherRef = useRef<HTMLButtonElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    setMessages([{ role: 'assistant', content: experience.greeting }]);
+    setDraft('');
+    setNotice('');
+  }, [experience.greeting]);
 
   useEffect(() => {
     if (!open) return;
@@ -133,7 +137,7 @@ export const AssistantWidget: React.FC = () => {
             {message.actions?.length ? <div className="mt-3 flex flex-wrap gap-2">{message.actions.map(action => <button key={action.path} type="button" onClick={() => { setOpen(false); navigate(action.path); }} className="rounded-xl border border-[#ef1b23]/20 bg-[#fff5f5] px-3 py-2 text-xs font-bold text-[#d6161e] hover:bg-[#ffeded] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#ef1b23]">{action.label}</button>)}</div> : null}
           </div>
         </div>)}
-        {messages.length === 1 && <div className="ml-9"><div className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">Try asking</div><div className="flex flex-wrap gap-2">{suggestions.map(prompt => <button key={prompt} type="button" disabled={sending} onClick={() => void ask(prompt)} className="min-h-9 rounded-full border border-gray-200 bg-white px-3 py-2 text-xs font-medium text-gray-700 hover:border-[#ef1b23]/40 hover:text-[#d6161e] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#ef1b23] disabled:opacity-50">{prompt}</button>)}</div></div>}
+        {messages.length === 1 && suggestions.length > 0 && <div className="ml-9"><div className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">Try asking</div><div className="flex flex-wrap gap-2">{suggestions.map(prompt => <button key={prompt} type="button" disabled={sending} onClick={() => void ask(prompt)} className="min-h-9 rounded-full border border-gray-200 bg-white px-3 py-2 text-xs font-medium text-gray-700 hover:border-[#ef1b23]/40 hover:text-[#d6161e] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#ef1b23] disabled:opacity-50">{prompt}</button>)}</div></div>}
         {sending && <div className="flex items-center gap-2 pl-9 text-sm text-gray-500" role="status"><LoaderCircle size={16} className="animate-spin text-[#ef1b23]" />SAREX AI is thinking…</div>}
         {notice && <p role="alert" className="ml-9 rounded-xl border border-red-100 bg-red-50 px-3 py-2 text-sm text-red-700">{notice}</p>}
       </div>
