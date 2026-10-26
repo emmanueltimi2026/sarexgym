@@ -22,6 +22,61 @@ export const AssistantIntent = Object.freeze({
   OUT_OF_SCOPE: 'OUT_OF_SCOPE'
 });
 
+// Capabilities describe supported work; request examples are illustrative, not
+// a phrase list. Model-selected capabilities are still validated and executed
+// through the corresponding server service and its normal authorization checks.
+export const assistantCapabilities = Object.freeze({
+  [AssistantIntent.MY_WORKOUT]: Object.freeze({ purpose: 'Explain the authenticated member’s current assigned workout.',
+    examples: ['What am I training today?', 'What did my coach put me on?'], parameters: [], service: 'getGroundedPortalData:myWorkout',
+    personalData: true, roles: ['member'], authorization: 'Authenticated session member ID; verify assignment and entitlement.', behavior: 'read_only', result: 'Current assigned plan and prescribed exercises.', failure: 'Distinguish no assignment, entitlement denial, and retrieval failure.' }),
+  [AssistantIntent.MY_WORKOUT_PROGRESS]: Object.freeze({ purpose: 'Summarize current weekly workout completion.',
+    examples: ['How is training going this week?', 'How many sessions remain?'], parameters: [], service: 'getGroundedPortalData:myWorkout',
+    personalData: true, roles: ['member'], authorization: 'Authenticated session member ID.', behavior: 'read_only', result: 'Server-calculated current program-week progress.', failure: 'Report retrieval failure separately from zero progress.' }),
+  [AssistantIntent.MY_WORKOUT_HISTORY]: Object.freeze({ purpose: 'Explain recorded workout completion and missed sessions.',
+    examples: ['What have I completed lately?', 'Did I miss any sessions?'], parameters: [], service: 'getGroundedPortalData:myWorkout',
+    personalData: true, roles: ['member'], authorization: 'Authenticated session member ID.', behavior: 'read_only', result: 'Persistent workout history.', failure: 'Never infer history when retrieval fails.' }),
+  [AssistantIntent.MY_MEMBERSHIP]: Object.freeze({ purpose: 'Retrieve the signed-in member’s membership status.',
+    examples: ['When does my plan end?', 'What membership do I have?'], parameters: [], service: 'getGroundedPortalData:myMembership',
+    personalData: true, roles: ['member'], authorization: 'Authenticated session member ID.', behavior: 'read_only', result: 'Current membership status.', failure: 'Distinguish no membership from service failure.' }),
+  [AssistantIntent.MY_ATTENDANCE]: Object.freeze({ purpose: 'Summarize the member’s own attendance.',
+    examples: ['How often have I visited?', 'When was my last check-in?'], parameters: [], service: 'getGroundedPortalData:myAttendance',
+    personalData: true, roles: ['member'], authorization: 'Authenticated session member ID.', behavior: 'read_only', result: 'Recent attendance summary.', failure: 'Do not infer visits.' }),
+  [AssistantIntent.MY_EVENTS]: Object.freeze({ purpose: 'List events available to the member.', examples: ['What events did I sign up for?'], parameters: [], service: 'getGroundedPortalData:myEvents',
+    personalData: true, roles: ['member'], authorization: 'Authenticated member session.', behavior: 'read_only', result: 'Member event registrations.', failure: 'Distinguish no registrations from service failure.' }),
+  [AssistantIntent.MY_FITNESS_GOAL]: Object.freeze({ purpose: 'Read the member’s saved fitness goal.', examples: ['What goal did I save?'], parameters: [], service: 'getGroundedPortalData:myGoal',
+    personalData: true, roles: ['member'], authorization: 'Authenticated session member ID.', behavior: 'read_only', result: 'Saved fitness goal.', failure: 'No saved goal is a valid empty result.' }),
+  [AssistantIntent.MY_ENTITLEMENTS]: Object.freeze({ purpose: 'Explain features included in the member’s current subscription.', examples: ['What access does my membership include?'], parameters: [], service: 'getGroundedPortalData:myEntitlements',
+    personalData: true, roles: ['member'], authorization: 'Authenticated session member ID.', behavior: 'read_only', result: 'Current subscription entitlements.', failure: 'Do not infer entitlements.' }),
+  [AssistantIntent.TRAINER_ASSIGNED_MEMBERS]: Object.freeze({ purpose: 'Summarize progress for members assigned to the signed-in trainer.', examples: ['How are my clients progressing?'], parameters: [], service: 'getGroundedPortalData:trainerAssigned',
+    personalData: true, roles: ['trainer'], authorization: 'Trainer session and active assignment ownership.', behavior: 'read_only', result: 'Assigned-member weekly adherence.', failure: 'Return only authorized assigned members.' }),
+  [AssistantIntent.PUBLIC_MEMBERSHIP_PLANS]: Object.freeze({ purpose: 'Show current public membership plans and their configured facts.', examples: ['What does membership cost?'], parameters: [], service: 'membership_plans service',
+    personalData: false, roles: ['guest', 'member', 'trainer', 'staff', 'admin'], authorization: 'Public active plans only.', behavior: 'read_only', result: 'Configured plan records.', failure: 'Never invent plan facts.' }),
+  [AssistantIntent.MEMBERSHIP_PLAN_GUIDANCE]: Object.freeze({ purpose: 'Help compare configured public membership plans.', examples: ['Which option suits training with a coach?'], parameters: [], service: 'membership_plans service',
+    personalData: false, roles: ['guest', 'member', 'trainer', 'staff', 'admin'], authorization: 'Public active plans only.', behavior: 'read_only', result: 'Configured plan records.', failure: 'Recommendations must use recorded plan features.' }),
+  [AssistantIntent.SAREX_LOCATION]: Object.freeze({ purpose: 'Retrieve configured SAREX location details.', examples: ['Where is the clinic?'], parameters: [], service: 'getGroundedPortalData:gymInformation',
+    personalData: false, roles: ['guest', 'member', 'trainer', 'staff', 'admin'], authorization: 'Public business data only.', behavior: 'read_only', result: 'Configured address.', failure: 'Say when the address is not configured.' }),
+  [AssistantIntent.SAREX_CONTACT]: Object.freeze({ purpose: 'Retrieve configured SAREX contact details.', examples: ['How can I reach the clinic?'], parameters: [], service: 'getGroundedPortalData:gymInformation',
+    personalData: false, roles: ['guest', 'member', 'trainer', 'staff', 'admin'], authorization: 'Public business data only.', behavior: 'read_only', result: 'Configured phone, email, and address.', failure: 'Say when contact details are not configured.' }),
+  [AssistantIntent.SAREX_OPENING_HOURS]: Object.freeze({ purpose: 'Retrieve configured opening hours.', examples: ['When can I visit?'], parameters: [], service: 'getGroundedPortalData:gymInformation',
+    personalData: false, roles: ['guest', 'member', 'trainer', 'staff', 'admin'], authorization: 'Public business data only.', behavior: 'read_only', result: 'Configured opening hours.', failure: 'Say when hours are not configured.' }),
+  [AssistantIntent.SAREX_FACILITIES]: Object.freeze({ purpose: 'Describe documented SAREX facilities.', examples: ['What can I train with at SAREX?'], parameters: [], service: 'getFacilities',
+    personalData: false, roles: ['guest', 'member', 'trainer', 'staff', 'admin'], authorization: 'Public documented facts only.', behavior: 'read_only', result: 'Documented facilities.', failure: 'Do not invent equipment.' }),
+  [AssistantIntent.PUBLIC_EVENTS]: Object.freeze({ purpose: 'List published public SAREX events.', examples: ['Is anything happening soon?'], parameters: [], service: 'getPublicEvents',
+    personalData: false, roles: ['guest', 'member', 'trainer', 'staff', 'admin'], authorization: 'Published public events only.', behavior: 'read_only', result: 'Public event records.', failure: 'Report no events or retrieval failure accurately.' }),
+  [AssistantIntent.PUBLIC_TRAINERS]: Object.freeze({ purpose: 'List public active trainer profiles.', examples: ['Who coaches at SAREX?'], parameters: [], service: 'getPublicTrainerDirectory',
+    personalData: false, roles: ['guest', 'member', 'trainer', 'staff', 'admin'], authorization: 'Active public profiles only.', behavior: 'read_only', result: 'Trainer directory entries.', failure: 'Do not invent trainer details.' }),
+  [AssistantIntent.REGISTRATION_HELP]: Object.freeze({ purpose: 'Explain the configured registration process.', examples: ['How do I get started?'], parameters: [], service: 'getRegistrationInformation',
+    personalData: false, roles: ['guest', 'member', 'trainer', 'staff', 'admin'], authorization: 'Public registration guidance.', behavior: 'read_only', result: 'Registration steps and allowlisted route.', failure: 'Do not claim payment or registration succeeded.' }),
+  [AssistantIntent.SAREX_ACCOUNT_HELP]: Object.freeze({ purpose: 'Guide password recovery using the existing secure flow.', examples: ['I cannot get into my account.'], parameters: [], service: 'passwordHelpResponse',
+    personalData: false, roles: ['guest', 'member', 'trainer', 'staff', 'admin'], authorization: 'Existing password-recovery policy.', behavior: 'read_only', result: 'Recovery instructions.', failure: 'Never request or expose passwords.' }),
+  [AssistantIntent.FITNESS_GUIDANCE]: Object.freeze({ purpose: 'Give general SAREX-relevant fitness and wellness guidance.', examples: ['How can I train more consistently?'], parameters: [], service: 'configured AI provider',
+    personalData: false, roles: ['guest', 'member', 'trainer'], authorization: 'Fitness safety rules and supplied context.', behavior: 'read_only', result: 'General guidance.', failure: 'Ask a concise clarification when critical context is missing.' })
+});
+
+export function isPrivateAssistantIntent(intent) {
+  return assistantCapabilities[intent]?.personalData === true;
+}
+
 export function resolveAssistantIdentity(actor) {
   if (!actor?.id || !Array.isArray(actor.roles) || actor.roles.length === 0) {
     return Object.freeze({ authenticated: false, userId: null, roles: Object.freeze([]), role: 'guest', mustChangePassword: false });
@@ -50,13 +105,13 @@ const patterns = Object.freeze({
   publicPlans: /\b(?:membership|subscription) plans?\b|\b(?:which|what) plans?\b|\bshow(?: me)?(?: your)? plans?\b|\byour plans\b|\bplans? (?:available|do you have|do you offer)\b|\bhow much (?:is|does) (?:a |the )?membership(?: cost)?\b|\b(?:price|cost) of (?:a |the )?membership\b|\bmembership (?:prices?|costs?|options?|benefits?)\b/i,
   workoutHistory: /\b(my|mine)\b.{0,40}\b(workout|training)\s*(history|record|records)\b|\b(?:summari[sz]e|show|review)\b.{0,35}\bmy\b.{0,20}\b(workout|training)\s*(history|records?)\b|\bwhat did i (?:complete|miss) last week\b|\bmy missed workouts?\b|\bwhich workouts? have i completed\b|\bwhat workouts? have i completed\b|\bwhich workouts? have i been missing\b|\bdid i miss any workout sessions?\b/i,
   workoutProgress: /\b(my|mine)\b.{0,40}\b(workout|training)\s*(progress|adherence|consistency)\b|\bhow am i doing (?:this week|with my workouts?)\b|\bmy workouts? this week\b|\bsummarize my workout progress\b/i,
-  myWorkout: /\b(my|mine|assigned to me)\b.{0,50}\b(workout|training)\s*(plan|program)?\b|\b(workout|training)\s*(plan|program)\b.{0,50}\b(my|mine|assigned to me)\b|\bdo you have access to my workout\b|\bwhat (?:workout|training) (?:plan|program) do i have\b|\bwhat (?:plan|program) did my trainer assign\b|\bwhat plan has my trainer assigned\b|\bwhat did my trainer assign\b|\bwhat(?:'s| is) (?:my|the) (?:assigned )?(?:workout|training plan|routine)(?: for today| today| assigned to me)?\b|\bwhat is the workout assigned to me\b|\bwhat exercises should i do\b|\b(?:explain|describe|show|summari[sz]e|tell me about)\b.{0,45}\b(?:this|the|my|today'?s|assigned|trainer[’']s)\b.{0,30}\b(?:workout|training|routine|exercises?|instructions?)\b|\bexplain (?:my workout|today'?s (?:exercises?|workout))\b|\bmy trainer[’']s instructions?\b|\bwhat exercises am i supposed to do\b|\bhow many sets(?: and| &) reps should i do\b|\bwhat is my next workout\b|\bexplain my exercises\b|\bwhat(?:'s| is) in my (?:workout )?(?:plan|program|routine)\b/i,
+  myWorkout: /\b(my|mine|assigned to me)\b.{0,50}\b(workout|training)\s*(plan|program)?\b|\b(workout|training)\s*(plan|program)\b.{0,50}\b(my|mine|assigned to me)\b|\bdo you have access to my workout\b|\bwhat (?:workout|training) (?:plan|program) do i have\b|\bwhat (?:workout|training|routine) (?:was|has been) assigned to me\b|\bwhat (?:plan|program) did my trainer assign\b|\bwhat plan has my trainer assigned\b|\bwhat did my trainer assign\b|\bwhat(?:'s| is) (?:my|the) (?:assigned )?(?:workout|training plan|routine)(?: for today| today| assigned to me)?\b|\bwhat is the workout assigned to me\b|\bwhat exercises should i do\b|\b(?:explain|describe|show|summari[sz]e|tell me about)\b.{0,45}\b(?:this|the|my|today'?s|assigned|trainer[’']s)\b.{0,30}\b(?:workout|training|routine|exercises?|instructions?)\b|\bexplain (?:my workout|today'?s (?:exercises?|workout))\b|\bmy trainer[’']s instructions?\b|\bwhat exercises am i supposed to do\b|\bhow many sets(?: and| &) reps should i do\b|\bwhat is my next workout\b|\bexplain my exercises\b|\bwhat(?:'s| is) in my (?:workout )?(?:plan|program|routine)\b/i,
   myAttendance: /\b(my|mine)\b.{0,40}\b(attendance|check[\s-]?ins?|visits?)\b/i,
   myEvents: /\b(my|mine)\b.{0,40}\b(upcoming )?events?\b|\bwhat events? have i (?:registered|signed up) for\b/i,
   myGoal: /\b(my|mine)\b.{0,35}\b(fitness goal|goal)\b/i,
   myEntitlements: /\b(my|mine)\b.{0,40}\b(access|entitlements?|features?)\b|\bwhat (?:features|access) (?:does|do) my membership include\b/i,
   trainerAssigned: /\b(assigned members?|members? assigned to me|my clients?|member workout progress|workout adherence|adherence summary|how are my assigned members doing|which members are missing workouts?|members? behind on workouts?)\b/i,
-  fitness: /\b(fitness|wellness|gym|workouts?|exercises?|training|muscle|strength|protein|nutrition|recovery|sets?|reps?|stretch(?:ing)?|warm[\s-]?up|cool[\s-]?down|cardio|sleep|hydration|injur(?:y|ies)|beginner|intermediate|advanced)\b/i
+  fitness: /\b(fitness|wellness|gym|workouts?|exercises?|training|muscle|strength|protein|nutrition|recovery|reps?|\bsets?(?!\s+up\b)\b|stretch(?:ing)?|warm[\s-]?up|cool[\s-]?down|cardio|sleep|hydration|injur(?:y|ies)|beginner|intermediate|advanced)\b/i
 });
 
 export function resolveAssistantIntent({ message, history = [], identity }) {

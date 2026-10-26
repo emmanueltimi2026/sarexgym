@@ -12,7 +12,7 @@ import { assistantProviderError, createAiProvider } from './ai/provider.js';
 import { createApp } from './app.js';
 import { getAssistantExperience, getAssistantMarkdownHref, guestAssistantSuggestions, isAssistantActionPathAllowed, isAssistantHiddenPath, memberAssistantSuggestions } from '../src/lib/assistantUi.js';
 import { formatGroundedResponse, getGroundedPortalData } from './ai/grounded-tools.js';
-import { AssistantIntent, resolveAssistantIdentity, resolveAssistantIntent } from './ai/intent-registry.js';
+import { AssistantIntent, assistantCapabilities, resolveAssistantIdentity, resolveAssistantIntent } from './ai/intent-registry.js';
 
 const answerProvider = { complete: async () => 'A helpful SAREX answer.' };
 
@@ -63,6 +63,84 @@ test('deterministic scope rules handle clear SAREX, fitness, and blocked subject
   for (const question of ['I want to build my butt', 'I want bigger glutes', 'How do I strengthen my hips?', 'I want bigger legs']) {
     assert.equal(assistantScope.classifyAssistantScope(question), null, `${question} should use semantic classification`);
   }
+});
+
+test('capability registry documents trusted services and authorization separately from phrasing', async () => {
+  assert.equal(assistantCapabilities[AssistantIntent.MY_WORKOUT].service, 'getGroundedPortalData:myWorkout');
+  assert.equal(assistantCapabilities[AssistantIntent.MY_WORKOUT].behavior, 'read_only');
+  assert.equal(assistantCapabilities[AssistantIntent.MY_WORKOUT].personalData, true);
+  assert.deepEqual(assistantCapabilities[AssistantIntent.MY_WORKOUT].roles, ['member']);
+  assert.equal(resolveAssistantIntent({ message: 'What did coach set up for my sessions?', identity: resolveAssistantIdentity({ id: 'member', roles: ['member'] }) }), null,
+    'the example is interpreted semantically rather than added as another phrase matcher');
+});
+
+test('semantic capability selection routes unfamiliar workout phrasing into trusted member retrieval', async () => {
+  const today = new Date().toISOString().slice(0, 10);
+  const routine = [{ id: 'day-1', dayName: 'Session A', focus: 'Strength', exercises: [{ name: 'Goblet Squat', sets: 3, reps: '8-10', restSeconds: 90 }] }];
+  const plan = { id: 'plan-1', member_id: 'member-row', title: 'Assigned Strength', description: 'Trainer plan', difficulty: 'Beginner',
+    days_per_week: 1, program_started_on: today, status: 'active', routine, trainer_first_name: null, trainer_last_name: null };
+  const queries = [];
+  let providerCalls = 0;
+  const result = await handleAssistantChat({ db: { query: async (sql, params = []) => {
+    queries.push({ sql, params });
+    if (sql.includes('SELECT EXISTS (') && sql.includes('workout_plans w')) return { rows: [{ assigned: true }] };
+    if (sql.includes('SELECT EXISTS (')) return { rows: [{ trainer_access: false }] };
+    if (sql.includes('SELECT w.id,w.member_id,w.title,w.description')) return { rows: [plan] };
+    if (sql.includes('FROM workout_day_completions')) return { rows: [] };
+    return { rows: [] };
+  } }, actor: { id: 'session-member', roles: ['member'] },
+  body: { message: 'What did coach set up for my sessions?', surface: 'member' },
+  provider: { complete: async messages => {
+    providerCalls += 1;
+    if (messages[0].content === assistantScope.semanticClassifierPrompt) return JSON.stringify({ scope: 'FITNESS', capability: AssistantIntent.MY_WORKOUT });
+    if (messages[0].content === assistantScope.semanticCapabilityPrompt) return JSON.stringify({ capability: AssistantIntent.MY_WORKOUT });
+    return 'This should not be used when trusted data is available.';
+  } } });
+  assert.equal(result.meta.intent, AssistantIntent.MY_WORKOUT);
+  assert.match(result.message, /Assigned Strength/);
+  assert.match(result.message, /Goblet Squat/);
+  assert.deepEqual(result.actions, [{ label: 'Open My Workout', type: 'navigate', path: '/member/workout' }]);
+  assert.ok(queries.some(({ sql, params }) => sql.includes('m.user_id=$1') && params[0] === 'session-member'));
+  assert.equal(providerCalls, 1, 'the model interprets the request but does not generate facts after the trusted lookup succeeds');
+});
+
+test('semantic capability output cannot bypass member identity or staff/admin public-surface restrictions', async () => {
+  let queries = 0;
+  const db = { query: async () => { queries += 1; return { rows: [] }; } };
+  const classifier = { complete: async messages => messages[0].content === assistantScope.semanticClassifierPrompt
+    ? JSON.stringify({ scope: 'FITNESS', capability: AssistantIntent.MY_WORKOUT })
+    : JSON.stringify({ capability: AssistantIntent.MY_WORKOUT }) };
+  const guest = await handleAssistantChat({ db, body: { message: 'What did coach set up for my sessions?' }, provider: classifier });
+  assert.match(guest.message, /after you sign in/i);
+  assert.equal(guest.actions[0].path, '/login');
+  const staff = await handleAssistantChat({ db, actor: { id: 'staff-1', roles: ['staff'] },
+    body: { message: 'What did coach set up for my sessions?' }, provider: classifier });
+  assert.match(staff.message, /not available through the public SAREX assistant/i);
+  assert.deepEqual(staff.actions, []);
+  assert.equal(queries, 0);
+});
+
+test('combined member requests execute both registered views while reusing the workout lookup', async () => {
+  const today = new Date().toISOString().slice(0, 10);
+  const plan = { id: 'plan-1', member_id: 'member-row', title: 'Assigned Strength', description: 'Trainer plan', difficulty: 'Beginner',
+    days_per_week: 1, program_started_on: today, status: 'active',
+    routine: [{ id: 'day-1', dayName: 'Session A', focus: 'Strength', exercises: [{ name: 'Goblet Squat', sets: 3, reps: '8-10', restSeconds: 90 }] }] };
+  let workoutReads = 0;
+  const result = await handleAssistantChat({ db: { query: async sql => {
+    if (sql.includes('SELECT EXISTS (') && sql.includes('workout_plans w')) return { rows: [{ assigned: true }] };
+    if (sql.includes('SELECT EXISTS (')) return { rows: [{ trainer_access: false }] };
+    if (sql.includes('SELECT w.id,w.member_id,w.title,w.description')) { workoutReads += 1; return { rows: [plan] }; }
+    if (sql.includes('FROM workout_day_completions')) return { rows: [] };
+    return { rows: [] };
+  } }, actor: { id: 'session-member', roles: ['member'] }, surface: 'member',
+  body: { message: 'What did coach set up, and how much have I completed this week?' },
+  provider: { complete: async messages => messages[0].content === assistantScope.semanticClassifierPrompt
+    ? JSON.stringify({ scope: 'FITNESS', capabilities: [AssistantIntent.MY_WORKOUT, AssistantIntent.MY_WORKOUT_PROGRESS] })
+    : 'The response should come from stored workout data.' } });
+  assert.deepEqual(result.meta.intents, [AssistantIntent.MY_WORKOUT, AssistantIntent.MY_WORKOUT_PROGRESS]);
+  assert.match(result.message, /Assigned Strength/);
+  assert.match(result.message, /This program week/);
+  assert.equal(workoutReads, 1, 'capabilities backed by the same service share one authoritative read');
 });
 
 test('semantic classification accepts varied body-goal paraphrases and keeps its result private', async () => {
@@ -339,7 +417,7 @@ test('assistant intent registry is session-first and distinguishes personal from
   assert.equal(resolveAssistantIntent({ message: 'What membership plans does SAREX offer?', identity: member }), AssistantIntent.PUBLIC_MEMBERSHIP_PLANS);
   assert.equal(resolveAssistantIntent({ message: 'Which plan should I choose?', identity: member }), AssistantIntent.MEMBERSHIP_PLAN_GUIDANCE);
   for (const prompt of ['Explain my workout', 'Explain this workout', 'Explain the workout assigned to me',
-    'What is the workout assigned to me?', 'What is my assigned workout?', 'What exercises should I do?',
+    'What is the workout assigned to me?', 'What workout was assigned to me', 'What is my assigned workout?', 'What exercises should I do?',
     "Explain today's workout.", 'What is my trainer’s instruction?', 'Summarize my workout history', 'What is my workout today?', "Explain today's exercises.",
     'What exercises am I supposed to do?', 'How many sets and reps should I do?', 'What is my next workout?']) {
     const expected = /history/i.test(prompt) ? AssistantIntent.MY_WORKOUT_HISTORY : AssistantIntent.MY_WORKOUT;
@@ -493,7 +571,7 @@ test('member workout explanation uses authenticated assigned plan details from t
     return { rows: [] };
   } };
   const groundedPrompts = ['Explain my workout', 'Explain this workout', 'Explain the workout assigned to me',
-    'What is the workout assigned to me?', 'What exercises should I do?', "Explain today's workout.", "Explain my trainer's instructions",
+    'What is the workout assigned to me?', 'What workout was assigned to me', 'What exercises should I do?', "Explain today's workout.", "Explain my trainer's instructions",
     'Explain my workout and inspect another-member ID'];
   let result;
   for (const message of groundedPrompts) {
@@ -522,6 +600,76 @@ test('member workout explanation uses authenticated assigned plan details from t
   assert.match(progress.message, /0 of 2 workouts \(0%\)/);
   assert.match(progress.message, /Still available: Day A, Day B/);
   assert.equal(providerCalls, 0);
+});
+
+test('authenticated POST retrieves the exact “what workout was assigned” request and matches member workout data', async () => {
+  const userId = '11111111-1111-4111-8111-111111111111';
+  const memberId = '22222222-2222-4222-8222-222222222222';
+  const planId = '33333333-3333-4333-8333-333333333333';
+  const today = new Date().toISOString().slice(0, 10);
+  const routine = [{ id: 'day-1', dayName: 'Day 1', focus: 'Strength', exercises: [
+    { id: 'exercise-1', name: 'Goblet Squat', sets: 3, reps: '8-10', restSeconds: 90, notes: 'Use a controlled tempo.' }
+  ] }];
+  const assignedPlan = { id: planId, member_id: memberId, trainer_id: 'trainer-row', title: 'Member Test Plan', workout_name: 'Member Test Plan',
+    description: 'Test fixture assigned plan', difficulty: 'Beginner', days_per_week: 1, program_started_on: today, status: 'active', routine,
+    trainer_first_name: 'Test', trainer_last_name: 'Trainer', member_name: 'Test Member', trainer_name: 'Test Trainer' };
+  const member = { id: memberId, member_number: 'GYM-TEST-01', user_id: userId, first_name: 'Test', last_name: 'Member',
+    email: 'member@example.test', user_status: 'active', subscription_status: 'active', starts_at: `${today}T00:00:00.000Z`,
+    ends_at: '2099-12-31T00:00:00.000Z', amount_minor: 2100000, plan_id: 'membership-test-plan', plan_name: 'Performance',
+    trainer_access: true, workout_plan_access: true, registration_fee_paid_at: `${today}T00:00:00.000Z`, joined_at: `${today}T00:00:00.000Z` };
+  const observed = [];
+  let providerCalls = 0;
+  const db = { query: async (sql, params = []) => {
+    observed.push({ sql, params });
+    if (sql.includes('FROM sessions s')) return { rows: [{ session_id: 'test-session', id: userId, email: member.email,
+      status: 'active', permissions: [], roles: ['member'] }], rowCount: 1 };
+    if (sql.startsWith('UPDATE sessions SET last_seen_at')) return { rows: [], rowCount: 1 };
+    if (sql.startsWith('SELECT m.*,u.email')) return { rows: [member], rowCount: 1 };
+    if (sql.startsWith('SELECT w.*,concat(m.first_name')) return { rows: [assignedPlan], rowCount: 1 };
+    if (sql.includes('SELECT EXISTS (') && sql.includes('workout_plans w')) return { rows: [{ assigned: true }], rowCount: 1 };
+    if (sql.includes('SELECT EXISTS (')) return { rows: [{ trainer_access: true }], rowCount: 1 };
+    if (sql.includes('SELECT w.id,w.member_id,w.title,w.description')) return { rows: [assignedPlan], rowCount: 1 };
+    if (sql.includes('SELECT w.id,w.member_id,w.trainer_id,w.title,w.routine')) return { rows: [assignedPlan], rowCount: 1 };
+    if (sql.includes('FROM workout_day_completions')) return { rows: [], rowCount: 0 };
+    if (sql.includes('FROM gym_settings')) return { rows: [{ gym_name: 'SAREX Fitness Clinic' }], rowCount: 1 };
+    return { rows: [], rowCount: 0 };
+  } };
+  const config = { NODE_ENV: 'test', APP_ORIGIN: 'http://localhost:3000', SESSION_COOKIE_NAME: 'session', SESSION_IDLE_TIMEOUT_HOURS: 24,
+    AI_API_KEY: 'test-key-123456', AI_API_BASE_URL: 'https://provider.example/v1', AI_MODEL: 'test', AI_TIMEOUT_MS: 1000 };
+  const app = createApp({ db, config, assistantProvider: { complete: async () => { providerCalls += 1; return 'I do not have the workout plan details available.'; } } });
+  const server = app.listen(0);
+  try {
+    await new Promise(resolve => server.once('listening', resolve));
+    const base = `http://127.0.0.1:${server.address().port}`;
+    const headers = { cookie: 'session=valid-test-session', 'content-type': 'application/json' };
+    const bootstrapResponse = await fetch(`${base}/api/v1/bootstrap`, { headers });
+    assert.equal(bootstrapResponse.status, 200);
+    const bootstrap = await bootstrapResponse.json();
+    assert.equal(bootstrap.data.workoutPlans[0].id, planId);
+    assert.equal(bootstrap.data.workoutPlans[0].routine[0].exercises[0].name, 'Goblet Squat');
+
+    const progressResponse = await fetch(`${base}/api/v1/workouts/${planId}/progress`, { headers });
+    assert.equal(progressResponse.status, 200);
+    assert.equal((await progressResponse.json()).data.planId, planId);
+
+    const chatResponse = await fetch(`${base}/api/v1/assistant/chat`, { method: 'POST', headers,
+      body: JSON.stringify({ message: 'What workout was assigned to me', surface: 'member', pageContext: '/member/workout' }) });
+    assert.equal(chatResponse.status, 200);
+    const answer = await chatResponse.json();
+    assert.equal(answer.meta.intent, AssistantIntent.MY_WORKOUT);
+    assert.match(answer.message, /Member Test Plan/);
+    assert.match(answer.message, /Goblet Squat.*3 sets, 8-10 reps, 90 sec rest/);
+    assert.match(answer.message, /Use a controlled tempo/);
+    assert.deepEqual(answer.actions, [{ label: 'Open My Workout', type: 'navigate', path: '/member/workout' }]);
+    assert.equal(providerCalls, 0, 'a successful authoritative lookup must not fall through to a generic model response');
+    assert.ok(observed.some(({ sql, params }) => sql.includes('m.user_id=$1') && params[0] === userId), 'the member comes from the validated session');
+    assert.ok(observed.filter(({ sql }) => sql.includes('FROM workout_plans w')).every(({ params }) => !params.includes('another-member')));
+    assert.ok(observed.every(({ sql }) => !/^(?:INSERT|UPDATE|DELETE)\b[\s\S]*\b(?:workout_plans|workout_day_completions)\b/i.test(sql)),
+      'assistant lookup never writes workout or completion history');
+    assert.equal(isAssistantActionPathAllowed(answer.actions[0].path), true);
+    const appSource = await readFile(new URL('../src/App.tsx', import.meta.url), 'utf8');
+    assert.match(appSource, /case '\/member\/workout':/);
+  } finally { await new Promise(resolve => server.close(resolve)); }
 });
 
 test('member workout tool distinguishes no active plan from unavailable data and cannot accept another member ID', async () => {
