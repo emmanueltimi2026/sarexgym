@@ -62,7 +62,6 @@ const personalIntent = /\b(my|mine|i am|i'm|i have|have i|myself|this week|my pr
 const workoutIntent = /\b(workouts?|exercises?|training|progress|missed|consistent|consistency|adherence|fitness goal|plan|focus|completed|improv\w*|month|week)\b/i;
 const workoutAdviceIntent = /\b(suggest|advice|recommend|give me|make me|build me|what should i do next|what do i do next|what did i (?:complete|miss)|how many workouts? (?:do i have )?left|different workout|shorter workout|shorten\w*|alternative|replace|swap|instead|skip|modify|change|adjust|limited time|only have \d+ minutes?)\b/i;
 const trainerPlanModificationIntent = /\b(shorten\w*|shorter|adapt\w*|modify|edit|change|alter|tweak|set|update|replace|swap|switch|skip|remove|delete|drop|add|reorder|rename|reduce|increase|adjust|optimi[sz]e|rewrite|alternative|different workout|replacement|substitut\w*|instead|limited time|only have \d+ minutes?|\d+[- ]minute version|suggest\w*|recommend\w*|give me|make me|build me|create me|new workout|another workout)\b/i;
-const workoutPlanOverviewIntent = /\b(do you have access to my workout plan|what (?:workout|training) (?:plan|program) do i have|what (?:plan|program) did my trainer assign|what plan has my trainer assigned|show me my (?:workout|training) plan)\b/i;
 const trainerPlanModificationRequest = text => trainerPlanModificationIntent.test(text) &&
   (/\b(workout|exercise|session|routine|sets?|reps?|rest|day\s*\d|frequency|assigned workout|workout plan|trainer-assigned plan)\b/i.test(text) ||
     /\b(limited time|only have \d+ minutes?|\d+[- ]minute version)\b/i.test(text));
@@ -309,10 +308,10 @@ export async function handleAssistantChat({ db, actor = null, body, provider, re
   const toolStartedAt = performance.now();
   const workoutConversation = `${input.history.filter(item => item.role === 'user').map(item => item.content).join('\n')}\n${input.message}`;
   const asksTrainerPlanChange = isMember && trainerPlanModificationRequest(workoutConversation);
-  const asksWorkoutExplanation = /\b(explain|describe|technique|form|how do i perform|how to perform|what does .* exercise)\b/i.test(input.message);
+  const asksSpecificExerciseTechnique = /\b(technique|form|how do i perform|how to perform|what does .* exercise)\b/i.test(input.message);
   const workoutIntentNeedsContext = isMember && (
-    [AssistantIntent.MY_WORKOUT_PROGRESS, AssistantIntent.MY_WORKOUT_HISTORY].includes(intent) ||
-    intent === AssistantIntent.MY_WORKOUT && (!workoutPlanOverviewIntent.test(input.message) || asksWorkoutExplanation || asksTrainerPlanChange)
+    intent === AssistantIntent.MY_WORKOUT && asksSpecificExerciseTechnique ||
+    intent === AssistantIntent.MY_WORKOUT && asksTrainerPlanChange
   );
   const groundedResult = workoutIntentNeedsContext
     ? { status: 'not_applicable', intent }

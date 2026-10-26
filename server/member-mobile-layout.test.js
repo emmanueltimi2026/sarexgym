@@ -8,11 +8,13 @@ const [layout, assistant, styles] = await Promise.all([
   readFile(new URL('../src/index.css', import.meta.url), 'utf8'),
 ]);
 
-test('portal shell gives its independent scroll area a bounded dynamic viewport height', () => {
+test('portal header stays outside the bounded content scroller', () => {
   assert.match(layout, /management-app h-\[100dvh\].*md:h-screen/);
   assert.match(layout, /min-h-0 flex-1 flex overflow-hidden/);
-  assert.match(layout, /management-scroll-area h-full min-h-0 flex-1[^\"]*overflow-y-auto/);
-  assert.match(layout, /management-topbar[^\"]*sticky top-0/);
+  assert.match(layout, /management-workspace min-h-0 flex-1 flex flex-col min-w-0 overflow-hidden/);
+  assert.match(layout, /<header className="management-topbar[^\"]*shrink-0/);
+  assert.match(layout, /<main ref=\{scrollContainerRef\} className="management-content management-scroll-area min-h-0 overflow-y-auto overscroll-y-contain/);
+  assert.doesNotMatch(layout, /management-topbar[^\"]*sticky top-0/);
   assert.doesNotMatch(layout, /management-scroll-area h-screen/);
 });
 

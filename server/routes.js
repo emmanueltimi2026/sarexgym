@@ -15,6 +15,7 @@ import { savePersonnelAccount } from './personnel-accounts.js';
 import { workoutInput, workoutBatchInput, validateRoutineIds } from './workout-schema.js';
 import { completeMemberWorkoutDay, getMemberWorkoutCycle, getTrainerWorkoutHistory } from './workout-cycles.js';
 import { FITNESS_GOALS } from '../shared/fitness-goals.js';
+import { dismissDailyOperationsSummary, getDailyOperationsSummary, getSummaryPresentation } from './daily-operations-summary.js';
 
 const asyncRoute = fn => (req,res,next)=>Promise.resolve(fn(req,res,next)).catch(next);
 const uuid=z.string().uuid();
@@ -75,6 +76,19 @@ export function installPublicRoutes(app,{db,config,loginLimit}) {
 }
 
 export function installProtectedRoutes(app,{db,config,checkInLimit=(req,res,next)=>next(),paymentLimit=(req,res,next)=>next()}) {
+ const requireOperationsSummaryAccess=(req,res,next)=>{
+  if(!req.actor?.roles?.some(role=>role==='admin'||role==='staff'))return res.status(403).json({error:{code:'FORBIDDEN',message:'You do not have permission to view daily operations summaries',requestId:req.requestId}});
+  return requirePermission('payments.view')(req,res,next);
+ };
+ app.get('/api/v1/operations/daily-summary',requireOperationsSummaryAccess,asyncRoute(async(req,res)=>{
+  const reopen=z.enum(['true','false']).default('false').parse(req.query.reopen)==='true';
+  const data=await getSummaryPresentation(db,req.actor.id,reopen);
+  res.set('Cache-Control','no-store').json({data});
+ }));
+ app.post('/api/v1/operations/daily-summary/dismiss',requireOperationsSummaryAccess,asyncRoute(async(req,res)=>{
+  await dismissDailyOperationsSummary(db,req.actor.id);
+  res.sendStatus(204);
+ }));
  const imageStorage=createImageStorage(config);
  const prepareImage=async(value,current,folder)=>{
   if(value===undefined||value===current?.url)return current||{url:null,publicId:null};

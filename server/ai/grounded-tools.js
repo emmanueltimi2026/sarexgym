@@ -49,13 +49,20 @@ async function getMemberWorkout(db, actor) {
   const plan = context.workout;
   return { status: 'success', plan: { title: plan.title, description: plan.description || null,
     difficulty: plan.difficulty, daysPerWeek: plan.daysPerWeek, trainerName: plan.trainerName || null,
-    currentWeek: { number: plan.currentWeek.weekNumber, startDate: plan.currentWeek.startDate,
+    programStartedOn: plan.programStartedOn || null,
+    currentWeek: { number: plan.currentWeek.weekNumber, startDate: plan.currentWeek.startDate, endDate: plan.currentWeek.endDate,
       completed: plan.currentWeek.completedCount, required: plan.currentWeek.assignedCount,
-      completionPercentage: plan.currentWeek.completionPercentage },
+      completionPercentage: plan.currentWeek.completionPercentage, notStarted: plan.currentWeek.notStarted === true,
+      isComplete: plan.currentWeek.isComplete === true },
+    recentHistory: (plan.recentHistory || []).slice(0, 6).map(week => ({ number: week.weekNumber, startDate: week.startDate,
+      endDate: week.endDate, completed: week.completedCount, required: week.assignedCount,
+      completionPercentage: week.completionPercentage, days: week.days.map(day => ({ name: day.day, focus: day.focus,
+        status: day.status, completedAt: day.completedAt })) })),
     days: plan.routine.map((day, index) => ({ name: day.day, focus: day.focus,
       status: plan.currentWeek.days[index]?.status || 'available',
       completedAt: plan.currentWeek.days[index]?.completedAt || null,
-      exercises: day.exercises.map(exercise => ({ name: exercise.name, sets: exercise.sets, reps: exercise.reps, restSeconds: exercise.restSeconds })) })) } };
+      exercises: day.exercises.map(exercise => ({ name: exercise.name, sets: exercise.sets, reps: exercise.reps,
+        restSeconds: exercise.restSeconds, trainerNotes: exercise.trainerNotes })) })) } };
 }
 
 function roleCanUse(actor, tool, surface = null) {
@@ -71,6 +78,7 @@ const toolsByIntent = Object.freeze({
   [AssistantIntent.PUBLIC_EVENTS]: 'publicEvents', [AssistantIntent.PUBLIC_TRAINERS]: 'publicTrainers',
   [AssistantIntent.REGISTRATION_HELP]: 'registrationHelp',
   [AssistantIntent.MY_MEMBERSHIP]: 'myMembership', [AssistantIntent.MY_WORKOUT]: 'myWorkout',
+  [AssistantIntent.MY_WORKOUT_PROGRESS]: 'myWorkout', [AssistantIntent.MY_WORKOUT_HISTORY]: 'myWorkout',
   [AssistantIntent.MY_FITNESS_GOAL]: 'myGoal', [AssistantIntent.MY_ATTENDANCE]: 'myAttendance',
   [AssistantIntent.MY_EVENTS]: 'myEvents', [AssistantIntent.MY_ENTITLEMENTS]: 'myEntitlements',
   [AssistantIntent.TRAINER_ASSIGNED_MEMBERS]: 'trainerAssigned'
@@ -129,11 +137,47 @@ export function formatGroundedResponse(result) {
   };
   const { tool, data } = result;
   if (tool === 'myWorkout') {
-    if (data.status === 'no_record') return { message: "I couldn't find an active workout plan assigned to your account.", actions: [{ label: 'Open My Workout', type: 'navigate', path: '/member/workout' }] };
+    const workoutAction = [{ label: 'Open My Workout', type: 'navigate', path: '/member/workout' }];
+    if (data.status === 'no_record') return { message: "I couldn't find an active workout plan assigned to your account.", actions: workoutAction };
     if (data.status === 'unavailable_entitlement') return { message: "I can see that a trainer-assigned plan exists, but your current subscription doesn't include workout-plan access. Please contact SAREX staff to review your access.", actions: [{ label: 'Open My Membership', type: 'navigate', path: '/member/membership' }] };
     if (data.status !== 'success') return { message: "I couldn't retrieve your workout information right now. Please try again shortly.", actions: [] };
     const p = data.plan;
-    return { message: `Yes. I can see your trainer-assigned plan, **${p.title}**${p.trainerName ? ` from ${p.trainerName}` : ''}. It's set for ${p.daysPerWeek} ${p.daysPerWeek === 1 ? 'day' : 'days'} per week${p.difficulty ? ` at ${p.difficulty.toLowerCase()} level` : ''}. This week you've completed ${p.currentWeek.completed} of ${p.currentWeek.required} workouts (${p.currentWeek.completionPercentage}%). I can explain its exercises and your progress, but I can't change the plan.`, actions: [{ label: 'Open My Workout', type: 'navigate', path: '/member/workout' }] };
+    const dateLabel = value => {
+      if (!value) return null;
+      const date = new Date(/^\d{4}-\d{2}-\d{2}$/.test(value) ? `${value}T12:00:00Z` : value);
+      return Number.isNaN(date.getTime()) ? null : new Intl.DateTimeFormat('en-NG', {
+        dateStyle: 'medium', timeZone: 'Africa/Lagos'
+      }).format(date);
+    };
+    const weekLabel = week => `Week ${week.number} (${dateLabel(week.startDate)} to ${dateLabel(week.endDate)})`;
+    if (result.intent === AssistantIntent.MY_WORKOUT_PROGRESS) {
+      const pending = p.days.filter(day => day.status !== 'completed');
+      return { message: `**This program week — ${weekLabel(p.currentWeek)}**\n\nYou've completed **${p.currentWeek.completed} of ${p.currentWeek.required} workouts (${p.currentWeek.completionPercentage}%)**.${p.currentWeek.isComplete ? ' Your weekly training is complete.' : !p.currentWeek.notStarted && pending.length ? ` Still available: ${pending.map(day => day.name).join(', ')}.` : ''}${p.currentWeek.notStarted ? ' This program week has not started yet.' : ''}`, actions: workoutAction };
+    }
+    if (result.intent === AssistantIntent.MY_WORKOUT_HISTORY) {
+      const weeks = [{ ...p.currentWeek, days: p.days }, ...(p.recentHistory || [])];
+      if (!weeks.some(week => week.days.some(day => day.status === 'completed' || day.status === 'missed'))) return { message: 'Your assigned plan is available, but there are no completed or missed workout sessions recorded in its history yet.', actions: workoutAction };
+      const history = weeks.map(week => {
+      const sessions = week.days.map(day => `- ${day.name}${day.focus ? ` (${day.focus})` : ''}: ${day.status === 'completed' ? `Completed${dateLabel(day.completedAt) ? ` on ${dateLabel(day.completedAt)}` : ''}` : day.status === 'missed' ? 'Missed' : day.status === 'upcoming' ? 'Not started' : 'Not completed yet'}`).join('\n');
+        return `**${weekLabel(week)} — ${week.completed}/${week.required} (${week.completionPercentage}%)**\n${sessions}`;
+      }).join('\n\n');
+      return { message: `Here is the recent recorded workout history for **${p.title}**:\n\n${history}`, actions: workoutAction };
+    }
+    const days = p.days.map(day => {
+      const dayStatus = day.status === 'completed'
+        ? `Completed this program week${dateLabel(day.completedAt) ? ` on ${dateLabel(day.completedAt)}` : ''}`
+        : day.status === 'missed' ? 'Not completed in this program week' : day.status === 'upcoming' ? 'Available when the program starts' : 'Available this program week';
+      const exercises = day.exercises.length ? day.exercises.map(exercise => {
+        const details = [];
+        if (exercise.sets != null) details.push(`${exercise.sets} ${Number(exercise.sets) === 1 ? 'set' : 'sets'}`);
+        if (exercise.reps != null && exercise.reps !== '') details.push(`${exercise.reps} reps`);
+        if (exercise.restSeconds != null) details.push(`${exercise.restSeconds} sec rest`);
+        return `  - **${exercise.name || 'Exercise'}**${details.length ? ` — ${details.join(', ')}` : ''}${exercise.trainerNotes ? `\n    Trainer note: ${exercise.trainerNotes}` : ''}`;
+      }).join('\n') : '  - No exercises are recorded for this day.';
+      return `**${day.name}${day.focus ? ` — ${day.focus}` : ''}** (${dayStatus})\n${exercises}`;
+    }).join('\n\n');
+    const intro = `Your trainer-assigned plan is **${p.title}**${p.trainerName ? ` from ${p.trainerName}` : ''}.${p.description ? ` ${p.description}` : ''}\n\nIt's set for **${p.daysPerWeek} ${p.daysPerWeek === 1 ? 'day' : 'days'} per week**${p.difficulty ? ` at ${p.difficulty.toLowerCase()} level` : ''}${p.programStartedOn ? ` and started ${dateLabel(p.programStartedOn)}` : ''}. The current cycle is ${weekLabel(p.currentWeek)}; you've completed **${p.currentWeek.completed} of ${p.currentWeek.required} (${p.currentWeek.completionPercentage}%)**.\n\n`;
+    return { message: `${intro}${days}\n\nI can explain the plan, but I can't change your trainer's prescription.`, actions: workoutAction };
   }
   if (tool === 'gymInformation') {
     const actions = [{ label: 'Contact SAREX', type: 'navigate', path: '/contact' }];

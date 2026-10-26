@@ -6,6 +6,7 @@ import { preloadPortalRoute } from '../../lib/preloadPortalRoute';
 import { apiUrl } from '../../lib/secureFetch';
 import { formatAppDateTime } from '../../utils/dateTime';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
+import { DailyOperationsSummary, type DailyOperationsSummaryData } from './DailyOperationsSummary';
 import {
   LayoutDashboard,
   Users,
@@ -21,7 +22,7 @@ import {
   Menu,
   X,
   Bell,
-  ClipboardList, CalendarDays, ChevronDown, ChevronRight
+  ClipboardList, CalendarDays, ChevronDown, ChevronRight, FileText
 } from 'lucide-react';
 
 const avatarFallback = (initials: string) => `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96"><rect width="100%" height="100%" rx="48" fill="#EF1B23"/><text x="50%" y="54%" text-anchor="middle" dominant-baseline="middle" fill="white" font-family="Arial" font-size="30" font-weight="700">${initials}</text></svg>`)}`;
@@ -46,6 +47,10 @@ const AppLayoutFrame: React.FC<AppLayoutProps> = ({
   const [showNotifications, setShowNotifications] = useState(false);
   const [showUserDropdown, setShowUserDropdown] = useState(false);
   const [notifications, setNotifications] = useState<Array<{id:string;type:string;title:string;message:string;metadata?:Record<string,string>;read_at?:string;created_at:string}>>([]);
+  const [dailySummary, setDailySummary] = useState<DailyOperationsSummaryData | null>(null);
+  const [dailySummaryOpen, setDailySummaryOpen] = useState(false);
+  const [dailySummaryBusy, setDailySummaryBusy] = useState(false);
+  const [dailySummaryError, setDailySummaryError] = useState('');
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const notificationMenuRef = useRef<HTMLDivElement>(null);
   const userMenuRef = useRef<HTMLDivElement>(null);
@@ -194,6 +199,45 @@ const AppLayoutFrame: React.FC<AppLayoutProps> = ({
 
   const userProfile = getUserProfile();
   const isDashboard = currentPath === '/admin/dashboard' || currentPath === '/staff/dashboard' || currentPath === '/trainer/dashboard' || currentPath === '/member/dashboard';
+  const canViewDailySummary = role === 'super_admin' || role === 'staff';
+  const fetchDailySummary = useCallback(async (reopen: boolean, signal?: AbortSignal) => {
+    try {
+      const response = await fetch(apiUrl(`/api/v1/operations/daily-summary${reopen ? '?reopen=true' : ''}`), { credentials: 'include', cache: 'no-store', signal });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body?.error?.message || 'Unable to load yesterday’s operations summary.');
+      setDailySummary(body.data?.summary || null);
+      setDailySummaryError('');
+      if (body.data?.shouldDisplay) setDailySummaryOpen(true);
+      else if (reopen) setDailySummaryOpen(true);
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') return;
+      setDailySummaryError(error instanceof Error ? error.message : 'Unable to load yesterday’s operations summary.');
+      setDailySummary(null);
+      setDailySummaryOpen(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!canViewDailySummary || !isDashboard) return;
+    const controller = new AbortController();
+    void fetchDailySummary(false, controller.signal);
+    return () => controller.abort();
+  }, [canViewDailySummary, currentPath, fetchDailySummary, isDashboard]);
+
+  const dismissDailySummary = async () => {
+    setDailySummaryBusy(true);
+    try {
+      const response = await fetch(apiUrl('/api/v1/operations/daily-summary/dismiss'), { method: 'POST', credentials: 'include' });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body?.error?.message || 'Unable to save your dismissal. Please try again.');
+      setDailySummaryOpen(false);
+      setDailySummaryError('');
+    } catch (error) {
+      setDailySummaryError(error instanceof Error ? error.message : 'Unable to save your dismissal. Please try again.');
+    } finally {
+      setDailySummaryBusy(false);
+    }
+  };
   const dashboardMessage = role === 'super_admin'
     ? "Here’s what is happening across your gym today."
     : role === 'staff'
@@ -336,9 +380,9 @@ const AppLayoutFrame: React.FC<AppLayoutProps> = ({
         )}
 
         
-        <div ref={scrollContainerRef} className="management-scroll-area h-full min-h-0 flex-1 flex flex-col min-w-0 overflow-y-auto pb-[calc(4rem+env(safe-area-inset-bottom,0px))] md:pb-6">
+        <div className="management-workspace min-h-0 flex-1 flex flex-col min-w-0 overflow-hidden">
           
-          <header className="management-topbar min-h-20 bg-white/95 backdrop-blur-xl border-b border-[#E5E7EB] sticky top-0 z-30 px-4 py-3 sm:px-8 flex flex-nowrap items-center justify-between gap-3 shrink-0">
+          <header className="management-topbar min-h-20 bg-white/95 backdrop-blur-xl border-b border-[#E5E7EB] z-30 px-4 py-3 sm:px-8 flex flex-nowrap items-center justify-between gap-3 shrink-0">
             <div className="flex min-w-0 flex-1 items-center gap-3">
               
               <button
@@ -363,6 +407,7 @@ const AppLayoutFrame: React.FC<AppLayoutProps> = ({
 
             
             <div className="flex items-center justify-end gap-3 shrink-0">
+              {canViewDailySummary && isDashboard && <button onClick={() => void fetchDailySummary(true)} disabled={dailySummaryBusy} className="inline-flex items-center gap-2 rounded-lg border border-gray-200 px-2.5 py-2 text-[11px] font-bold text-gray-700 transition hover:border-[#EF1B23] hover:text-[#EF1B23] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#EF1B23] disabled:opacity-50 sm:px-3 sm:text-xs" aria-label="Reopen yesterday’s operations summary"><FileText className="h-4 w-4"/><span className="hidden sm:inline">Yesterday’s summary</span></button>}
               <div className="workspace-date hidden xl:flex">
                 <CalendarCheck className="w-4 h-4" />
                 <span>{new Intl.DateTimeFormat('en-NG', { day: '2-digit', month: 'short', year: 'numeric' }).format(new Date())}</span>
@@ -471,7 +516,7 @@ const AppLayoutFrame: React.FC<AppLayoutProps> = ({
           </header>
 
           
-          <main className="management-content p-4 sm:p-8 max-w-[1500px] w-full mx-auto flex-1">
+          <main ref={scrollContainerRef} className="management-content management-scroll-area min-h-0 overflow-y-auto overscroll-y-contain p-4 sm:p-8 max-w-[1500px] w-full mx-auto flex-1">
             {isDashboard && <section className="portal-welcome mb-6 overflow-hidden rounded-2xl border border-white/70 bg-white px-6 py-7 sm:px-8 sm:py-8">
               <div className="relative z-10 max-w-xl">
                 <span className="text-[10px] font-black uppercase tracking-[.28em] text-[#EF1B23]">Welcome back</span>
@@ -529,6 +574,7 @@ const AppLayoutFrame: React.FC<AppLayoutProps> = ({
         </nav>
       )}
       <ConfirmDialog open={confirmLogout} title="Sign out?" message="You will need to sign in again to access this portal." confirmLabel="Sign out" tone="danger" onClose={() => setConfirmLogout(false)} onConfirm={() => { setConfirmLogout(false); void handleLogout(); }} />
+      {canViewDailySummary && <DailyOperationsSummary data={dailySummary} open={dailySummaryOpen} busy={dailySummaryBusy} error={dailySummaryError} onDismiss={() => dailySummary ? void dismissDailySummary() : setDailySummaryOpen(false)} />}
     </div>
   );
 };

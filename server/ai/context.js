@@ -144,7 +144,7 @@ export function buildMemberWorkoutIntelligence(plan, records, today = workoutDat
     focus: boundedText(day?.focus, 120), exercises: (Array.isArray(day?.exercises) ? day.exercises : []).slice(0, 8).map(exercise => ({
       name: boundedText(exercise?.name, 120), sets: boundedNumber(exercise?.sets, 1, 20),
       reps: typeof exercise?.reps === 'string' ? exercise.reps.slice(0, 32) : boundedNumber(exercise?.reps, 1, 100),
-      restSeconds: boundedNumber(exercise?.restSeconds, 0, 600) ?? 60,
+      restSeconds: boundedNumber(exercise?.restSeconds, 0, 600),
       trainerNotes: boundedText(exercise?.notes, 240) || null
     })) }));
 

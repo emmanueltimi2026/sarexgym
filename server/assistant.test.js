@@ -331,6 +331,14 @@ test('assistant intent registry is session-first and distinguishes personal from
     history: [{ role: 'user', content: 'What is my membership plan?' }] }), AssistantIntent.MY_MEMBERSHIP);
   assert.equal(resolveAssistantIntent({ message: 'What membership plans does SAREX offer?', identity: member }), AssistantIntent.PUBLIC_MEMBERSHIP_PLANS);
   assert.equal(resolveAssistantIntent({ message: 'Which plan should I choose?', identity: member }), AssistantIntent.MEMBERSHIP_PLAN_GUIDANCE);
+  for (const prompt of ['Explain my workout', 'What is my workout today?', "Explain today's exercises.",
+    'What exercises am I supposed to do?', 'How many sets and reps should I do?', 'What is my next workout?']) {
+    assert.equal(resolveAssistantIntent({ message: prompt, identity: member }), AssistantIntent.MY_WORKOUT, prompt);
+  }
+  for (const prompt of ['Summarize my workout progress.', 'Which workouts have I completed?', 'Did I miss any workout sessions?', 'Which workouts have I been missing?']) {
+    const expected = /progress/i.test(prompt) ? AssistantIntent.MY_WORKOUT_PROGRESS : AssistantIntent.MY_WORKOUT_HISTORY;
+    assert.equal(resolveAssistantIntent({ message: prompt, identity: member }), expected, prompt);
+  }
   assert.equal(resolveAssistantIdentity(null).role, 'guest');
 });
 
@@ -455,7 +463,7 @@ test('public membership catalog stays public for signed-in members and guests ge
   assert.equal(providerCalls, 0);
 });
 
-test('member workout-plan access is grounded in the authenticated member and database values', async () => {
+test('member workout explanation uses authenticated assigned plan details from the database', async () => {
   const userId = 'signed-in-member';
   const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Lagos', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
   const queries = [];
@@ -467,22 +475,33 @@ test('member workout-plan access is grounded in the authenticated member and dat
     if (sql.includes('FROM workout_plans w')) return { rows: [{ id: 'assigned-plan', member_id: 'member-row', title: 'Full Body Strength',
       description: '', difficulty: 'Beginner', days_per_week: 2, program_started_on: today,
       trainer_first_name: 'Taylor', trainer_last_name: 'Coach', routine: [
-        { id: 'day-a', dayName: 'Day A', focus: 'Strength', exercises: [{ id: 'squat', name: 'Squat', sets: 3, reps: '8', rest: '90 sec' }] },
+        { id: 'day-a', dayName: 'Day A', focus: 'Strength', exercises: [{ id: 'squat', name: 'Squat', sets: 3, reps: '8', restSeconds: 90, notes: 'Keep your back neutral.' }] },
         { id: 'day-b', dayName: 'Day B', focus: 'Mobility', exercises: [] }
       ] }] };
     if (sql.includes('FROM workout_day_completions')) return { rows: [] };
     if (sql.includes('FROM subscriptions s JOIN membership_plans')) return { rows: [{ plan_name: 'Performance', status: 'active', trainer_access: true, workout_plan_access: true }] };
     return { rows: [] };
   } };
-  const result = await handleAssistantChat({ db, actor: { id: userId, roles: ['member'] }, body: { message: 'Do you have access to my workout plan?' },
+  const result = await handleAssistantChat({ db, actor: { id: userId, roles: ['member'] }, body: { message: 'Explain my workout' },
     provider: { complete: async () => { providerCalls += 1; return 'I cannot see it.'; } } });
-  assert.match(result.message, /Yes\. I can see your trainer-assigned plan, \*\*Full Body Strength\*\*/);
+  assert.match(result.message, /Your trainer-assigned plan is \*\*Full Body Strength\*\*/);
   assert.match(result.message, /2 days per week/);
-  assert.match(result.message, /0 of 2 workouts \(0%\)/);
+  assert.match(result.message, /Squat.*3 sets, 8 reps, 90 sec rest/s);
+  assert.match(result.message, /Trainer note: Keep your back neutral\./);
+  assert.match(result.message, /0 of 2 \(0%\)/);
+  assert.doesNotMatch(result.message, /60 sec rest|kg/);
   assert.equal(providerCalls, 0);
   assert.ok(queries.every(({ params }) => params.every(param => param !== 'another-member')));
   assert.ok(queries.some(({ sql, params }) => sql.includes('m.user_id=$1') && params[0] === userId));
   assert.doesNotMatch(JSON.stringify(result), /member-row|assigned-plan|email|phone|payment|password/i);
+
+  const progress = await handleAssistantChat({ db, actor: { id: userId, roles: ['member'] },
+    body: { message: 'Summarize my workout progress' },
+    provider: { complete: async () => { providerCalls++; return 'Unverified progress'; } } });
+  assert.match(progress.message, /This program week/);
+  assert.match(progress.message, /0 of 2 workouts \(0%\)/);
+  assert.match(progress.message, /Still available: Day A, Day B/);
+  assert.equal(providerCalls, 0);
 });
 
 test('member workout tool distinguishes no active plan from unavailable data and cannot accept another member ID', async () => {
@@ -677,6 +696,13 @@ test('member AI workout data is bounded to eight program weeks and contains no r
   assert.doesNotMatch(JSON.stringify(intelligence), /private-plan-id|private-member-id|day-1-id|password|email|payment/i);
 });
 
+test('missing workout prescription values stay unavailable instead of receiving invented defaults', () => {
+  const plan = intelligencePlan();
+  delete plan.routine[0].exercises[0].restSeconds;
+  const intelligence = buildMemberWorkoutIntelligence(plan, [], '2026-09-29');
+  assert.equal(intelligence.routine[0].exercises[0].restSeconds, null);
+});
+
 test('trainer-assigned workout changes are refused deterministically while explanations remain available', async () => {
   const date = new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Lagos', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
   const queries = [];
@@ -685,7 +711,7 @@ test('trainer-assigned workout changes are refused deterministically while expla
     if (sql.includes('SELECT fitness_goal FROM members')) return { rows: [{ fitness_goal: 'Build Muscle' }] };
     if (sql.includes('SELECT EXISTS (') && sql.includes('workout_plans w')) return { rows: [{ assigned: true }] };
     if (sql.includes('SELECT EXISTS (')) return { rows: [{ trainer_access: true }] };
-    if (sql.includes('FROM workout_plans w')) return { rows: [{ id: 'plan-1', member_id: 'member-1', title: 'Trainer Strength Plan', description: '', difficulty: 'Beginner', days_per_week: 1, program_started_on: date,
+    if (sql.includes('FROM workout_plans w')) return { rows: [{ id: 'plan-1', member_id: 'member-1', title: 'Trainer Strength Plan', description: '', difficulty: 'Beginner', days_per_week: 1, program_started_on: new Date(Date.now() - 14 * 86400000).toISOString().slice(0, 10),
       routine: [{ id: 'day-1', dayName: 'Day 1', exercises: [{ name: 'Squat', sets: 3, reps: '8' }] }] }] };
     if (sql.includes('FROM workout_day_completions')) return { rows: [] };
     return { rows: [] };
@@ -727,7 +753,7 @@ test('missed-workout mutations are refused and ordinary history explanations rem
     if (sql.includes('SELECT fitness_goal FROM members')) return { rows: [{ fitness_goal: 'Build Muscle' }] };
     if (sql.includes('SELECT EXISTS (') && sql.includes('workout_plans w')) return { rows: [{ assigned: true }] };
     if (sql.includes('SELECT EXISTS (')) return { rows: [{ trainer_access: false }] };
-    if (sql.includes('FROM workout_plans w')) return { rows: [{ id: 'plan-1', member_id: 'member-1', title: 'Trainer Strength Plan', description: '', difficulty: 'Beginner', days_per_week: 1, program_started_on: date,
+    if (sql.includes('FROM workout_plans w')) return { rows: [{ id: 'plan-1', member_id: 'member-1', title: 'Trainer Strength Plan', description: '', difficulty: 'Beginner', days_per_week: 1, program_started_on: new Date(Date.now() - 14 * 86400000).toISOString().slice(0, 10),
       routine: [{ id: 'day-1', dayName: 'Day 1', focus: 'Lower body', exercises: [{ name: 'Squat', sets: 3, reps: '8', restSeconds: 90 }] }] }] };
     return { rows: [] };
   } };
@@ -748,15 +774,11 @@ test('missed-workout mutations are refused and ordinary history explanations rem
   }
   assert.equal(providerCalls, 0);
 
-  let sent;
   const explanation = await handleAssistantChat({ db, actor: { id: 'member-user-1', roles: ['member'] }, body: { message: 'What did I miss last week?' },
-    provider: { complete: async messages => { sent = messages; return 'Day 2 was missed.'; } } });
-  assert.equal(explanation.message, 'Day 2 was missed.');
-  assert.match(sent[0].content, /missed workout remains missed in its original program week/i);
-  assert.match(sent[0].content, /Trainer Strength Plan/);
-  assert.match(sent[0].content, /"fitnessGoal":"Build Muscle"/);
-  assert.match(sent[0].content, /"trainerAccess":false/);
-  assert.equal(sent.some(message => message.content.includes('memberId')), false);
+    provider: { complete: async () => { providerCalls++; return 'Day 2 was missed.'; } } });
+  assert.match(explanation.message, /Trainer Strength Plan/);
+  assert.match(explanation.message, /Day 1 \(Lower body\): Missed/);
+  assert.equal(providerCalls, 0, 'historical completion status comes from the stored workout history');
 
   const limitedTime = await handleAssistantChat({ db, actor: { id: 'member-user-1', roles: ['member'] }, body: { message: 'I only have 30 minutes today; shorten my workout' },
     provider: { complete: async () => { providerCalls++; return 'Unsafe short workout'; } } });
@@ -774,16 +796,17 @@ test('member AI answers general guidance when workout intelligence loading fails
   assert.match(system, /If workout history could not be loaded, provide general guidance without claiming personal progress or plan details/i);
 });
 
-test('member questions about workouts they have been missing load personal history and use an existing action', async () => {
+test('member history questions use the grounded workout lookup and distinguish no assigned plan', async () => {
   const queries = [];
-  let system;
+  let providerCalls = 0;
   const result = await handleAssistantChat({ db: { query: async (sql, params) => { queries.push({ sql, params }); return { rows: [] }; } },
     actor: { id: 'member-session-user', roles: ['member'] }, body: { message: 'Which workouts have I been missing?' },
-    provider: { complete: async messages => { system = messages[0].content; return 'I can review your recent workout weeks.'; } } });
+    provider: { complete: async () => { providerCalls++; return 'Invented workout history.'; } } });
   assert.ok(queries.some(query => query.sql.includes('FROM workout_plans w')));
   assert.ok(queries.every(query => query.params[0] === 'member-session-user'));
-  assert.match(system, /"myWorkoutIntelligence":\{"assignedPlan":false\}/);
-  assert.deepEqual(result.actions, [{ label: 'View Workout History', type: 'navigate', path: '/member/workout' }]);
+  assert.match(result.message, /couldn't find an active workout plan assigned to your account/i);
+  assert.deepEqual(result.actions, [{ label: 'Open My Workout', type: 'navigate', path: '/member/workout' }]);
+  assert.equal(providerCalls, 0);
 });
 
 test('trainer role receives public/basic assistant context only', async () => {
