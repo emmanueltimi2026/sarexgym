@@ -138,7 +138,7 @@ export function formatGroundedResponse(result) {
   const { tool, data } = result;
   if (tool === 'myWorkout') {
     const workoutAction = [{ label: 'Open My Workout', type: 'navigate', path: '/member/workout' }];
-    if (data.status === 'no_record') return { message: "I couldn't find an active workout plan assigned to your account.", actions: workoutAction };
+    if (data.status === 'no_record') return { message: "I couldn't find a workout plan assigned to your account.", actions: workoutAction };
     if (data.status === 'unavailable_entitlement') return { message: "I can see that a trainer-assigned plan exists, but your current subscription doesn't include workout-plan access. Please contact SAREX staff to review your access.", actions: [{ label: 'Open My Membership', type: 'navigate', path: '/member/membership' }] };
     if (data.status !== 'success') return { message: "I couldn't retrieve your workout information right now. Please try again shortly.", actions: [] };
     const p = data.plan;

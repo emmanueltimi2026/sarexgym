@@ -195,18 +195,19 @@ export async function getMyMemberContext(db, userId, { includeEvents = false, in
   if (includeEntitlements) add('currentEntitlements', getMyCurrentEntitlements(db, userId));
   if (includeAssignmentStatus) add('hasTrainerAssignedPlan', db.query(`SELECT EXISTS (
       SELECT 1 FROM workout_plans w JOIN members m ON m.id=w.member_id
-      WHERE m.user_id=$1 AND w.status='active' AND w.trainer_id IS NOT NULL) AS assigned`, [userId])
+      WHERE m.user_id=$1 AND w.status IN ('active','completed') AND w.trainer_id IS NOT NULL) AS assigned`, [userId])
     .then(result => Boolean(result.rows[0]?.assigned)));
   if (includeWorkout) add('workout', (async () => {
     const plan = (await db.query(`SELECT w.id,w.member_id,w.title,w.description,w.difficulty,w.days_per_week,w.routine,w.program_started_on,w.status,
         t.first_name trainer_first_name,t.last_name trainer_last_name
       FROM workout_plans w JOIN members m ON m.id=w.member_id LEFT JOIN trainers t ON t.id=w.trainer_id
-      WHERE m.user_id=$1 AND w.status='active' AND EXISTS (
+      WHERE m.user_id=$1 AND w.status IN ('active','completed') AND EXISTS (
         SELECT 1 FROM subscriptions s JOIN membership_plans p ON p.id=s.plan_id
         WHERE s.member_id=w.member_id AND s.status='active' AND s.starts_at<=now() AND s.ends_at>now()
           AND p.workout_plan_access AND NOT EXISTS (
             SELECT 1 FROM subscription_freezes f WHERE f.subscription_id=s.id AND f.released_at IS NULL
-              AND now()>=f.starts_at AND now()<f.ends_at)) ORDER BY w.updated_at DESC LIMIT 1`, [userId])).rows[0];
+              AND now()>=f.starts_at AND now()<f.ends_at))
+      ORDER BY CASE WHEN w.status='active' THEN 0 ELSE 1 END,w.updated_at DESC LIMIT 1`, [userId])).rows[0];
     if (!plan) return null;
     const today = workoutDate();
     let week;

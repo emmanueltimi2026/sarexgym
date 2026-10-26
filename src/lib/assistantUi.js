@@ -68,6 +68,7 @@ export const assistantActionPaths = new Set([
   '/trainer/members'
 ]);
 export const isAssistantActionPathAllowed = path => assistantActionPaths.has(path);
+export const getAssistantMarkdownHref = href => typeof href === 'string' && isAssistantActionPathAllowed(href) ? href : null;
 export const isAssistantHiddenPath = path => /^\/(?:check-in\/reception|(?:member|staff)\/check-in|checkout|payment)(?:\/|$)/i.test(path);
 export const shouldAutoFocusAssistantInput = (isOpen, isMobileViewport) => Boolean(isOpen && !isMobileViewport);
 export const getAssistantWidgetBottom = (isMemberPortal, keyboardInset = 0) => {

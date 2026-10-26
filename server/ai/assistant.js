@@ -149,7 +149,7 @@ const routeAction = (message, isMember) => {
 
 const modelUrlPattern = /\b(?:https?:\/\/|www\.)[^\s<>()]+|\b(?:[a-z0-9-]+\.)+(?:com|net|org|io|co|ng|app|info|biz)(?:\/[^\s<>()]*)?|(?<![\w])\/(?:[a-z0-9_-]+\/?)+/gi;
 function sanitizeAssistantMessage(message) {
-  return String(message || '').replace(/\[([^\]]+)\]\((?:https?:\/\/|\/)[^)]+\)/gi, '$1')
+  return String(message || '').replace(/\[((?:\\.|[^\]])+)\]\([^)]*\)/g, '$1')
     .replace(modelUrlPattern, '').replace(/[ \t]{2,}/g, ' ').replace(/\s+([.,;:!?])/g, '$1').trim();
 }
 
@@ -262,8 +262,9 @@ export async function handleAssistantChat({ db, actor = null, body, provider, re
   const intent = resolveAssistantIntent({ message: input.message, history: input.history, identity });
   const isMember = identity.role === 'member' && !identity.mustChangePassword;
   const staffOrAdminOnPublic = input.surface === 'public' && ['staff', 'admin'].includes(identity.role);
+  const privateWorkoutRequest = /\b(?:my|mine|my trainer[’']s|assigned to me|my assigned)\b.{0,60}\b(workout|training|routine|prescription)\b|\b(workout|training|routine|plan)\b.{0,50}\bassigned to me\b/i.test(input.message);
   const operationalPublicRequest = /\b(expired|expiring|active)\s+(?:members?|memberships?|subscriptions?)\b|\bmembers?\s+(?:expired|roster|database|list|records?)\b|\b(?:list|show|find)\s+(?:all\s+)?members?\b|\battendance\b.{0,24}\b(?:summary|trends?|activity|operations?|today|report|records?)\b|\b(?:today|this week).{0,24}\battendance\b|\bcheck[ -]?ins?\b.{0,24}\b(?:summary|trends?|activity|today|report|records?)\b|\bhow many\s+(?:check[ -]?ins?|attendees|members?)\b|\brevenue\b|\b(?:payment|transaction)s?\s+(?:summary|activity|operations?|records?|history|report|analytics)\b|\b(?:recent|all)\s+payments?\b|\bfinancial\s+(?:summary|analytics|report)\b|\badmin analytics\b|\boperational attention\b|\baudit trail\b|\bstaff operations?\b/i.test(input.message);
-  const privatePublicRequest = /\b(?:my|mine|member(?:'s)?|members'|their)\b.{0,60}\b(membership|subscription|workout|training|attendance|check[ -]?in|payment|profile|account|goal|progress|expiry|plan)\b/i.test(input.message);
+  const privatePublicRequest = privateWorkoutRequest || /\b(?:my|mine|member(?:'s)?|members'|their)\b.{0,60}\b(membership|subscription|workout|training|attendance|check[ -]?in|payment|profile|account|goal|progress|expiry|plan)\b/i.test(input.message);
   const privateIntent = Boolean(intent?.startsWith('MY_') || intent === AssistantIntent.TRAINER_ASSIGNED_MEMBERS);
   if (staffOrAdminOnPublic && (operationalPublicRequest || privatePublicRequest || privateIntent)) {
     return { message: 'That operational or account information is not available through the public SAREX assistant. Please use your management portal.',
@@ -341,7 +342,7 @@ export async function handleAssistantChat({ db, actor = null, body, provider, re
     }, { grounded: true, outcome: plans.length ? 'SUCCESS_WITH_DATA' : 'SUCCESS_NO_DATA', tool: 'getPublicMembershipPlans' });
   }
 
-  if (!identity.authenticated && /\b(my membership|my subscription|my payments?|my attendance|my progress|my workouts?|how am i doing with my workouts?|renew my)\b/i.test(input.message)) {
+  if (!identity.authenticated && (privateWorkoutRequest || /\b(my membership|my subscription|my payments?|my attendance|my progress|my workouts?|how am i doing with my workouts?|renew my)\b/i.test(input.message))) {
     return finish({ message: 'I can help with your personal SAREX information after you sign in. Your account details are private and available only to you.', actions: [safeRoutes.login] }, { outcome: 'UNAUTHORIZED' });
   }
   if (identity.mustChangePassword && identity.role === 'member' && personalIntent.test(input.message)) {

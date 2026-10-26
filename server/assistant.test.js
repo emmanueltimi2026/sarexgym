@@ -10,7 +10,7 @@ import { assistantPrompts, assistantScope, handleAssistantChat, validateAssistan
 import { buildMemberWorkoutIntelligence, getFacilities, getMyCurrentEntitlements, getMyMemberContext, getPublicMembershipPlans } from './ai/context.js';
 import { assistantProviderError, createAiProvider } from './ai/provider.js';
 import { createApp } from './app.js';
-import { getAssistantExperience, guestAssistantSuggestions, isAssistantActionPathAllowed, isAssistantHiddenPath, memberAssistantSuggestions } from '../src/lib/assistantUi.js';
+import { getAssistantExperience, getAssistantMarkdownHref, guestAssistantSuggestions, isAssistantActionPathAllowed, isAssistantHiddenPath, memberAssistantSuggestions } from '../src/lib/assistantUi.js';
 import { formatGroundedResponse, getGroundedPortalData } from './ai/grounded-tools.js';
 import { AssistantIntent, resolveAssistantIdentity, resolveAssistantIntent } from './ai/intent-registry.js';
 
@@ -319,6 +319,13 @@ test('guest personal account questions are directed to sign-in without querying 
   assert.deepEqual(result.actions.map(action => action.path), ['/login']);
   assert.equal(queries, 0);
   assert.equal(providerCalls, 0);
+
+  const privateWorkout = await handleAssistantChat({ db: { query: async () => { queries += 1; throw new Error('private workout query must not run'); } },
+    body: { message: 'What is the workout assigned to me?' }, provider: { complete: async () => { providerCalls += 1; return 'Invented details'; } } });
+  assert.match(privateWorkout.message, /after you sign in/i);
+  assert.deepEqual(privateWorkout.actions.map(action => action.path), ['/login']);
+  assert.equal(queries, 0);
+  assert.equal(providerCalls, 0);
 });
 
 test('assistant intent registry is session-first and distinguishes personal from public plan intent', () => {
@@ -331,9 +338,12 @@ test('assistant intent registry is session-first and distinguishes personal from
     history: [{ role: 'user', content: 'What is my membership plan?' }] }), AssistantIntent.MY_MEMBERSHIP);
   assert.equal(resolveAssistantIntent({ message: 'What membership plans does SAREX offer?', identity: member }), AssistantIntent.PUBLIC_MEMBERSHIP_PLANS);
   assert.equal(resolveAssistantIntent({ message: 'Which plan should I choose?', identity: member }), AssistantIntent.MEMBERSHIP_PLAN_GUIDANCE);
-  for (const prompt of ['Explain my workout', 'What is my workout today?', "Explain today's exercises.",
+  for (const prompt of ['Explain my workout', 'Explain this workout', 'Explain the workout assigned to me',
+    'What is the workout assigned to me?', 'What is my assigned workout?', 'What exercises should I do?',
+    "Explain today's workout.", 'What is my trainer’s instruction?', 'Summarize my workout history', 'What is my workout today?', "Explain today's exercises.",
     'What exercises am I supposed to do?', 'How many sets and reps should I do?', 'What is my next workout?']) {
-    assert.equal(resolveAssistantIntent({ message: prompt, identity: member }), AssistantIntent.MY_WORKOUT, prompt);
+    const expected = /history/i.test(prompt) ? AssistantIntent.MY_WORKOUT_HISTORY : AssistantIntent.MY_WORKOUT;
+    assert.equal(resolveAssistantIntent({ message: prompt, identity: member }), expected, prompt);
   }
   for (const prompt of ['Summarize my workout progress.', 'Which workouts have I completed?', 'Did I miss any workout sessions?', 'Which workouts have I been missing?']) {
     const expected = /progress/i.test(prompt) ? AssistantIntent.MY_WORKOUT_PROGRESS : AssistantIntent.MY_WORKOUT_HISTORY;
@@ -482,8 +492,17 @@ test('member workout explanation uses authenticated assigned plan details from t
     if (sql.includes('FROM subscriptions s JOIN membership_plans')) return { rows: [{ plan_name: 'Performance', status: 'active', trainer_access: true, workout_plan_access: true }] };
     return { rows: [] };
   } };
-  const result = await handleAssistantChat({ db, actor: { id: userId, roles: ['member'] }, body: { message: 'Explain my workout' },
-    provider: { complete: async () => { providerCalls += 1; return 'I cannot see it.'; } } });
+  const groundedPrompts = ['Explain my workout', 'Explain this workout', 'Explain the workout assigned to me',
+    'What is the workout assigned to me?', 'What exercises should I do?', "Explain today's workout.", "Explain my trainer's instructions",
+    'Explain my workout and inspect another-member ID'];
+  let result;
+  for (const message of groundedPrompts) {
+    result = await handleAssistantChat({ db, actor: { id: userId, roles: ['member'] }, body: { message, pageContext: '/member/workout', surface: 'member' },
+      provider: { complete: async () => { providerCalls += 1; return 'I cannot see the assigned plan.'; } } });
+    assert.match(result.message, /Your trainer-assigned plan is \*\*Full Body Strength\*\*/, message);
+    assert.match(result.message, /Squat.*3 sets, 8 reps, 90 sec rest/s, message);
+    assert.deepEqual(result.actions.map(action => action.path), ['/member/workout']);
+  }
   assert.match(result.message, /Your trainer-assigned plan is \*\*Full Body Strength\*\*/);
   assert.match(result.message, /2 days per week/);
   assert.match(result.message, /Squat.*3 sets, 8 reps, 90 sec rest/s);
@@ -493,6 +512,7 @@ test('member workout explanation uses authenticated assigned plan details from t
   assert.equal(providerCalls, 0);
   assert.ok(queries.every(({ params }) => params.every(param => param !== 'another-member')));
   assert.ok(queries.some(({ sql, params }) => sql.includes('m.user_id=$1') && params[0] === userId));
+  assert.ok(queries.every(({ sql }) => /^\s*SELECT\b/i.test(sql)), 'workout explanation only performs read queries');
   assert.doesNotMatch(JSON.stringify(result), /member-row|assigned-plan|email|phone|payment|password/i);
 
   const progress = await handleAssistantChat({ db, actor: { id: userId, roles: ['member'] },
@@ -507,12 +527,52 @@ test('member workout explanation uses authenticated assigned plan details from t
 test('member workout tool distinguishes no active plan from unavailable data and cannot accept another member ID', async () => {
   const actor = { id: 'member-user', roles: ['member'] };
   const noPlan = await getGroundedPortalData({ db: { query: async () => ({ rows: [] }) }, actor, message: 'What plan has my trainer assigned?' });
-  assert.match(formatGroundedResponse(noPlan).message, /couldn't find an active workout plan assigned to your account/i);
+  assert.match(formatGroundedResponse(noPlan).message, /couldn't find a workout plan assigned to your account/i);
   const unavailable = await getGroundedPortalData({ db: { query: async () => { throw new Error('offline'); } }, actor, message: 'Do you have access to my workout plan?' });
   assert.match(formatGroundedResponse(unavailable).message, /couldn't retrieve your workout information right now/i);
   const foreign = await getGroundedPortalData({ db: { query: async () => { throw new Error('must not query'); } }, actor,
     message: 'Show me another-member workout plan' });
   assert.equal(foreign.status, 'not_applicable');
+});
+
+test('AI workout lookup includes completed assigned programs like the member Workout page does', async () => {
+  const queries = [];
+  const workout = await getMyMemberContext({ query: async (sql, params = []) => {
+    queries.push({ sql, params });
+    if (sql.includes('SELECT EXISTS (') && sql.includes('workout_plans w')) return { rows: [{ assigned: true }] };
+    if (sql.includes('FROM workout_plans w')) return { rows: [{ id: 'completed-plan', member_id: 'member-row', title: 'Finished Strength Plan',
+      description: 'Completed assigned program', difficulty: 'Beginner', days_per_week: 1, status: 'completed', program_started_on: '2026-10-01',
+      routine: [{ id: 'day-1', dayName: 'Day 1', exercises: [{ name: 'Squat', sets: 3, reps: '8' }] }] }] };
+    return { rows: [] };
+  } }, 'session-user', { includeMembership: false, includeGoal: false, includeAssignmentStatus: true });
+  assert.equal(workout.workout.title, 'Finished Strength Plan');
+  assert.equal(workout.workout.programStatus, 'completed');
+  assert.equal(workout.hasTrainerAssignedPlan, true);
+  const planQuery = queries.find(({ sql }) => sql.includes('FROM workout_plans w') && !sql.includes('SELECT EXISTS ('));
+  assert.match(planQuery.sql, /w\.status IN \('active','completed'\)/);
+  assert.match(planQuery.sql, /CASE WHEN w\.status='active' THEN 0 ELSE 1 END/);
+  assert.deepEqual(planQuery.params, ['session-user']);
+});
+
+test('empty and unapproved assistant Markdown destinations render only safe, non-clickable text', async () => {
+  const safeMarkdownLink = ({ href, children }) => {
+    const safeHref = getAssistantMarkdownHref(href);
+    return safeHref ? React.createElement('a', { href: safeHref }, children) : children;
+  };
+  const renderLink = (href, label) => renderToStaticMarkup(React.createElement(ReactMarkdown, { components: { a: safeMarkdownLink }, children: `[${label}](${href})` }));
+  const empty = renderLink('', 'Workout plan and history →');
+  const external = renderLink('https://example.com', 'Outside link');
+  const allowed = renderLink('/member/workout', 'Open My Workout');
+  assert.match(empty, /^<p>Workout plan and history →<\/p>$/);
+  assert.match(external, /^<p>Outside link<\/p>$/);
+  assert.match(allowed, /<a href="\/member\/workout">Open My Workout<\/a>/);
+  const component = await readFile(new URL('../src/components/assistant/AssistantMarkdownLink.tsx', import.meta.url), 'utf8');
+  assert.match(component, /getAssistantMarkdownHref\(href\)/);
+
+  const result = await handleAssistantChat({ db: { query: async () => ({ rows: [] }) }, body: { message: 'How can I warm up?' },
+    provider: { complete: async () => { return '[Workout plan and history →]()'; } } });
+  assert.equal(result.message, 'Workout plan and history →');
+  assert.doesNotMatch(result.message, /\]\(\s*\)/);
 });
 
 test('trainer read-only summaries are limited to that trainer and active assignments', async () => {
@@ -804,7 +864,7 @@ test('member history questions use the grounded workout lookup and distinguish n
     provider: { complete: async () => { providerCalls++; return 'Invented workout history.'; } } });
   assert.ok(queries.some(query => query.sql.includes('FROM workout_plans w')));
   assert.ok(queries.every(query => query.params[0] === 'member-session-user'));
-  assert.match(result.message, /couldn't find an active workout plan assigned to your account/i);
+  assert.match(result.message, /couldn't find a workout plan assigned to your account/i);
   assert.deepEqual(result.actions, [{ label: 'Open My Workout', type: 'navigate', path: '/member/workout' }]);
   assert.equal(providerCalls, 0);
 });

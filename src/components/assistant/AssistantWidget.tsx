@@ -1,6 +1,7 @@
 import React, { FormEvent, KeyboardEvent, useEffect, useRef, useState } from 'react';
 import { ArrowUp, Dumbbell, LoaderCircle, MessageCircle, X } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
+import { AssistantMarkdownLink } from './AssistantMarkdownLink';
 import { useGym } from '../../context/GymContext';
 import { apiUrl } from '../../lib/secureFetch';
 import { getAssistantExperience, getAssistantWidgetBottom, isAssistantActionPathAllowed, isAssistantHiddenPath, shouldAutoFocusAssistantInput } from '../../lib/assistantUi';
@@ -153,7 +154,7 @@ export const AssistantWidget: React.FC = () => {
             {message.role === 'user' ? message.content : <>
               <div className="sarex-ai-markdown break-words">
               <ReactMarkdown remarkPlugins={[remarkLineBreaks]} components={{
-                a: ({ href, children }) => <a href={href} target="_blank" rel="noopener noreferrer" className="font-semibold text-[#d6161e] underline decoration-[#ef1b23]/35 underline-offset-2 hover:text-[#a90e15]">{children}</a>,
+                a: ({ href, children }) => <AssistantMarkdownLink href={href}>{children}</AssistantMarkdownLink>,
                 h1: ({ children }) => <h3 className="mb-1 mt-3 text-base font-extrabold text-[#17191f] first:mt-0">{children}</h3>,
                 h2: ({ children }) => <h3 className="mb-1 mt-3 text-sm font-extrabold text-[#17191f] first:mt-0">{children}</h3>,
                 h3: ({ children }) => <h3 className="mb-1 mt-2 text-sm font-bold text-[#17191f] first:mt-0">{children}</h3>,
