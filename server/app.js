@@ -76,7 +76,7 @@ export function createApp({db,config,assistantProvider}) {
  installPublicRoutes(app,{db,config,loginLimit});
  app.post('/api/v1/assistant/chat',optionalAuth(db),assistantLimit,asyncRoute(async(req,res)=>{
    try {
-     const result=await handleAssistantChat({db,actor:req.actor,body:req.body,provider:assistantProvider||createAiProvider(config)});
+     const result=await handleAssistantChat({db,actor:req.actor,body:req.body,provider:assistantProvider||createAiProvider(config),requestId:req.requestId,diagnostics:config.AI_DIAGNOSTICS==='true'});
      res.set('Cache-Control','no-store').json(result);
    } catch(error) {
      if(error?.name==='ZodError') return res.status(400).json({error:{code:'VALIDATION_ERROR',message:'Please enter a message of up to 2,000 characters.',requestId:req.requestId}});

@@ -41,7 +41,9 @@ export async function getGymInformation(db) {
   const { rows } = await db.query('SELECT gym_name,address,phone,email,tagline FROM gym_settings WHERE id=true');
   const row = rows[0] || {};
   return { name: row.gym_name || 'SAREX Fitness Clinic', address: row.address || null,
-    phone: row.phone || null, email: row.email || null, tagline: row.tagline || null };
+    phone: row.phone || null, email: row.email || null, tagline: row.tagline || null,
+    // Opening hours are not currently stored in SAREX settings or branch records.
+    openingHours: null };
 }
 
 export const getFacilities = () => facilities;

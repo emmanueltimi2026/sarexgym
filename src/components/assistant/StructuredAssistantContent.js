@@ -8,7 +8,20 @@ const finiteNonNegative = value => typeof value === 'number' && Number.isFinite(
 const optionalText = (value, max = 120) => typeof value === 'string' && value.trim() ? value.trim().slice(0, max) : null;
 
 export function parseAssistantStructuredContent(value) {
-  if (!value || typeof value !== 'object' || value.type !== 'membership_plans' || !Array.isArray(value.plans)) return null;
+  if (!value || typeof value !== 'object') return null;
+  if (value.type === 'business_info' && value.data && typeof value.data === 'object') {
+    const data = value.data;
+    const facilities = Array.isArray(data.facilities) ? data.facilities.slice(0, 12).filter(item => item && typeof item === 'object')
+      .map(item => ({ name: optionalText(item.name, 80) || 'SAREX facility', description: optionalText(item.description, 180) })) : [];
+    const registrationSteps = Array.isArray(data.registrationSteps) ? data.registrationSteps.slice(0, 6)
+      .filter(step => typeof step === 'string' && step.trim()).map(step => step.trim().slice(0, 180)) : [];
+    return { type: 'business_info', data: {
+      name: optionalText(data.name, 120), address: optionalText(data.address, 240), phone: optionalText(data.phone, 80),
+      email: optionalText(data.email, 120), openingHours: optionalText(data.openingHours, 180), facilities, registrationSteps,
+      contactPath: isAssistantActionPathAllowed(data.contactPath) ? data.contactPath : null
+    } };
+  }
+  if (value.type !== 'membership_plans' || !Array.isArray(value.plans)) return null;
   return {
     type: 'membership_plans',
     plans: value.plans.slice(0, 8).filter(plan => plan && typeof plan === 'object').map(plan => {
@@ -80,7 +93,23 @@ const MembershipPlansContent = ({ content, onNavigate }) => content.plans.length
   : h('div', { className: 'mt-2 w-full min-w-0 rounded-xl border border-gray-200 bg-gray-50 p-3 text-xs leading-5 text-gray-600', 'data-structured-content': 'membership_plans' },
     'There are no active membership plans to display right now.');
 
-const structuredRenderers = Object.freeze({ membership_plans: MembershipPlansContent });
+const BusinessInfoContent = ({ content, onNavigate }) => {
+  const { data } = content;
+  const facts = [['Address', data.address], ['Phone', data.phone], ['Email', data.email], ['Opening hours', data.openingHours]]
+    .filter(([, value]) => value);
+  return h('section', { className: 'mt-2 w-full min-w-0 rounded-xl border border-gray-200 bg-white p-3 text-xs text-gray-700', 'data-structured-content': 'business_info' },
+    data.name ? h('h3', { className: 'font-bold text-[#17191f]' }, data.name) : null,
+    facts.length ? h('dl', { className: 'mt-2 space-y-1.5' }, ...facts.map(([label, value]) => h('div', { key: label, className: 'grid grid-cols-[5rem_minmax(0,1fr)] gap-2' },
+      h('dt', { className: 'text-gray-500' }, label), h('dd', { className: 'break-words font-medium text-[#17191f]' }, value)))) : null,
+    data.facilities.length ? h('ul', { className: 'mt-2 space-y-1.5' }, ...data.facilities.map((item, index) => h('li', { key: `${item.name}-${index}` },
+      h('span', { className: 'font-semibold text-[#17191f]' }, item.name), item.description ? h('span', null, ` — ${item.description}`) : null))) : null,
+    data.registrationSteps.length ? h('ol', { className: 'mt-2 list-decimal space-y-1 pl-4' }, ...data.registrationSteps.map((step, index) => h('li', { key: index }, step))) : null,
+    data.contactPath ? h('button', { type: 'button', onClick: () => onNavigate?.(data.contactPath),
+      className: 'mt-3 min-h-9 rounded-xl bg-[#17191f] px-3 py-2 text-xs font-bold text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#ef1b23]' },
+    'Contact SAREX', h(ArrowRight, { size: 14, 'aria-hidden': true, className: 'ml-1 inline' })) : null);
+};
+
+const structuredRenderers = Object.freeze({ membership_plans: MembershipPlansContent, business_info: BusinessInfoContent });
 
 export function AssistantStructuredContent({ content, onNavigate }) {
   const Renderer = content && structuredRenderers[content.type];

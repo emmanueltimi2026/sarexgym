@@ -3,7 +3,7 @@ import { ArrowUp, Dumbbell, LoaderCircle, MessageCircle, X } from 'lucide-react'
 import ReactMarkdown from 'react-markdown';
 import { useGym } from '../../context/GymContext';
 import { apiUrl } from '../../lib/secureFetch';
-import { getAssistantExperience, isAssistantActionPathAllowed, isAssistantHiddenPath } from '../../lib/assistantUi';
+import { getAssistantExperience, isAssistantActionPathAllowed, isAssistantHiddenPath, shouldAutoFocusAssistantInput } from '../../lib/assistantUi';
 import { remarkLineBreaks } from '../../lib/assistantMarkdown.js';
 import { AssistantStructuredContent, parseAssistantStructuredContent } from './StructuredAssistantContent.js';
 
@@ -11,7 +11,10 @@ type AssistantContentAction = { label: string; type: 'navigate'; path: string };
 type MembershipPlanContent = { type: 'membership_plans'; plans: { id: string | null; name: string; description: string | null; price: number | null;
   currency: string; duration: string | null; registrationFee: number | null; trainerAccess: boolean | null; workoutPlan: boolean | null;
   features: string[]; action: AssistantContentAction | null }[] };
-type ChatMessage = { role: 'user' | 'assistant'; content: string; structuredContent?: MembershipPlanContent | null; actions?: AssistantContentAction[] };
+type BusinessInfoContent = { type: 'business_info'; data: { name: string | null; address: string | null; phone: string | null; email: string | null;
+  openingHours: string | null; facilities: { name: string; description: string | null }[]; registrationSteps: string[]; contactPath: string | null } };
+type StructuredContent = MembershipPlanContent | BusinessInfoContent;
+type ChatMessage = { role: 'user' | 'assistant'; content: string; structuredContent?: StructuredContent | null; actions?: AssistantContentAction[] };
 export const AssistantBrandMark: React.FC<{ variant: 'header' | 'avatar' }> = ({ variant }) => variant === 'header'
   ? <span className="flex h-10 w-[72px] shrink-0 items-center justify-center rounded-xl bg-[#17191f] px-2 shadow-sm">
     <img src="/assets/brand/sarex-logo.png" alt="SAREX Fitness Clinic" className="h-auto max-h-7 w-full object-contain" />
@@ -30,6 +33,7 @@ export const AssistantWidget: React.FC = () => {
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
   const [notice, setNotice] = useState('');
+  const [mobileViewport, setMobileViewport] = useState<{ height: number; bottomInset: number } | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const messagesRef = useRef<HTMLDivElement>(null);
   const launcherRef = useRef<HTMLButtonElement>(null);
@@ -69,12 +73,35 @@ export const AssistantWidget: React.FC = () => {
 
   useEffect(() => {
     if (!open) return;
-    inputRef.current?.focus();
+    const isMobileViewport = window.matchMedia('(max-width: 639px), (pointer: coarse)').matches;
+    if (shouldAutoFocusAssistantInput(true, isMobileViewport)) inputRef.current?.focus();
     const onKey = (event: KeyboardEvent) => {
       if (event.key === 'Escape') { setOpen(false); launcherRef.current?.focus(); }
     };
     window.addEventListener('keydown', onKey as unknown as EventListener);
     return () => window.removeEventListener('keydown', onKey as unknown as EventListener);
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) { setMobileViewport(null); return; }
+    const visualViewport = window.visualViewport;
+    if (!visualViewport) return;
+    const updateViewport = () => {
+      if (window.matchMedia('(min-width: 640px)').matches) { setMobileViewport(null); return; }
+      setMobileViewport({
+        height: visualViewport.height,
+        bottomInset: Math.max(0, window.innerHeight - visualViewport.height - visualViewport.offsetTop),
+      });
+    };
+    updateViewport();
+    visualViewport.addEventListener('resize', updateViewport);
+    visualViewport.addEventListener('scroll', updateViewport);
+    window.addEventListener('resize', updateViewport);
+    return () => {
+      visualViewport.removeEventListener('resize', updateViewport);
+      visualViewport.removeEventListener('scroll', updateViewport);
+      window.removeEventListener('resize', updateViewport);
+    };
   }, [open]);
 
   const ask = async (text: string) => {
@@ -86,28 +113,33 @@ export const AssistantWidget: React.FC = () => {
     try {
       const response = await fetch(apiUrl('/api/v1/assistant/chat'), {
         method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message, history: prior.map(({ role: messageRole, content }) => ({ role: messageRole, content })) })
+        body: JSON.stringify({ message, history: prior.map(({ role: messageRole, content }) => ({ role: messageRole, content })),
+          pageContext: window.location.pathname, surface: experience.surface })
       });
       const body = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(body?.error?.message || 'SAREX AI is temporarily unavailable. Please try again.');
       const assistantMessage: ChatMessage = { role: 'assistant', content: String(body.message || 'I could not prepare a response. Please try again.'),
-        structuredContent: parseAssistantStructuredContent(body.content) as MembershipPlanContent | null,
+        structuredContent: parseAssistantStructuredContent(body.content) as StructuredContent | null,
         actions: Array.isArray(body.actions) ? body.actions.filter((action: any) => action?.type === 'navigate' && isAssistantActionPathAllowed(action.path) && typeof action.label === 'string').slice(0, 2) : [] };
       setMessages(value => [...value, assistantMessage]);
     } catch (error) {
       setNotice(error instanceof Error ? error.message : 'SAREX AI is temporarily unavailable. Please try again.');
-    } finally { setSending(false); inputRef.current?.focus(); }
+    } finally {
+      setSending(false);
+      const isMobileViewport = window.matchMedia('(max-width: 639px), (pointer: coarse)').matches;
+      if (shouldAutoFocusAssistantInput(open, isMobileViewport)) inputRef.current?.focus();
+    }
   };
 
   const submit = (event: FormEvent) => { event.preventDefault(); void ask(draft); };
   const inputKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
     if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); void ask(draft); }
   };
-  if (suppressed) return null;
+  if (suppressed || !experience.available) return null;
 
-  return <div className="sarex-ai-widget fixed right-3 bottom-[calc(0.75rem+env(safe-area-inset-bottom))] z-[70] flex flex-col items-end gap-3 sm:right-6 sm:bottom-6">
-    {open && <div id="sarex-ai-panel" ref={panelRef} className="sarex-ai-panel flex h-[min(78dvh,760px)] w-[calc(100vw-1.5rem)] flex-col overflow-hidden rounded-3xl border border-[#e6e7eb] bg-white shadow-[0_24px_80px_rgba(12,18,28,0.2)] sm:h-[min(75vh,760px)] sm:w-[420px]" role="dialog" aria-modal="false" aria-labelledby="sarex-ai-title">
-      <header className="flex items-center gap-3 border-b border-gray-100 bg-white px-4 py-4">
+  return <div className="sarex-ai-widget fixed right-3 bottom-[calc(0.75rem+env(safe-area-inset-bottom))] z-[70] flex flex-col items-end gap-3 sm:right-6 sm:bottom-6" style={mobileViewport ? { bottom: `calc(${mobileViewport.bottomInset}px + 0.75rem + env(safe-area-inset-bottom))` } : undefined}>
+    {open && <div id="sarex-ai-panel" ref={panelRef} className="sarex-ai-panel flex h-[min(78dvh,760px)] w-[calc(100vw-1.5rem)] max-h-[calc(100dvh-6rem)] shrink-0 flex-col overflow-hidden rounded-3xl border border-[#e6e7eb] bg-white shadow-[0_24px_80px_rgba(12,18,28,0.2)] sm:h-[min(75vh,760px)] sm:w-[420px] sm:max-h-[min(75vh,760px)]" style={mobileViewport ? { maxHeight: `${Math.max(0, mobileViewport.height - 96)}px` } : undefined} role="dialog" aria-modal="false" aria-labelledby="sarex-ai-title">
+      <header className="flex shrink-0 items-center gap-3 border-b border-gray-100 bg-white px-4 py-4">
         <AssistantBrandMark variant="header" />
         <div className="min-w-0 flex-1"><h2 id="sarex-ai-title" className="font-bold text-[#17191f]">SAREX AI</h2><p className="text-xs text-gray-500">Fitness and membership assistant</p></div>
         <button type="button" onClick={() => { setOpen(false); launcherRef.current?.focus(); }} className="flex h-10 w-10 items-center justify-center rounded-full text-gray-600 hover:bg-gray-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#ef1b23]" aria-label="Close SAREX AI"><X size={19} /></button>
@@ -141,7 +173,7 @@ export const AssistantWidget: React.FC = () => {
         {sending && <div className="flex items-center gap-2 pl-9 text-sm text-gray-500" role="status"><LoaderCircle size={16} className="animate-spin text-[#ef1b23]" />SAREX AI is thinking…</div>}
         {notice && <p role="alert" className="ml-9 rounded-xl border border-red-100 bg-red-50 px-3 py-2 text-sm text-red-700">{notice}</p>}
       </div>
-      <form onSubmit={submit} className="border-t border-gray-100 bg-white p-3">
+      <form onSubmit={submit} className="shrink-0 border-t border-gray-100 bg-white p-3">
         <label htmlFor="sarex-ai-input" className="sr-only">Ask SAREX AI</label>
         <div className="flex items-end gap-2 rounded-2xl border border-gray-200 bg-white p-2 focus-within:border-[#ef1b23]/60 focus-within:ring-2 focus-within:ring-[#ef1b23]/10">
           <textarea ref={inputRef} id="sarex-ai-input" rows={1} maxLength={2000} value={draft} onChange={event => setDraft(event.target.value)} onKeyDown={inputKeyDown} placeholder="Ask about training, plans…" className="max-h-28 min-h-10 flex-1 resize-none bg-transparent px-2 py-2 text-sm text-[#17191f] outline-none placeholder:text-gray-400" aria-describedby="sarex-ai-disclaimer" />

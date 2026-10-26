@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useGym } from '../../context/GymContext';
 import { AppLayout } from '../../components/layout/AppLayout';
+import { WorkoutTimer } from '../../components/ui/WorkoutTimer';
 import { Dumbbell, CheckCircle2, Clock, CalendarDays, UserRound, ChevronDown, ChevronLeft, ChevronRight, ListChecks, Layers3, History } from 'lucide-react';
 import { apiUrl } from '../../lib/secureFetch';
 import { formatAppDate, formatAppDateTime } from '../../utils/dateTime';
@@ -89,15 +90,18 @@ export const MemberWorkout: React.FC = () => {
   const visibleHistory = cycle?.history.slice((currentHistoryPage - 1) * historyPageSize, currentHistoryPage * historyPageSize) || [];
 
   if (!currentMember.workoutPlanEnabled) return <AppLayout pageTitle="Workout Plan" pageSubtitle="Trainer-guided routines are available as an optional membership service.">
+    <div className="mx-auto mb-4 max-w-[1280px]"><WorkoutTimer key={String(currentMember.memberId || currentMember.id)} memberId={String(currentMember.memberId || currentMember.id)} /></div>
     <div className="rounded-lg border border-gray-200 bg-white p-8 text-center"><Dumbbell className="mx-auto h-10 w-10 text-gray-300"/><h2 className="mt-4 text-lg font-black">Workout plan support is not active</h2><p className="mx-auto mt-2 max-w-md text-sm leading-6 text-gray-500">Contact the SAREX team if you would like a trainer to create routines and track your progress.</p></div>
   </AppLayout>;
 
   if (!currentPlan) return <AppLayout pageTitle="Assigned Training Program" pageSubtitle="Follow the exercises, sets, and schedule assigned by your trainer." breadcrumbs={[{ label: 'Member Portal', path: '/member/dashboard' }, { label: 'Workout Program' }]}>
+    <div className="mx-auto mb-4 max-w-[1280px]"><WorkoutTimer key={String(currentMember.memberId || currentMember.id)} memberId={String(currentMember.memberId || currentMember.id)} /></div>
     <div className="rounded-lg border border-gray-200 bg-white p-8 text-center text-sm text-gray-500">No workout plan has been assigned yet.</div>
   </AppLayout>;
 
   return <AppLayout pageTitle="Workout Plan" pageSubtitle="Your weekly training schedule and completion history." breadcrumbs={[{ label: 'Member Portal', path: '/member/dashboard' }, { label: 'Workout Plan' }]}>
     <div className="mx-auto max-w-[1280px]">
+      <div className="mb-4"><WorkoutTimer key={String(currentMember.memberId || currentMember.id)} memberId={String(currentMember.memberId || currentMember.id)} /></div>
       {completionError && <div role="alert" className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded border border-red-200 bg-red-50 p-3 text-xs text-red-800"><span>{completionError}</span><button type="button" onClick={() => void loadProgress()} className="rounded border border-red-300 bg-white px-3 py-1.5 font-bold">Retry</button></div>}
       {currentPlan.status === 'completed' && <p className="mb-4 rounded border border-gray-200 bg-white px-4 py-3 text-xs text-gray-600">This program is completed. Its routine and completion history remain available to review.</p>}
       <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.2fr)]">

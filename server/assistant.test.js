@@ -11,6 +11,8 @@ import { buildMemberWorkoutIntelligence, getFacilities, getMyCurrentEntitlements
 import { assistantProviderError, createAiProvider } from './ai/provider.js';
 import { createApp } from './app.js';
 import { getAssistantExperience, guestAssistantSuggestions, isAssistantActionPathAllowed, isAssistantHiddenPath, memberAssistantSuggestions } from '../src/lib/assistantUi.js';
+import { formatGroundedResponse, getGroundedPortalData } from './ai/grounded-tools.js';
+import { AssistantIntent, resolveAssistantIdentity, resolveAssistantIntent } from './ai/intent-registry.js';
 
 const answerProvider = { complete: async () => 'A helpful SAREX answer.' };
 
@@ -22,7 +24,7 @@ test('out-of-scope subjects are refused before database or provider work for eve
     'Write Python code',
     'Tell me about World War II',
   ];
-  const roles = [null, ['member'], ['trainer'], ['staff'], ['super_admin']];
+  const roles = [null, ['member'], ['trainer']];
   for (const question of outOfScopeQuestions) {
     for (const roleSet of roles) {
       let databaseCalls = 0;
@@ -166,7 +168,7 @@ test('membership plan requests return structured current plan data without askin
     result = await handleAssistantChat({ db, body: { message }, provider });
     assert.ok(result.content?.type === 'membership_plans', `structured plan response missing for: ${message}`);
   }
-  assert.match(result.message, /current SAREX membership options/);
+  assert.match(result.message, /current (?:SAREX )?membership options/);
   assert.equal(providerCalls, 0);
   assert.equal(calls.length, 9);
   assert.match(calls[0], /SELECT id,name,description,price_minor,currency,duration_days/);
@@ -181,8 +183,8 @@ test('membership plan requests return structured current plan data without askin
   assert.deepEqual(result.actions, []);
 });
 
-test('plan-selection intent is in scope for guests and every portal role', async () => {
-  const roles = [null, ['member'], ['staff'], ['trainer'], ['super_admin']];
+test('plan-selection intent is in scope for guests, members, and trainers', async () => {
+  const roles = [null, ['member'], ['trainer']];
   for (const roleSet of roles) {
     const result = await handleAssistantChat({
       db: { query: async () => ({ rows: [] }) },
@@ -225,17 +227,11 @@ test('password support instructions use real role-specific flows and never inven
   const noDb = { query: async () => { throw new Error('password help must be deterministic'); } };
   const member = await handleAssistantChat({ db: noDb, actor: { id: 'member-1', roles: ['member'] }, body: { message: 'How can I change my password?' },
     provider: { complete: async () => { providerCalls++; return 'Open Account Settings.'; } } });
-  assert.match(member.message, /not currently available in the member, staff, or trainer portal/i);
+  assert.match(member.message, /not currently available here/i);
   assert.match(member.message, /Forgot password/);
   assert.doesNotMatch(member.message, /Account Settings/);
   assert.deepEqual(member.actions.map(action => action.path), ['/forgot-password']);
   assert.equal(isAssistantActionPathAllowed(member.actions[0].path), true);
-
-  const admin = await handleAssistantChat({ db: noDb, actor: { id: 'admin-1', roles: ['super_admin'] }, body: { message: 'How do I change password?' }, provider: answerProvider });
-  assert.match(admin.message, /administrator portal, open Settings/i);
-  assert.match(admin.message, /current password and a new password/i);
-  assert.deepEqual(admin.actions.map(action => action.path), ['/admin/settings']);
-  assert.equal(isAssistantActionPathAllowed(admin.actions[0].path), true);
 
   const reset = await handleAssistantChat({ db: noDb, actor: { id: 'member-1', roles: ['member'] }, body: { message: 'I forgot my password' }, provider: answerProvider });
   assert.match(reset.message, /secure reset link/i);
@@ -263,13 +259,11 @@ test('SAREX app-support answers receive role-specific implemented capabilities a
   assert.match(system, /"feature":"Membership and billing","path":"\/member\/membership"/);
   assert.match(system, /"feature":"Password reset request","path":"\/forgot-password"/);
   const memberCapabilities = assistantPrompts.getApplicationCapabilities({ roles: ['member'] });
-  const adminCapabilities = assistantPrompts.getApplicationCapabilities({ roles: ['super_admin'] });
   assert.equal(memberCapabilities.password.method, 'email reset');
-  assert.equal(adminCapabilities.password.method, 'administrator settings form');
   assert.ok(memberCapabilities.availableRoutes.every(route => route.path.startsWith('/')));
   const app = await readFile(new URL('../src/App.tsx', import.meta.url), 'utf8');
-  const capabilitiesByRole = ['guest', 'member', 'staff', 'trainer', 'admin'].map(role =>
-    assistantPrompts.getApplicationCapabilities(role === 'guest' ? null : { roles: [role === 'admin' ? 'super_admin' : role] }));
+  const capabilitiesByRole = ['guest', 'member', 'trainer'].map(role =>
+    assistantPrompts.getApplicationCapabilities(role === 'guest' ? null : { roles: [role] }));
   for (const capability of capabilitiesByRole) {
     for (const route of capability.availableRoutes) assert.ok(app.includes(`'${route.path}'`), `route must exist: ${route.path}`);
   }
@@ -325,6 +319,197 @@ test('guest personal account questions are directed to sign-in without querying 
   assert.deepEqual(result.actions.map(action => action.path), ['/login']);
   assert.equal(queries, 0);
   assert.equal(providerCalls, 0);
+});
+
+test('assistant intent registry is session-first and distinguishes personal from public plan intent', () => {
+  const member = resolveAssistantIdentity({ id: 'member-session-id', roles: ['member'] });
+  assert.deepEqual({ authenticated: member.authenticated, role: member.role, userId: member.userId },
+    { authenticated: true, role: 'member', userId: 'member-session-id' });
+  assert.equal(resolveAssistantIntent({ message: 'What is my membership plan?', identity: member }), AssistantIntent.MY_MEMBERSHIP);
+  assert.equal(resolveAssistantIntent({ message: 'What plan am I on?', identity: member }), AssistantIntent.MY_MEMBERSHIP);
+  assert.equal(resolveAssistantIntent({ message: 'When does it expire?', identity: member,
+    history: [{ role: 'user', content: 'What is my membership plan?' }] }), AssistantIntent.MY_MEMBERSHIP);
+  assert.equal(resolveAssistantIntent({ message: 'What membership plans does SAREX offer?', identity: member }), AssistantIntent.PUBLIC_MEMBERSHIP_PLANS);
+  assert.equal(resolveAssistantIntent({ message: 'Which plan should I choose?', identity: member }), AssistantIntent.MEMBERSHIP_PLAN_GUIDANCE);
+  assert.equal(resolveAssistantIdentity(null).role, 'guest');
+});
+
+test('authenticated member on public homepage receives own membership and never the public catalog', async () => {
+  const queries = [];
+  let providerCalls = 0;
+  const result = await handleAssistantChat({ db: { query: async sql => {
+    queries.push(sql);
+    if (sql.includes('FROM subscriptions s JOIN membership_plans')) return { rows: [{ plan_name: 'Performance', status: 'active',
+      starts_at: '2026-10-01T00:00:00.000Z', ends_at: '2026-10-31T00:00:00.000Z', trainer_access: true, workout_plan_access: true }] };
+    return { rows: [] };
+  } }, actor: { id: 'member-session-id', roles: ['member'] }, body: { message: 'What is my membership plan?', pageContext: '/' },
+  provider: { complete: async () => { providerCalls += 1; return 'Please browse our plans.'; } } });
+  assert.match(result.message, /Your current membership is \*\*Performance\*\*, active until/);
+  assert.equal(result.meta.intent, AssistantIntent.MY_MEMBERSHIP);
+  assert.equal(result.meta.grounded, true);
+  assert.equal(queries.length, 1);
+  assert.doesNotMatch(queries.join('\n'), /SELECT id,name,description,price_minor/i);
+  assert.equal(providerCalls, 0);
+});
+
+test('public business questions use deterministic configured facts and allowlisted contact navigation', async () => {
+  const configured = { gym_name: 'SAREX Fitness Clinic', address: '12 Example Road, Magboro', phone: '+234 800 000 0000',
+    email: 'hello@example.test', tagline: 'Fitness for a better tomorrow' };
+  let providerCalls = 0;
+  const db = { query: async sql => {
+    assert.match(sql, /FROM gym_settings/);
+    return { rows: [configured] };
+  } };
+  const cases = [
+    ['Where is SAREX located?', AssistantIntent.SAREX_LOCATION, /SAREX Fitness Clinic is located at 12 Example Road, Magboro\./],
+    ["What's your address?", AssistantIntent.SAREX_LOCATION, /12 Example Road, Magboro/],
+    ['How do I contact SAREX?', AssistantIntent.SAREX_CONTACT, /\+234 800 000 0000/],
+    ['What time do you open?', AssistantIntent.SAREX_OPENING_HOURS, /opening hours aren't currently configured/i]
+  ];
+  for (const [message, intent, expected] of cases) {
+    const result = await handleAssistantChat({ db, body: { message }, provider: { complete: async () => {
+      providerCalls += 1;
+      return 'The address is 99 Invented Lane. Visit https://sarex.com/fake.';
+    } } });
+    assert.match(result.message, expected, message);
+    assert.equal(result.meta.intent, intent);
+    assert.equal(result.meta.grounded, true);
+    assert.ok(result.actions.every(action => isAssistantActionPathAllowed(action.path)));
+    if (intent === AssistantIntent.SAREX_LOCATION || intent === AssistantIntent.SAREX_CONTACT || intent === AssistantIntent.SAREX_OPENING_HOURS) {
+      assert.equal(result.actions[0]?.path, '/contact');
+      assert.equal(result.content.type, 'business_info');
+    }
+  }
+  assert.equal(providerCalls, 0, 'the model must not supply or override public business facts');
+});
+
+test('missing SAREX location and hours are reported as unconfigured rather than guessed', async () => {
+  const result = await handleAssistantChat({ db: { query: async () => ({ rows: [{ gym_name: 'SAREX Fitness Clinic', address: null,
+    phone: null, email: null, tagline: null }] }) }, body: { message: 'Where is the gym?' }, provider: answerProvider });
+  assert.match(result.message, /address configured yet/i);
+  assert.doesNotMatch(result.message, /Dada Adams|https?:\/\/|sarex\.com/i);
+  assert.deepEqual(result.content.data, { name: 'SAREX Fitness Clinic', address: null, contactPath: '/contact' });
+});
+
+test('facilities come from configured SAREX knowledge and render as structured business content', async () => {
+  const result = await handleAssistantChat({ db: { query: async () => { throw new Error('facilities need no database'); } },
+    body: { message: 'What facilities do you have?' }, provider: answerProvider });
+  assert.equal(result.meta.intent, AssistantIntent.SAREX_FACILITIES);
+  assert.equal(result.meta.grounded, true);
+  assert.match(result.message, /Open gym floor/);
+  assert.ok(result.content.data.facilities.some(item => item.name === 'Personal training'));
+  const parsed = parseAssistantStructuredContent(result.content);
+  assert.equal(parsed.type, 'business_info');
+  const html = renderToStaticMarkup(React.createElement(AssistantStructuredContent, { content: parsed }));
+  assert.match(html, /data-structured-content="business_info"/);
+  assert.match(html, /Open gym floor/);
+  assert.ok(result.actions.every(action => isAssistantActionPathAllowed(action.path)));
+});
+
+test('model-generated domains and paths are removed from assistant text', async () => {
+  const result = await handleAssistantChat({ db: { query: async () => ({ rows: [] }) }, body: { message: 'Give me a beginner workout.' },
+    provider: { complete: async () => 'Start with two sets. Visit https://sarex.com/fake, www.sarex.example/contact or /admin/secret.' } });
+  assert.match(result.message, /Start with two sets\./);
+  assert.doesNotMatch(result.message, /https?:\/\/|www\.|sarex\.example|\/admin\/secret/i);
+  assert.ok(result.actions.every(action => isAssistantActionPathAllowed(action.path)));
+});
+
+test('trainer uses assigned-member tools on the Trainer surface', async () => {
+  let trainerSql = '';
+  let trainerParams = [];
+  const trainer = await handleAssistantChat({ db: { query: async (sql, params) => {
+    trainerSql = sql; trainerParams = params;
+    return { rows: [{ first_name: 'Alex', last_name: 'Member', plan_title: 'Strength', days_per_week: 2, completed: 1, week_start: '2026-10-19' }] };
+  } }, actor: { id: 'trainer-session-id', roles: ['trainer'] },
+  body: { message: 'How are my assigned members doing?', pageContext: '/trainer/dashboard', surface: 'trainer' }, provider: { complete: async () => 'I cannot see assigned members.' } });
+  assert.match(trainer.message, /Alex Member: 1\/2 workouts this week \(50%\)/);
+  assert.deepEqual(trainerParams, ['trainer-session-id']);
+  assert.match(trainerSql, /t\.user_id=\$1/);
+  assert.match(trainerSql, /ta\.active/);
+});
+
+test('trainer on the public surface cannot use assigned-member tools', async () => {
+  let queries = 0;
+  const result = await handleAssistantChat({ db: { query: async () => { queries++; return { rows: [] }; } },
+    actor: { id: 'trainer-session-id', roles: ['trainer'] },
+    body: { message: 'How are my assigned members doing?', surface: 'public', pageContext: '/' }, provider: answerProvider });
+  assert.match(result.message, /can(?:not|'t) access that information/i);
+  assert.equal(queries, 0);
+});
+
+test('public membership catalog stays public for signed-in members and guests get login guidance for personal data', async () => {
+  const plans = [{ id: 'plan-id', name: 'Foundation', description: 'Gym access', price: 21000, currency: 'NGN', durationDays: 30,
+    trainerAccess: false, workoutPlanAccess: false, registrationFee: 5000, features: [] }];
+  const member = await handleAssistantChat({ db: { query: async sql => sql.includes('SELECT id,name,description,price_minor')
+    ? { rows: [{ id: 'plan-id', name: 'Foundation', description: 'Gym access', price_minor: 2100000, currency: 'NGN', duration_days: 30,
+      trainer_access: false, workout_plan_access: false, registration_fee_minor: 500000, features: [] }] } : { rows: [] } },
+    actor: { id: 'member-user', roles: ['member'] }, body: { message: 'What membership plans does SAREX offer?', pageContext: '/' }, provider: answerProvider });
+  assert.equal(member.content.type, 'membership_plans');
+  assert.equal(member.content.plans[0].name, plans[0].name);
+  assert.equal(member.meta.intent, AssistantIntent.PUBLIC_MEMBERSHIP_PLANS);
+  let providerCalls = 0;
+  const guest = await handleAssistantChat({ db: { query: async () => { throw new Error('personal query must not run'); } },
+    body: { message: 'What is my membership plan?' }, provider: { complete: async () => { providerCalls += 1; return '{}'; } } });
+  assert.match(guest.message, /after you sign in/i);
+  assert.deepEqual(guest.actions, [{ label: 'Sign In', type: 'navigate', path: '/login' }]);
+  assert.equal(providerCalls, 0);
+});
+
+test('member workout-plan access is grounded in the authenticated member and database values', async () => {
+  const userId = 'signed-in-member';
+  const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Lagos', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+  const queries = [];
+  let providerCalls = 0;
+  const db = { query: async (sql, params = []) => {
+    queries.push({ sql, params });
+    if (sql.includes('SELECT EXISTS (') && sql.includes('workout_plans w')) return { rows: [{ assigned: true }] };
+    if (sql.includes('SELECT EXISTS (')) return { rows: [{ trainer_access: true }] };
+    if (sql.includes('FROM workout_plans w')) return { rows: [{ id: 'assigned-plan', member_id: 'member-row', title: 'Full Body Strength',
+      description: '', difficulty: 'Beginner', days_per_week: 2, program_started_on: today,
+      trainer_first_name: 'Taylor', trainer_last_name: 'Coach', routine: [
+        { id: 'day-a', dayName: 'Day A', focus: 'Strength', exercises: [{ id: 'squat', name: 'Squat', sets: 3, reps: '8', rest: '90 sec' }] },
+        { id: 'day-b', dayName: 'Day B', focus: 'Mobility', exercises: [] }
+      ] }] };
+    if (sql.includes('FROM workout_day_completions')) return { rows: [] };
+    if (sql.includes('FROM subscriptions s JOIN membership_plans')) return { rows: [{ plan_name: 'Performance', status: 'active', trainer_access: true, workout_plan_access: true }] };
+    return { rows: [] };
+  } };
+  const result = await handleAssistantChat({ db, actor: { id: userId, roles: ['member'] }, body: { message: 'Do you have access to my workout plan?' },
+    provider: { complete: async () => { providerCalls += 1; return 'I cannot see it.'; } } });
+  assert.match(result.message, /Yes\. I can see your trainer-assigned plan, \*\*Full Body Strength\*\*/);
+  assert.match(result.message, /2 days per week/);
+  assert.match(result.message, /0 of 2 workouts \(0%\)/);
+  assert.equal(providerCalls, 0);
+  assert.ok(queries.every(({ params }) => params.every(param => param !== 'another-member')));
+  assert.ok(queries.some(({ sql, params }) => sql.includes('m.user_id=$1') && params[0] === userId));
+  assert.doesNotMatch(JSON.stringify(result), /member-row|assigned-plan|email|phone|payment|password/i);
+});
+
+test('member workout tool distinguishes no active plan from unavailable data and cannot accept another member ID', async () => {
+  const actor = { id: 'member-user', roles: ['member'] };
+  const noPlan = await getGroundedPortalData({ db: { query: async () => ({ rows: [] }) }, actor, message: 'What plan has my trainer assigned?' });
+  assert.match(formatGroundedResponse(noPlan).message, /couldn't find an active workout plan assigned to your account/i);
+  const unavailable = await getGroundedPortalData({ db: { query: async () => { throw new Error('offline'); } }, actor, message: 'Do you have access to my workout plan?' });
+  assert.match(formatGroundedResponse(unavailable).message, /couldn't retrieve your workout information right now/i);
+  const foreign = await getGroundedPortalData({ db: { query: async () => { throw new Error('must not query'); } }, actor,
+    message: 'Show me another-member workout plan' });
+  assert.equal(foreign.status, 'not_applicable');
+});
+
+test('trainer read-only summaries are limited to that trainer and active assignments', async () => {
+  let sql = '';
+  let params;
+  const result = await getGroundedPortalData({ db: { query: async (query, values) => {
+    sql = query; params = values;
+    return { rows: [{ first_name: 'Alex', last_name: 'Member', plan_title: 'Strength', days_per_week: 2, completed: 1, week_start: '2026-10-19' }] };
+  } }, actor: { id: 'trainer-user', roles: ['trainer'] }, message: 'Which members are missing workouts?' });
+  assert.deepEqual(params, ['trainer-user']);
+  assert.match(sql, /ta\.active/);
+  assert.match(sql, /t\.user_id=\$1/);
+  assert.match(formatGroundedResponse(result).message, /Alex Member: 1\/2 workouts this week \(50%\); 1 remaining/);
+  const unauthorized = await getGroundedPortalData({ db: { query: async () => { throw new Error('must not query'); } },
+    actor: { id: 'unrelated-user', roles: ['member'] }, message: 'Which members are missing workouts?' });
+  assert.equal(unauthorized.status, 'unauthorized');
 });
 
 test('strict request schema rejects arbitrary member IDs, URLs, tools and excess history', () => {
@@ -715,6 +900,96 @@ test('assistant API rejects unauthenticated attempts to submit another member id
   } finally { await new Promise(resolve => server.close(resolve)); }
 });
 
+test('assistant API allows Staff/Admin on the public surface but keeps it public-data-only', async () => {
+  let providerCalls = 0;
+  let businessQueries = 0;
+  let sessionReads = 0;
+  const sessionRoles = [['staff'], ['super_admin'], ['staff'], ['super_admin'], ['super_admin'], ['staff'],
+    ['staff'], ['staff'], ['super_admin'], ['super_admin']];
+  const db = { query: async sql => {
+    if (sql.includes('FROM sessions s')) {
+      const roles = sessionRoles[sessionReads++];
+      return { rows: [{ session_id: 's1', id: 'user-1', email: 'portal@example.test', status: 'active', permissions: [], roles }] };
+    }
+    if (sql.startsWith('UPDATE sessions SET last_seen_at')) return { rows: [], rowCount: 1 };
+    businessQueries += 1;
+    if (sql.includes('FROM gym_settings')) return { rows: [{ gym_name: 'SAREX Fitness Clinic', address: '14 Main Road', phone: null, email: null, tagline: null }] };
+    return { rows: [], rowCount: 0 };
+  } };
+  const config = { NODE_ENV: 'test', APP_ORIGIN: 'http://localhost:3000', SESSION_COOKIE_NAME: 'session', SESSION_IDLE_TIMEOUT_HOURS: 24,
+    AI_API_KEY: 'test-key-123456', AI_API_BASE_URL: 'https://provider.example/v1', AI_MODEL: 'test', AI_TIMEOUT_MS: 1000 };
+  const app = createApp({ db, config, assistantProvider: { complete: async () => { providerCalls += 1; return 'unexpected'; } } });
+  const server = app.listen(0);
+  try {
+    await new Promise(resolve => server.once('listening', resolve));
+    const url = `http://127.0.0.1:${server.address().port}/api/v1/assistant/chat`;
+    for (const [token, message] of [['staff-token', 'Where is SAREX located?'], ['admin-token', 'Where is SAREX located?']]) {
+      const response = await fetch(url, { method: 'POST', headers: { cookie: `session=${token}`, 'content-type': 'application/json' },
+        body: JSON.stringify({ message, surface: 'public', pageContext: '/' }) });
+      assert.equal(response.status, 200);
+      assert.match((await response.json()).message, /14 Main Road/);
+    }
+    for (const [token, message] of [
+      ['staff-token', 'How many expired members are there?'], ['admin-token', 'Summarize revenue activity'],
+      ['admin-token', 'Show me today’s attendance'], ['staff-token', 'List all members']
+    ]) {
+      const response = await fetch(url, { method: 'POST', headers: { cookie: `session=${token}`, 'content-type': 'application/json' },
+        body: JSON.stringify({ message, surface: 'public', pageContext: '/' }) });
+      assert.equal(response.status, 200);
+      assert.match((await response.json()).message, /not available through the public SAREX assistant/i);
+    }
+    for (const [token, surface] of [['staff-token', 'member'], ['staff-token', 'trainer'],
+      ['admin-token', 'member'], ['admin-token', 'trainer']]) {
+      const response = await fetch(url, { method: 'POST', headers: { cookie: `session=${token}`, 'content-type': 'application/json' },
+        body: JSON.stringify({ message: 'Where is SAREX located?', surface }) });
+      assert.equal(response.status, 403);
+      assert.equal((await response.json()).error.code, 'ASSISTANT_SURFACE_FORBIDDEN');
+    }
+    assert.equal(providerCalls, 0);
+    assert.equal(businessQueries, 2, 'only the two public location requests read business data');
+  } finally { await new Promise(resolve => server.close(resolve)); }
+});
+
+test('assistant surface authorization uses session roles and rejects forged Member/Trainer surfaces', async () => {
+  for (const [roles, surface, allowed] of [
+    [['staff'], 'member', false], [['staff'], 'trainer', false],
+    [['super_admin'], 'member', false], [['super_admin'], 'trainer', false],
+    [['member'], 'member', true], [['trainer'], 'trainer', true],
+  ]) {
+    let providerCalls = 0;
+    const result = await handleAssistantChat({ db: { query: async () => ({ rows: [] }) },
+      actor: { id: 'session-user', roles }, body: { message: 'How much rest between sets?', surface },
+      provider: { complete: async messages => {
+        providerCalls += 1;
+        return messages[0].content.includes('Classify the meaning') ? '{"scope":"FITNESS"}' : 'Allowable response.';
+      } } }).then(value => ({ status: 200, value }), error => ({ status: error.status, error }));
+    assert.equal(result.status === 200, allowed, `${roles[0]} -> ${surface}`);
+    if (allowed) assert.ok(providerCalls > 0);
+    else {
+      assert.equal(result.status, 403);
+      assert.equal(result.error.code, 'ASSISTANT_SURFACE_FORBIDDEN');
+      assert.equal(providerCalls, 0);
+    }
+  }
+  await assert.rejects(() => handleAssistantChat({ db: { query: async () => ({ rows: [] }) },
+    body: { message: 'How much rest between sets?', surface: 'member' }, provider: answerProvider }),
+  error => error.status === 403 && error.code === 'ASSISTANT_SURFACE_FORBIDDEN');
+  assert.throws(() => validateAssistantRequest({ message: 'Hello', surface: 'admin' }));
+});
+
+test('Staff/Admin public surface blocks account-specific prompts before provider or private-data calls', async () => {
+  for (const role of ['staff', 'super_admin']) {
+    let calls = 0;
+    let providerCalls = 0;
+    const result = await handleAssistantChat({ db: { query: async () => { calls++; return { rows: [] }; } },
+      actor: { id: `${role}-1`, roles: [role] }, body: { message: 'What is my membership plan?', surface: 'public' },
+      provider: { complete: async () => { providerCalls++; return 'No.'; } } });
+    assert.match(result.message, /not available through the public SAREX assistant/i);
+    assert.equal(calls, 0);
+    assert.equal(providerCalls, 0);
+  }
+});
+
 test('guest assistant applies its shared rate limit before provider calls', async () => {
   let providerCalls = 0;
   const config = { NODE_ENV: 'test', APP_ORIGIN: 'http://localhost:3000', SESSION_COOKIE_NAME: 'session', SESSION_IDLE_TIMEOUT_HOURS: 24,
@@ -734,12 +1009,14 @@ test('guest assistant applies its shared rate limit before provider calls', asyn
   } finally { await new Promise(resolve => server.close(resolve)); }
 });
 
-test('Ask SAREX suggestions and greetings are tailored to each authenticated role', () => {
+test('Ask SAREX is available on public pages for every role and uses surface-aware suggestions', () => {
   const guest = getAssistantExperience(null, '/membership');
   const member = getAssistantExperience('member', '/member/dashboard');
   const trainer = getAssistantExperience('trainer', '/trainer/dashboard');
-  const staff = getAssistantExperience('staff', '/staff/dashboard');
-  const admin = getAssistantExperience('super_admin', '/admin/dashboard');
+  const staff = getAssistantExperience('staff', '/');
+  const admin = getAssistantExperience('super_admin', '/membership');
+  const staffPortal = getAssistantExperience('staff', '/staff/dashboard');
+  const adminPortal = getAssistantExperience('super_admin', '/admin/dashboard');
 
   assert.deepEqual(guest.suggestions, guestAssistantSuggestions);
   for (const prompt of ['Membership Plans', 'Help Me Choose a Plan', 'How Do I Join?', 'Workout Advice', 'SAREX Facilities', 'Upcoming Events', 'Forgot password']) {
@@ -751,17 +1028,16 @@ test('Ask SAREX suggestions and greetings are tailored to each authenticated rol
   for (const prompt of ['Where can I find my assigned members?', 'How do I review workout progress?', 'Help me understand the trainer workflow', 'Draft a workout idea for review']) {
     assert.ok(trainer.suggestions.includes(prompt));
   }
-  for (const prompt of ['How does QR check-in work?', 'How do I handle a denied check-in?', 'How do I renew a membership?', 'How do I record a manual payment?', 'How do I find a member?']) {
-    assert.ok(staff.suggestions.includes(prompt));
-  }
-  for (const prompt of ['How do I find a member account?', 'Where can I review attendance?', 'How do I review payment activity?', 'How do I manage membership plans?']) {
-    assert.ok(admin.suggestions.includes(prompt));
-  }
-  assert.doesNotMatch(admin.suggestions.join(' '), /revenue|performance|trends|expiring soon|operational attention/i);
+  assert.equal(staff.available, true);
+  assert.equal(admin.available, true);
+  assert.equal(staff.surface, 'public');
+  assert.equal(admin.surface, 'public');
+  assert.deepEqual(staff.suggestions, guestAssistantSuggestions);
+  assert.deepEqual(admin.suggestions, guestAssistantSuggestions);
+  assert.equal(staffPortal.available, false);
+  assert.equal(adminPortal.available, false);
   assert.match(member.greeting, /your workouts, progress, membership/i);
-  assert.match(trainer.greeting, /can’t assign or change member workouts/i);
-  assert.match(staff.greeting, /check-ins, memberships, payments/i);
-  assert.match(admin.greeting, /member, plan, attendance, payment and event tools/i);
+  assert.match(trainer.greeting, /assigned members|workout progress|training guidance/i);
   assert.ok(!member.suggestions.some(prompt => /join|choose a plan/i.test(prompt)));
   assert.notDeepEqual(memberAssistantSuggestions, guestAssistantSuggestions);
 });
@@ -777,7 +1053,9 @@ test('portal suggestions require the backend-authenticated role and public disco
   assert.ok(!memberAfterLogin.suggestions.some(prompt => /how do i join|help me choose a plan/i.test(prompt)));
   assert.ok(guestAfterLogout.suggestions.includes('How Do I Join?'));
   assert.ok(getAssistantExperience('member', '/membership').suggestions.includes('Help Me Choose a Plan'));
-  assert.ok(getAssistantExperience('staff', '/staff/check-in').suggestions.includes('How do I handle a denied check-in?'));
+  assert.equal(getAssistantExperience('staff', '/staff/check-in').available, false);
+  assert.equal(getAssistantExperience('super_admin', '/admin/members').available, false);
+  assert.equal(getAssistantExperience('staff', '/membership').surface, 'public');
   assert.ok(getAssistantExperience('member', '/member/workout').suggestions.includes('How am I doing this week?'));
 });
 
@@ -788,29 +1066,57 @@ test('assistant role suggestions use backend bootstrap state, never a client-sup
   assert.match(context, /setAuthenticatedRole\(null\)/);
   assert.match(component, /const \{ authenticatedRole, currentPath, navigate \} = useGym\(\)/);
   assert.match(component, /getAssistantExperience\(authenticatedRole, currentPath\)/);
+  assert.match(component, /pageContext: window\.location\.pathname, surface: experience\.surface/);
   assert.match(component, /\[experience\.greeting\]/);
   assert.doesNotMatch(component, /CustomEvent|detail\?\.roles|sessionStorage.*role/i);
 });
 
-test('staff check-in and member workout pages receive page-aware suggestions', () => {
-  const staffCheckIn = getAssistantExperience('staff', '/staff/check-in');
-  const staffAttendance = getAssistantExperience('staff', '/staff/attendance');
+test('Member/Trainer portal surfaces remain contextual while Staff/Admin widgets stay hidden in management portals', () => {
   const memberWorkout = getAssistantExperience('member', '/member/workout');
-  assert.ok(staffCheckIn.suggestions.includes('How does QR check-in work?'));
-  assert.ok(staffCheckIn.suggestions.length < getAssistantExperience('staff', '/staff/dashboard').suggestions.length);
-  assert.ok(staffAttendance.suggestions.includes('How do I handle a denied check-in?'));
   assert.ok(memberWorkout.suggestions.includes('Explain this workout'));
+  assert.equal(memberWorkout.surface, 'member');
+  assert.equal(getAssistantExperience('trainer', '/trainer/members').surface, 'trainer');
+  assert.equal(getAssistantExperience('trainer', '/').surface, 'public');
+  assert.deepEqual(getAssistantExperience('trainer', '/').suggestions, guestAssistantSuggestions);
+  assert.equal(getAssistantExperience('staff', '/staff/check-in').available, false);
+  assert.equal(getAssistantExperience('super_admin', '/admin/dashboard').available, false);
 });
 
 test('assistant actions remain allowlisted and critical routes suppress the widget', () => {
   assert.equal(isAssistantActionPathAllowed('/register'), true);
   assert.equal(isAssistantActionPathAllowed('/forgot-password'), true);
-  assert.equal(isAssistantActionPathAllowed('/admin/settings'), true);
+  assert.equal(isAssistantActionPathAllowed('/admin/settings'), false);
+  assert.equal(isAssistantActionPathAllowed('/admin/members'), false);
+  assert.equal(isAssistantActionPathAllowed('/staff/attendance'), false);
+  assert.equal(isAssistantActionPathAllowed('/trainer/members'), true);
   assert.equal(isAssistantActionPathAllowed('https://evil.example'), false);
   assert.equal(isAssistantActionPathAllowed('//evil.example'), false);
   assert.equal(isAssistantHiddenPath('/check-in/reception'), true);
   assert.equal(isAssistantHiddenPath('/member/check-in'), true);
   assert.equal(isAssistantHiddenPath('/membership'), false);
+});
+
+test('page context is optional, allowlisted, and cannot grant authorization', async () => {
+  assert.equal(validateAssistantRequest({ message: 'Check my account', pageContext: '/admin/members' }).pageContext, '/admin/members');
+  assert.equal(assistantPrompts.assistantPageContexts.has('/member/workout'), true);
+  assert.equal(assistantPrompts.assistantPageContexts.has('/admin/members?role=member'), false);
+  const result = await getGroundedPortalData({ db: { query: async () => { throw new Error('must not query'); } },
+    actor: { id: 'member-user', roles: ['member'] }, message: 'Are there any expired members?' });
+  assert.equal(result.status, 'not_applicable');
+  assert.equal(assistantPrompts.assistantPageContexts.has('/staff/check-in'), false);
+  assert.equal(assistantPrompts.assistantPageContexts.has('/admin/members'), false);
+});
+
+test('member workout page context selects only the authenticated member plan for ambiguous plan questions', async () => {
+  const calls = [];
+  await assistantPrompts.selectContext({ query: async (sql, params = []) => {
+    calls.push({ sql, params });
+    if (sql.includes('SELECT EXISTS (') && sql.includes('workout_plans w')) return { rows: [{ assigned: false }] };
+    if (sql.includes('SELECT EXISTS (')) return { rows: [{ trainer_access: false }] };
+    return { rows: [] };
+  } }, { id: 'signed-in-member', roles: ['member'] }, 'Explain this workout', [], '/member/workout');
+  assert.ok(calls.some(({ sql, params }) => sql.includes('m.user_id=$1') && params[0] === 'signed-in-member'));
+  assert.ok(calls.every(({ params }) => !params.includes('another-member')));
 });
 
 test('assistant panel source includes accessible responsive dialog, loading state, and open/close controls', async () => {

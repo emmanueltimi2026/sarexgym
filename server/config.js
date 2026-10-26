@@ -27,6 +27,7 @@ const schema = z.object({
   AI_API_BASE_URL: z.preprocess(value => typeof value === 'string' && value.trim() === '' ? undefined : value, z.string().url().optional()),
   AI_MODEL: z.preprocess(value => typeof value === 'string' && value.trim() === '' ? undefined : value, z.string().trim().min(1).max(120).optional()),
   AI_TIMEOUT_MS: z.coerce.number().int().min(1000).max(60000).default(20000),
+  AI_DIAGNOSTICS: z.enum(['true', 'false']).default('false'),
   CLOUDINARY_CLOUD_NAME: z.preprocess(value => typeof value === 'string' && value.trim() === '' ? undefined : value, z.string().min(2).optional()),
   CLOUDINARY_API_KEY: z.preprocess(value => typeof value === 'string' && value.trim() === '' ? undefined : value, z.string().min(2).optional()),
   CLOUDINARY_API_SECRET: z.preprocess(value => typeof value === 'string' && value.trim() === '' ? undefined : value, z.string().min(8).optional()),

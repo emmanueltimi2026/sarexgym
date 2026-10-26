@@ -11,30 +11,17 @@ const suggestionsByRole = Object.freeze({
     'Where can I find my assigned members?', 'How do I review workout progress?',
     'Help me understand the trainer workflow', 'Draft a workout idea for review',
     'Explain exercise programming', 'How can I discuss missed sessions with a member?'
-  ]),
-  staff: Object.freeze([
-    'How does QR check-in work?', 'How do I handle a denied check-in?',
-    'How do I renew a membership?', 'How do I record a manual payment?',
-    'How do I find a member?', 'Where can I review today’s attendance?'
-  ]),
-  admin: Object.freeze([
-    'How do I find a member account?', 'Where can I review attendance?',
-    'How do I review payment activity?', 'How do I manage membership plans?',
-    'How do I manage upcoming events?', 'How do I change my password?'
   ])
 });
 
 const greetingsByRole = Object.freeze({
   guest: 'Hi, I’m the SAREX Fitness Assistant. I can help with memberships, getting started, fitness questions and SAREX services.',
   member: 'I can help you understand your workouts, progress, membership and SAREX services.',
-  trainer: 'I can help you navigate assigned members and progress tools, plus general training guidance. I can’t assign or change member workouts.',
-  staff: 'I can help with member service, check-ins, memberships, payments and SAREX operations.',
-  admin: 'I can help you navigate member, plan, attendance, payment and event tools.'
+  trainer: 'I can help you navigate assigned members and progress tools, plus general training guidance. I can’t assign or change member workouts.'
 });
 
 const roleForPortalPath = path => {
-  if (/^\/admin(?:\/|$)/.test(path)) return 'admin';
-  if (/^\/staff(?:\/|$)/.test(path)) return 'staff';
+  if (/^\/(?:admin|staff)(?:\/|$)/.test(path)) return 'unsupported';
   if (/^\/trainer(?:\/|$)/.test(path)) return 'trainer';
   if (/^\/member(?:\/|$)/.test(path)) return 'member';
   return null;
@@ -42,30 +29,33 @@ const roleForPortalPath = path => {
 
 export const getAssistantExperience = (authenticatedRole, currentPath = '/') => {
   const portalRole = roleForPortalPath(currentPath);
-  // Public pages intentionally use the public discovery experience. Portal
-  // suggestions require a role confirmed by the server-backed session context.
-  const role = portalRole
-    ? (authenticatedRole === 'super_admin' ? 'admin' : authenticatedRole) === portalRole
-      ? portalRole
-      : null
-    : 'guest';
+  const sessionRole = authenticatedRole === 'super_admin' || authenticatedRole === 'admin' ? 'admin'
+    : authenticatedRole === 'staff' ? 'staff'
+      : ['member', 'trainer'].includes(authenticatedRole) ? authenticatedRole : null;
+  const surface = portalRole === 'member' || portalRole === 'trainer' ? portalRole : 'public';
+  const role = portalRole === 'unsupported' || portalRole && portalRole !== sessionRole ||
+    (portalRole && !sessionRole) ? null : sessionRole || 'guest';
 
-  if (!role) return { role: null, greeting: 'Welcome to Ask SAREX. Your portal is being verified.', suggestions: [] };
+  if (!role) return { available: false, role: null, surface, greeting: '', suggestions: [] };
 
-  let suggestions = suggestionsByRole[role];
-  if (role === 'staff' && /^\/staff\/(?:check-in|attendance)(?:\/|$)/.test(currentPath)) {
-    suggestions = Object.freeze([
-      'How do I handle a denied check-in?', 'How does QR check-in work?',
-      'How do I find a member?', 'How do I renew a membership?'
-    ]);
-  } else if (role === 'member' && /^\/member\/workout(?:\/|$)/.test(currentPath)) {
+  // Public pages share one public capability set. Staff/Admin must never see
+  // management prompts here, and Trainers use trainer prompts only in their portal.
+  const experienceRole = surface === 'public' && ['staff', 'admin', 'trainer'].includes(role) ? 'guest' : role;
+
+  let suggestions = suggestionsByRole[experienceRole];
+  if (experienceRole === 'member' && /^\/member\/workout(?:\/|$)/.test(currentPath)) {
     suggestions = Object.freeze([
       'Explain this workout', 'How am I doing this week?',
       'I missed a workout, what should I do?', 'Show my workout progress'
     ]);
+  } else if (experienceRole === 'member' && /^\/membership(?:\/|$)/.test(currentPath)) {
+    suggestions = Object.freeze([
+      'Membership Plans', 'Help Me Choose a Plan', 'Help with my membership',
+      'Workout Advice', 'SAREX Facilities'
+    ]);
   }
 
-  return { role, greeting: greetingsByRole[role], suggestions: [...suggestions] };
+  return { available: true, role: experienceRole, surface, greeting: greetingsByRole[experienceRole], suggestions: [...suggestions] };
 };
 
 export const guestAssistantSuggestions = [...suggestionsByRole.guest];
@@ -74,7 +64,9 @@ export const assistantSuggestionsByRole = suggestionsByRole;
 export const assistantGreetingsByRole = greetingsByRole;
 export const assistantActionPaths = new Set([
   '/', '/membership', '/register', '/login', '/facilities', '/contact',
-  '/member/workout', '/member/membership', '/member/events', '/forgot-password', '/admin/settings'
+  '/member/workout', '/member/membership', '/member/events', '/member/attendance', '/member/profile', '/forgot-password',
+  '/trainer/members'
 ]);
 export const isAssistantActionPathAllowed = path => assistantActionPaths.has(path);
 export const isAssistantHiddenPath = path => /^\/(?:check-in\/reception|(?:member|staff)\/check-in|checkout|payment)(?:\/|$)/i.test(path);
+export const shouldAutoFocusAssistantInput = (isOpen, isMobileViewport) => Boolean(isOpen && !isMobileViewport);
