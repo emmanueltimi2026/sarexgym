@@ -146,6 +146,7 @@
 @media (prefers-reduced-motion: reduce) { .public-site *, .public-site *::before, .public-site *::after { scroll-behavior: auto !important; animation: none !important; transition: none !important; } }
 
 /* Management product shell. */
+:root { --member-mobile-nav-clearance: calc(3.5rem + env(safe-area-inset-bottom, 0px)); }
 .management-app {
   --saas-red: #e91522;
   --saas-ink: #16191d;
@@ -250,6 +251,13 @@
 .management-app[data-path="/admin/dashboard"] .admin-dashboard-recent { order:4; }
 .management-app[data-path="/admin/dashboard"] .admin-dashboard-operations { order:5; margin-top:16px; }
 .management-scroll-area { scrollbar-width:thin; scrollbar-color:#a2aab4 transparent; }
+.management-app .member-mobile-bottom-nav { box-sizing:border-box; height:var(--member-mobile-nav-clearance); padding:4px 8px env(safe-area-inset-bottom, 0px); }
+.management-app .member-mobile-bottom-nav > button { min-width:48px; min-height:44px; align-items:center; justify-content:center; }
+.sarex-ai-panel { max-height:calc(var(--sarex-ai-viewport-height, 100dvh) - var(--sarex-ai-nav-clearance, 0px) - 4.5rem); }
+@media (max-width: 767px) {
+  .sarex-ai-widget[data-member-portal="true"] { bottom:calc(var(--member-mobile-nav-clearance, 3.5rem) + 0.75rem); }
+}
+@media (min-width: 640px) { .sarex-ai-panel { max-height:min(75vh,760px); } }
 .management-scroll-area::-webkit-scrollbar { width:7px; }
 .management-scroll-area::-webkit-scrollbar-thumb { background:#a2aab4; border-radius:99px; border:2px solid transparent; background-clip:padding-box; }
 @media (max-width: 767px) {

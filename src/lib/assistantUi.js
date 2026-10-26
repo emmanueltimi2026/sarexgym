@@ -70,3 +70,9 @@ export const assistantActionPaths = new Set([
 export const isAssistantActionPathAllowed = path => assistantActionPaths.has(path);
 export const isAssistantHiddenPath = path => /^\/(?:check-in\/reception|(?:member|staff)\/check-in|checkout|payment)(?:\/|$)/i.test(path);
 export const shouldAutoFocusAssistantInput = (isOpen, isMobileViewport) => Boolean(isOpen && !isMobileViewport);
+export const getAssistantWidgetBottom = (isMemberPortal, keyboardInset = 0) => {
+  const inset = Number.isFinite(keyboardInset) ? Math.max(0, keyboardInset) : 0;
+  const memberNav = isMemberPortal && inset < 80 ? 'var(--member-mobile-nav-clearance, 3.5rem) + ' : '';
+  const safeArea = isMemberPortal ? '' : ' + env(safe-area-inset-bottom, 0px)';
+  return `calc(${inset}px + ${memberNav}0.75rem${safeArea})`;
+};

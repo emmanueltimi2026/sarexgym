@@ -216,8 +216,8 @@ const AppLayoutFrame: React.FC<AppLayoutProps> = ({
     }
   };
   return (
-    <div className="management-app h-screen overflow-hidden bg-[#F7F7F8] text-[#111111] flex flex-col font-sans antialiased" data-role={role} data-path={currentPath}>
-      <div className="flex-1 flex overflow-hidden">
+    <div className="management-app h-[100dvh] min-h-0 overflow-hidden bg-[#F7F7F8] text-[#111111] flex flex-col font-sans antialiased md:h-screen" data-role={role} data-path={currentPath}>
+      <div className="min-h-0 flex-1 flex overflow-hidden">
         
         <aside className="management-sidebar hidden md:flex h-screen flex-col w-[260px] bg-[#151515] text-white border-r border-gray-800 shrink-0 select-none">
           
@@ -336,7 +336,7 @@ const AppLayoutFrame: React.FC<AppLayoutProps> = ({
         )}
 
         
-        <div ref={scrollContainerRef} className="management-scroll-area h-screen flex-1 flex flex-col min-w-0 overflow-y-auto pb-16 md:pb-6">
+        <div ref={scrollContainerRef} className="management-scroll-area h-full min-h-0 flex-1 flex flex-col min-w-0 overflow-y-auto pb-[calc(4rem+env(safe-area-inset-bottom,0px))] md:pb-6">
           
           <header className="management-topbar min-h-20 bg-white/95 backdrop-blur-xl border-b border-[#E5E7EB] sticky top-0 z-30 px-4 py-3 sm:px-8 flex flex-nowrap items-center justify-between gap-3 shrink-0">
             <div className="flex min-w-0 flex-1 items-center gap-3">
@@ -487,7 +487,7 @@ const AppLayoutFrame: React.FC<AppLayoutProps> = ({
 
       
       {role === 'member' && (
-        <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-[#151515] border-t border-neutral-800 px-2 py-2 flex items-center justify-around z-40">
+        <nav className="member-mobile-bottom-nav md:hidden fixed bottom-0 left-0 right-0 bg-[#151515] border-t border-neutral-800 flex items-center justify-around z-40" aria-label="Member navigation">
           <button
             onClick={() => navigate('/member/dashboard')}
             className={`flex flex-col items-center gap-1 p-1 text-xs font-semibold ${

@@ -3,7 +3,7 @@ import { ArrowUp, Dumbbell, LoaderCircle, MessageCircle, X } from 'lucide-react'
 import ReactMarkdown from 'react-markdown';
 import { useGym } from '../../context/GymContext';
 import { apiUrl } from '../../lib/secureFetch';
-import { getAssistantExperience, isAssistantActionPathAllowed, isAssistantHiddenPath, shouldAutoFocusAssistantInput } from '../../lib/assistantUi';
+import { getAssistantExperience, getAssistantWidgetBottom, isAssistantActionPathAllowed, isAssistantHiddenPath, shouldAutoFocusAssistantInput } from '../../lib/assistantUi';
 import { remarkLineBreaks } from '../../lib/assistantMarkdown.js';
 import { AssistantStructuredContent, parseAssistantStructuredContent } from './StructuredAssistantContent.js';
 
@@ -15,6 +15,7 @@ type BusinessInfoContent = { type: 'business_info'; data: { name: string | null;
   openingHours: string | null; facilities: { name: string; description: string | null }[]; registrationSteps: string[]; contactPath: string | null } };
 type StructuredContent = MembershipPlanContent | BusinessInfoContent;
 type ChatMessage = { role: 'user' | 'assistant'; content: string; structuredContent?: StructuredContent | null; actions?: AssistantContentAction[] };
+type AssistantViewportStyle = React.CSSProperties & { '--sarex-ai-viewport-height'?: string; '--sarex-ai-nav-clearance'?: string };
 export const AssistantBrandMark: React.FC<{ variant: 'header' | 'avatar' }> = ({ variant }) => variant === 'header'
   ? <span className="flex h-10 w-[72px] shrink-0 items-center justify-center rounded-xl bg-[#17191f] px-2 shadow-sm">
     <img src="/assets/brand/sarex-logo.png" alt="SAREX Fitness Clinic" className="h-auto max-h-7 w-full object-contain" />
@@ -27,6 +28,7 @@ export const AssistantWidget: React.FC = () => {
   const { authenticatedRole, currentPath, navigate } = useGym();
   const experience = getAssistantExperience(authenticatedRole, currentPath);
   const suggestions = experience.suggestions;
+  const isMemberPortal = authenticatedRole === 'member' && /^\/member(?:\/|$)/.test(currentPath);
   const [open, setOpen] = useState(false);
   const [suppressed, setSuppressed] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>(() => [{ role: 'assistant', content: experience.greeting }]);
@@ -137,8 +139,8 @@ export const AssistantWidget: React.FC = () => {
   };
   if (suppressed || !experience.available) return null;
 
-  return <div className="sarex-ai-widget fixed right-3 bottom-[calc(0.75rem+env(safe-area-inset-bottom))] z-[70] flex flex-col items-end gap-3 sm:right-6 sm:bottom-6" style={mobileViewport ? { bottom: `calc(${mobileViewport.bottomInset}px + 0.75rem + env(safe-area-inset-bottom))` } : undefined}>
-    {open && <div id="sarex-ai-panel" ref={panelRef} className="sarex-ai-panel flex h-[min(78dvh,760px)] w-[calc(100vw-1.5rem)] max-h-[calc(100dvh-6rem)] shrink-0 flex-col overflow-hidden rounded-3xl border border-[#e6e7eb] bg-white shadow-[0_24px_80px_rgba(12,18,28,0.2)] sm:h-[min(75vh,760px)] sm:w-[420px] sm:max-h-[min(75vh,760px)]" style={mobileViewport ? { maxHeight: `${Math.max(0, mobileViewport.height - 96)}px` } : undefined} role="dialog" aria-modal="false" aria-labelledby="sarex-ai-title">
+  return <div className="sarex-ai-widget fixed right-3 bottom-[calc(0.75rem+env(safe-area-inset-bottom))] z-[70] flex flex-col items-end gap-3 sm:right-6 sm:bottom-6" data-member-portal={isMemberPortal ? 'true' : undefined} style={{ ...(mobileViewport ? { bottom: getAssistantWidgetBottom(isMemberPortal, mobileViewport.bottomInset), '--sarex-ai-viewport-height': `${mobileViewport.height}px` } : { '--sarex-ai-viewport-height': '100dvh' }), '--sarex-ai-nav-clearance': isMemberPortal && (!mobileViewport || mobileViewport.bottomInset < 80) ? 'var(--member-mobile-nav-clearance, 3.5rem)' : '0px' } as AssistantViewportStyle}>
+    {open && <div id="sarex-ai-panel" ref={panelRef} className="sarex-ai-panel flex h-[min(78dvh,760px)] w-[calc(100vw-1.5rem)] shrink-0 flex-col overflow-hidden rounded-3xl border border-[#e6e7eb] bg-white shadow-[0_24px_80px_rgba(12,18,28,0.2)] sm:h-[min(75vh,760px)] sm:w-[420px]" role="dialog" aria-modal="false" aria-labelledby="sarex-ai-title">
       <header className="flex shrink-0 items-center gap-3 border-b border-gray-100 bg-white px-4 py-4">
         <AssistantBrandMark variant="header" />
         <div className="min-w-0 flex-1"><h2 id="sarex-ai-title" className="font-bold text-[#17191f]">SAREX AI</h2><p className="text-xs text-gray-500">Fitness and membership assistant</p></div>
