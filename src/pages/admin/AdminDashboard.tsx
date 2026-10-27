@@ -4,6 +4,7 @@ import { AppLayout } from '../../components/layout/AppLayout';
 import { Badge } from '../../components/ui/Badge';
 import { StatCard } from '../../components/ui/StatCard';
 import { formatAppTime } from '../../utils/dateTime';
+import { buildMembershipTierMix } from '../../lib/membershipTierMix';
 import {
   ArrowRight, CalendarCheck, Clock3, TrendingUp, UserCheck, Users
 } from 'lucide-react';
@@ -53,10 +54,7 @@ export const AdminDashboard: React.FC = () => {
   });
   const formatRevenueAxis = (value: number) => value >= 1_000_000 ? `₦${Number((value / 1_000_000).toFixed(1))}m` : value >= 1_000 ? `₦${Math.round(value / 1_000)}k` : `₦${value}`;
 
-  const planData = plans.map(p => ({
-    name: p.name,
-    value: members.filter(m => m.membershipPlanId === p.id && m.membershipStatus === 'Active').length
-  })).filter(item => item.value > 0);
+  const planData = buildMembershipTierMix(plans, members);
 
   const PIE_COLORS = ['#EF1B23', '#151515', '#6B7280', '#D97706'];
 
@@ -235,7 +233,7 @@ export const AdminDashboard: React.FC = () => {
 
           <div className="p-5 flex-1 flex flex-col justify-between">
             <div className="h-36 w-full my-1">
-              {planData.length ? <ResponsiveContainer width="100%" height="100%">
+              {planData.some(item => item.value > 0) ? <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie
                     data={planData}
@@ -257,13 +255,13 @@ export const AdminDashboard: React.FC = () => {
                     formatter={(value: any, name: any) => [`${Number(value).toLocaleString()} active member${Number(value) === 1 ? '' : 's'}`, name]}
                   />
                 </PieChart>
-              </ResponsiveContainer> : <div className="grid h-full place-items-center text-center text-xs text-[#6B7280]">No active member plan mix yet.</div>}
+              </ResponsiveContainer> : <div className="grid h-full place-items-center text-center text-xs text-[#6B7280]">No active members are currently assigned to a configured plan.</div>}
             </div>
 
             
             <div className="grid grid-cols-2 gap-2 text-xs pt-3 border-t border-[#E5E7EB]">
               {planData.map((p, idx) => (
-                <div key={p.name} className="flex items-center gap-2">
+                <div key={p.id} className="flex items-center gap-2">
                   <span
                     className="w-2.5 h-2.5 rounded-xs shrink-0"
                     style={{ backgroundColor: PIE_COLORS[idx % PIE_COLORS.length] }}

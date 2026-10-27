@@ -111,6 +111,7 @@ const patterns = Object.freeze({
   myGoal: /\b(my|mine)\b.{0,35}\b(fitness goal|goal)\b/i,
   myEntitlements: /\b(my|mine)\b.{0,40}\b(access|entitlements?|features?)\b|\bwhat (?:features|access) (?:does|do) my membership include\b/i,
   trainerAssigned: /\bhow many\b.{0,45}\bmembers?\b.{0,35}\bassigned\b|\b(?:who|which members?)\b.{0,55}\bmiss(?:ed|ing)?\b.{0,45}\b(?:workouts?|sessions?|days?)\b|\bhow many\b.{0,70}\b(?:days?|sessions?|workouts?)\b.{0,70}\b(?:my member|members?|clients?)\b.{0,45}\bmiss(?:ed)?\b|\bhow many\b.{0,70}\b(?:my member|members?|clients?)\b.{0,45}\bmiss(?:ed)?\b.{0,70}\b(?:days?|sessions?|workouts?)\b|\b(assigned members?|members? assigned to me|my clients?|member workout progress|workout adherence|adherence summary|how are my assigned members doing|which members are missing workouts?|members? behind on workouts?)\b/i,
+  trainerRelativeFollowUp: /\b(?:what|how)\s+about\b.{0,30}\b(?:the\s+)?(?:week before|previous week|prior week|week earlier|preceding week)\b|\b(?:the\s+)?(?:week before|previous week|prior week|week earlier|preceding week)\b/i,
   fitness: /\b(fitness|wellness|gym|workouts?|exercises?|training|muscle|strength|protein|nutrition|recovery|reps?|\bsets?(?!\s+up\b)\b|stretch(?:ing)?|warm[\s-]?up|cool[\s-]?down|cardio|sleep|hydration|injur(?:y|ies)|beginner|intermediate|advanced)\b/i
 });
 
@@ -149,6 +150,11 @@ export function resolveAssistantIntent({ message, history = [], identity }) {
   if (patterns.publicPlans.test(text)) return AssistantIntent.PUBLIC_MEMBERSHIP_PLANS;
 
   if (patterns.trainerAssigned.test(text)) return AssistantIntent.TRAINER_ASSIGNED_MEMBERS;
+  const previousTrainerScope = patterns.trainerAssigned.test(previousUserText) ||
+    /\b(?:missed workouts?|missed sessions?|current-week progress|assigned members?)\b/i.test(previousAssistantText);
+  if (identity?.role === 'trainer' && patterns.trainerRelativeFollowUp.test(text) && previousTrainerScope) {
+    return AssistantIntent.TRAINER_ASSIGNED_MEMBERS;
+  }
 
   // Short follow-ups inherit the recent domain when the assistant just asked
   // for missing fitness context or the conversation is about plan discovery.

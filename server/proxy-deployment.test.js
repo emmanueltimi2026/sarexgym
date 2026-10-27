@@ -23,6 +23,19 @@ test('Vercel proxies API requests to Render before the SPA fallback',async()=>{
  assert.match(config.rewrites[1].source,/api\//);
 });
 
+test('Vercel revalidates HTML entry points while keeping hashed assets immutable',async()=>{
+ const config=JSON.parse(await readFile(path.join(root,'vercel.json'),'utf8'));
+ const headers=new Map(config.headers.map(entry=>[entry.source,entry.headers.find(header=>header.key==='Cache-Control')?.value]));
+ assert.equal(headers.get('/'),'public, max-age=0, must-revalidate');
+ assert.equal(headers.get('/index.html'),'public, max-age=0, must-revalidate');
+ assert.equal(headers.get('/assets/(.*)'),'public, max-age=31536000, immutable');
+ const app=await readFile(path.join(root,'src/App.tsx'),'utf8');
+ assert.match(app,/lazyPage/);
+ const lazyPage=await readFile(path.join(root,'src/lib/lazyPage.ts'),'utf8');
+ assert.match(lazyPage,/failed to fetch dynamically imported module/);
+ assert.match(lazyPage,/sessionStorage/);
+});
+
 test('production browser traffic cannot bypass the shared API policy',async()=>{
  const files=await sourceFiles(path.join(root,'src'));
  for(const file of files){

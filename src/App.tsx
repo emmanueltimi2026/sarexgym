@@ -1,4 +1,4 @@
-import React, { lazy, Suspense, useEffect, useRef, useState } from 'react';
+import React, { Suspense, useEffect, useRef, useState } from 'react';
 import { GymProvider, useGym } from './context/GymContext';
 import { ErrorBoundary } from './components/ui/ErrorBoundary';
 import { Seo } from './components/seo/Seo';
@@ -10,9 +10,7 @@ import { logAuthDiagnostic } from './lib/authDiagnostics';
 import { apiUrl } from './lib/secureFetch';
 import { PwaExperience } from './components/pwa/PwaExperience';
 import { AssistantWidget } from './components/assistant/AssistantWidget';
-
-const lazyPage = (loader: () => Promise<Record<string, unknown>>, exportName: string) =>
-  lazy(async () => ({ default: (await loader())[exportName] as React.ComponentType<any> }));
+import { lazyPage } from './lib/lazyPage';
 
 const PublicHome = lazyPage(() => import('./pages/public/PublicHome'), 'PublicHome');
 const PublicMembership = lazyPage(() => import('./pages/public/PublicMembership'), 'PublicMembership');

@@ -817,6 +817,19 @@ test('trainer questions retrieve only assigned members and report exact counts a
   assert.deepEqual(calls[1].params, [['plan-1']]);
   assert.match(formatGroundedResponse(missed, { message: 'who missed workout session' }).message, /Alex Member.*Day 2/);
 
+  const firstAnswer = formatGroundedResponse(missed, { message: 'who missed workout session' }).message;
+  const relativeFollowUp = 'what about the week before';
+  const followUpHistory = [{ role: 'user', content: 'who missed workout session' }, { role: 'assistant', content: firstAnswer }];
+  assert.equal(resolveAssistantIntent({ message: relativeFollowUp, history: followUpHistory,
+    identity: resolveAssistantIdentity(actor) }), AssistantIntent.TRAINER_ASSIGNED_MEMBERS);
+  const priorWeek = await getGroundedPortalData({ db, actor, message: relativeFollowUp, history: followUpHistory, surface: 'trainer' });
+  const priorWeekAnswer = formatGroundedResponse(priorWeek, { message: relativeFollowUp }).message;
+  assert.equal(priorWeek.data.historicalWeekOffset, 1);
+  assert.match(priorWeekAnswer, /preceding completed program week/i);
+  assert.match(priorWeekAnswer, /Alex Member.*Week 2/);
+  assert.match(priorWeekAnswer, /Day 1, Day 2/);
+  assert.doesNotMatch(priorWeekAnswer, /Current-week progress/);
+
   const assignedCount = await getGroundedPortalData({ db, actor, message: 'can you check how many members are assigned to me', surface: 'trainer' });
   assert.match(formatGroundedResponse(assignedCount, { message: 'can you check how many members are assigned to me' }).message, /\*\*2 active members assigned\*\*/);
   assert.equal(resolveAssistantIntent({ message: 'how many days does my member missed in the workout i assigned to them', identity: resolveAssistantIdentity(actor) }),

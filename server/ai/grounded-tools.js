@@ -14,7 +14,18 @@ async function myAttendanceSummary(db, userId) {
   return { successfulVisitsLast30Days: count(rows[0]?.successful_visits), latestVisit: rows[0]?.latest_visit || null };
 }
 
-async function trainerAssignedSummary(db, userId) {
+const previousProgramWeekPattern = /\b(?:what|how)\s+about\b.{0,30}\b(?:the\s+)?(?:week before|previous week|prior week|week earlier|preceding week)\b|\b(?:the\s+)?(?:week before|previous week|prior week|week earlier|preceding week)\b/i;
+
+const trainerHistoryWeekOffset = (message, history = []) => {
+  if (!previousProgramWeekPattern.test(message)) return 0;
+  const previousUserText = [...history].reverse().find(item => item.role === 'user')?.content || '';
+  const previousAssistantText = [...history].reverse().find(item => item.role === 'assistant')?.content || '';
+  const previousTrainerScope = /\b(?:who|which members?|assigned members?|clients?)\b.{0,60}\bmiss(?:ed|ing)?\b.{0,45}\b(?:workouts?|sessions?|days?)\b/i.test(previousUserText) ||
+    /\b(?:missed workouts?|missed sessions?|current-week progress|assigned members?)\b/i.test(previousAssistantText);
+  return previousTrainerScope ? 1 : 0;
+};
+
+async function trainerAssignedSummary(db, userId, historicalWeekOffset = 0) {
   const { rows } = await db.query(`SELECT m.id member_id,m.first_name,m.last_name,w.id plan_id,w.title plan_title,
       w.routine,w.days_per_week,w.program_started_on,w.status plan_status,count(*) OVER()::int assigned_member_count
     FROM trainers t JOIN trainer_assignments ta ON ta.trainer_id=t.id AND ta.active
@@ -38,6 +49,7 @@ async function trainerAssignedSummary(db, userId) {
     const missedInRecentWeeks = completedWeeks.slice(0, 4).reduce((total, week) =>
       total + week.days.filter(day => day.status === 'missed').length, 0);
     const latestCompletedWeek = completedWeeks[0] || null;
+    const selectedHistoricalWeek = completedWeeks[historicalWeekOffset] || null;
     return { memberName: `${row.first_name} ${row.last_name}`.trim(), plan: row.plan_title || null,
       assignedPerWeek: count(row.days_per_week), completedThisWeek: progress?.currentWeek.completedWorkouts || 0,
       completionPercentage: progress?.currentWeek.percentage || 0,
@@ -46,10 +58,12 @@ async function trainerAssignedSummary(db, userId) {
       missedDaysToDate: completedWeeks.reduce((total, week) => total + week.days.filter(day => day.status === 'missed').length, 0),
       latestCompletedWeek: latestCompletedWeek ? { number: latestCompletedWeek.weekNumber, startDate: latestCompletedWeek.startDate,
         endDate: latestCompletedWeek.endDate, missedDays: latestCompletedWeek.days.filter(day => day.status === 'missed').map(day => day.dayName) } : null,
+      selectedHistoricalWeek: selectedHistoricalWeek ? { number: selectedHistoricalWeek.weekNumber, startDate: selectedHistoricalWeek.startDate,
+        endDate: selectedHistoricalWeek.endDate, missedDays: selectedHistoricalWeek.days.filter(day => day.status === 'missed').map(day => day.dayName) } : null,
       recentMissedWeeks: completedWeeks.slice(0, 4).map(week => ({ number: week.weekNumber, startDate: week.startDate,
-        missedDays: week.days.filter(day => day.status === 'missed').map(day => day.dayName) })) };
+        endDate: week.endDate, missedDays: week.days.filter(day => day.status === 'missed').map(day => day.dayName) })) };
   });
-  return { assignedMemberCount: Number(rows[0]?.assigned_member_count || 0), members };
+  return { assignedMemberCount: Number(rows[0]?.assigned_member_count || 0), historicalWeekOffset, members };
 }
 
 async function getMemberWorkout(db, actor) {
@@ -136,7 +150,7 @@ export async function getGroundedPortalData({ db, actor, message, history = [], 
             SELECT 1 FROM subscription_freezes f WHERE f.subscription_id=s.id AND f.released_at IS NULL AND now()>=f.starts_at AND now()<f.ends_at)) workout_plan_access
         FROM subscriptions s JOIN membership_plans p ON p.id=s.plan_id JOIN members m ON m.id=s.member_id
         WHERE m.user_id=$1 ORDER BY s.starts_at DESC LIMIT 1`, [actor.id]).then(result => result.rows[0] || null); break;
-      case 'trainerAssigned': data = await trainerAssignedSummary(db, actor.id); break;
+      case 'trainerAssigned': data = await trainerAssignedSummary(db, actor.id, trainerHistoryWeekOffset(message, history)); break;
       default: return { status: 'not_applicable' };
     }
     const noData = data === null || data === undefined || (['myWorkout'].includes(tool) && data.status === 'no_record') ||
@@ -261,16 +275,17 @@ export function formatGroundedResponse(result, { message = '' } = {}) {
     const members = data.members || [];
     const assignedCount = data.assignedMemberCount || 0;
     const countOnly = /\bhow many\b.{0,45}\bmembers?\b.{0,35}\bassigned\b|\bcount\b.{0,35}\bassigned members?\b/i.test(message);
-    const asksWhoMissed = /\bwho\b.{0,60}\bmiss(?:ed|ing)?\b.{0,40}\b(?:workouts?|sessions?|days?)\b|\bwhich members?\b.{0,45}\bmiss(?:ed|ing)\b/i.test(message);
+    const asksWhoMissed = /\bwho\b.{0,60}\bmiss(?:ed|ing)?\b.{0,40}\b(?:workouts?|sessions?|days?)\b|\bwhich members?\b.{0,45}\bmiss(?:ed|ing)\b/i.test(message) || data.historicalWeekOffset > 0;
     const asksMissedCount = /\bhow many\b.{0,80}\bmiss(?:ed)?\b.{0,50}\b(?:days?|sessions?|workouts?)\b|\bhow many\b.{0,50}\b(?:days?|sessions?|workouts?)\b.{0,80}\bmiss(?:ed)?\b/i.test(message);
     const assignedAction = [{ label: 'View Assigned Members', type: 'navigate', path: '/trainer/members' }];
     if (!assignedCount) return { message: 'You have no active member assignments right now.', actions: assignedAction };
     if (asksWhoMissed) {
-      const mostRecentMisses = members.map(member => ({ member, week: member.latestCompletedWeek, days: member.latestCompletedWeek?.missedDays || [] }))
+      const selectedWeekLabel = data.historicalWeekOffset > 0 ? 'the preceding completed program week' : 'the most recently completed program week';
+      const mostRecentMisses = members.map(member => ({ member, week: member.selectedHistoricalWeek || member.latestCompletedWeek, days: (member.selectedHistoricalWeek || member.latestCompletedWeek)?.missedDays || [] }))
         .filter(item => item.days.length);
       return mostRecentMisses.length
-        ? { message: `Recent completed program weeks with missed workouts:\n${mostRecentMisses.slice(0, 10).map(item => `- **${item.member.memberName}** — ${item.days.length} ${item.days.length === 1 ? 'session' : 'sessions'} in Week ${item.week.number} (${item.week.startDate} to ${item.week.endDate}): ${item.days.join(', ')}`).join('\n')}${mostRecentMisses.length > 10 ? `\n- And ${mostRecentMisses.length - 10} more.` : ''}\n\nSessions in the current week are still pending, not missed.`, actions: assignedAction }
-        : { message: 'No missed workouts were recorded in the most recently completed program week for your active assigned members. Sessions in the current week are still pending, not missed.', actions: assignedAction };
+        ? { message: `Missed workouts from ${selectedWeekLabel}:\n${mostRecentMisses.slice(0, 10).map(item => `- **${item.member.memberName}** — ${item.days.length} ${item.days.length === 1 ? 'session' : 'sessions'} in Week ${item.week.number} (${item.week.startDate} to ${item.week.endDate}): ${item.days.join(', ')}`).join('\n')}${mostRecentMisses.length > 10 ? `\n- And ${mostRecentMisses.length - 10} more.` : ''}\n\nSessions in the current week are still pending, not missed.`, actions: assignedAction }
+        : { message: `No missed workouts were recorded in ${selectedWeekLabel} for your active assigned members. Sessions in the current week are still pending, not missed.`, actions: assignedAction };
     }
     if (asksMissedCount) {
       const matchingName = members.find(member => message.toLowerCase().includes(member.memberName.toLowerCase()));
