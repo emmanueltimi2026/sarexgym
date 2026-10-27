@@ -1,4 +1,4 @@
-import { getFacilities, getGymInformation, getMyMemberContext, getMyUpcomingEvents,
+import { getFacilities, getGymInformation, getMyCurrentEntitlements, getMyMemberContext, getMyUpcomingEvents,
   getPublicEvents, getPublicTrainerDirectory, getRegistrationInformation } from './context.js';
 import { AssistantIntent, resolveAssistantIdentity, resolveAssistantIntent } from './intent-registry.js';
 
@@ -41,14 +41,26 @@ async function trainerAssignedSummary(db, userId) {
 
 async function getMemberWorkout(db, actor) {
   if (actor.must_change_password) return { status: 'unauthorized' };
+  // The assigned plan and its read-only progress are required for this answer.
+  // Entitlement and assignment-status reads are only needed when no accessible
+  // plan was found; they must not make an otherwise valid plan unavailable.
   const context = await getMyMemberContext(db, actor.id, { includeWorkout: true, includeMembership: false,
-    includeGoal: false, includeEntitlements: true, includeAssignmentStatus: true });
+    includeGoal: false, includeEntitlements: false, includeAssignmentStatus: false });
   if (context.memberWorkoutIntelligenceUnavailable) return { status: 'unavailable' };
-  if (!context.workout) return { status: context.hasTrainerAssignedPlan ? 'unavailable_entitlement' : 'no_record',
-    entitlement: context.currentEntitlements };
+  if (!context.workout) {
+    const accessContext = await getMyMemberContext(db, actor.id, { includeWorkout: false, includeMembership: false,
+      includeGoal: false, includeEntitlements: true, includeAssignmentStatus: true });
+    return { status: accessContext.hasTrainerAssignedPlan ? 'unavailable_entitlement' : 'no_record',
+      entitlement: accessContext.currentEntitlements };
+  }
   const plan = context.workout;
+  let trainerName = null;
+  try {
+    const entitlements = await getMyCurrentEntitlements(db, actor.id);
+    trainerName = entitlements.trainerAccess === true ? plan.trainerName || null : null;
+  } catch { /* Trainer identity is optional; never fail the workout lookup for it. */ }
   return { status: 'success', plan: { title: plan.title, description: plan.description || null,
-    difficulty: plan.difficulty, daysPerWeek: plan.daysPerWeek, trainerName: plan.trainerName || null,
+    difficulty: plan.difficulty, daysPerWeek: plan.daysPerWeek, trainerName,
     programStartedOn: plan.programStartedOn || null,
     currentWeek: { number: plan.currentWeek.weekNumber, startDate: plan.currentWeek.startDate, endDate: plan.currentWeek.endDate,
       completed: plan.currentWeek.completedCount, required: plan.currentWeek.assignedCount,
@@ -123,8 +135,9 @@ export async function getGroundedPortalData({ db, actor, message, history = [], 
       source: ({ myMembership: 'subscription service', myWorkout: 'trainer assignment and workout service',
         myAttendance: 'attendance service', attendanceToday: 'attendance service', expired: 'subscription service',
         expiring: 'subscription service', membershipStatus: 'subscription service', myEvents: 'event service' })[tool] || 'SAREX portal service' };
-  } catch {
-    return { status: 'unavailable', outcome: 'FAILURE', tool, intent, source: tool };
+  } catch (error) {
+    return { status: 'unavailable', outcome: 'FAILURE', tool, intent, source: tool,
+      failureCategory: error?.assistantFailureStage || (error?.code === 'WORKOUT_NOT_STARTED' ? 'workout_not_started' : 'portal_data_lookup') };
   }
 }
 

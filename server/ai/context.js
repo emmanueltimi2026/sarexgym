@@ -69,6 +69,13 @@ const boundedNumber = (value, min, max) => {
   return Number.isFinite(number) && number >= min && number <= max ? number : null;
 };
 
+const markFailureStage = (error, stage) => {
+  if (error && typeof error === 'object' && !error.assistantFailureStage) error.assistantFailureStage = stage;
+  return error;
+};
+
+const staged = (promise, stage) => Promise.resolve(promise).catch(error => { throw markFailureStage(error, stage); });
+
 const compareRecentWeeks = weeks => {
   // Compare two complete two-week windows; a short history is not a trend.
   if (weeks.length < 4) return { direction: 'insufficient_data', recentAveragePercent: null, earlierAveragePercent: null };
@@ -175,8 +182,8 @@ export async function getMyMemberContext(db, userId, { includeEvents = false, in
   includeAssignmentStatus = false } = {}) {
   const tasks = [];
   const context = {};
-  const add = (key, promise) => tasks.push(promise.then(value => { context[key] = value; }));
-  if (includeGoal) add('fitnessGoal', db.query('SELECT fitness_goal FROM members WHERE user_id=$1', [userId]).then(result => result.rows[0]?.fitness_goal || null));
+  const add = (key, promise, stage = key) => tasks.push(staged(promise, stage).then(value => { context[key] = value; }));
+  if (includeGoal) add('fitnessGoal', db.query('SELECT fitness_goal FROM members WHERE user_id=$1', [userId]).then(result => result.rows[0]?.fitness_goal || null), 'fitness_goal_query');
   if (includeMembership) add('membership', db.query(`SELECT p.name plan_name,
       CASE WHEN EXISTS(SELECT 1 FROM subscription_freezes f WHERE f.subscription_id=s.id AND f.released_at IS NULL AND now()>=f.starts_at AND now()<f.ends_at) THEN 'frozen' ELSE s.status END status,
       s.starts_at,s.ends_at,
@@ -191,14 +198,16 @@ export async function getMyMemberContext(db, userId, { includeEvents = false, in
       const row = result.rows[0];
       return row ? { plan: row.plan_name, status: row.status, startsAt: row.starts_at, endsAt: row.ends_at,
         trainerAccess: Boolean(row.trainer_access), workoutPlanAccess: Boolean(row.workout_plan_access) } : null;
-    }));
-  if (includeEntitlements) add('currentEntitlements', getMyCurrentEntitlements(db, userId));
+    }), 'membership_query');
+  if (includeEntitlements) add('currentEntitlements', getMyCurrentEntitlements(db, userId), 'entitlements_query');
   if (includeAssignmentStatus) add('hasTrainerAssignedPlan', db.query(`SELECT EXISTS (
       SELECT 1 FROM workout_plans w JOIN members m ON m.id=w.member_id
       WHERE m.user_id=$1 AND w.status IN ('active','completed') AND w.trainer_id IS NOT NULL) AS assigned`, [userId])
-    .then(result => Boolean(result.rows[0]?.assigned)));
+    .then(result => Boolean(result.rows[0]?.assigned)), 'assignment_query');
   if (includeWorkout) add('workout', (async () => {
-    const plan = (await db.query(`SELECT w.id,w.member_id,w.title,w.description,w.difficulty,w.days_per_week,w.routine,w.program_started_on,w.status,
+    let plan;
+    try {
+      plan = (await db.query(`SELECT w.id,w.member_id,w.title,w.description,w.difficulty,w.days_per_week,w.routine,w.program_started_on,w.status,
         t.first_name trainer_first_name,t.last_name trainer_last_name
       FROM workout_plans w JOIN members m ON m.id=w.member_id LEFT JOIN trainers t ON t.id=w.trainer_id
       WHERE m.user_id=$1 AND w.status IN ('active','completed') AND EXISTS (
@@ -208,18 +217,23 @@ export async function getMyMemberContext(db, userId, { includeEvents = false, in
             SELECT 1 FROM subscription_freezes f WHERE f.subscription_id=s.id AND f.released_at IS NULL
               AND now()>=f.starts_at AND now()<f.ends_at))
       ORDER BY CASE WHEN w.status='active' THEN 0 ELSE 1 END,w.updated_at DESC LIMIT 1`, [userId])).rows[0];
+    } catch (error) { throw markFailureStage(error, 'workout_plan_query'); }
     if (!plan) return null;
     const today = workoutDate();
     let week;
     try { week = calculateProgramWeek(plan.program_started_on, today); }
     catch (error) { if (error?.code !== 'WORKOUT_NOT_STARTED') throw error; week = { number: 1, startDate: String(plan.program_started_on).slice(0, 10) }; }
     const oldest = addDateDays(week.startDate, -49);
-    const { rows } = await db.query(`SELECT workout_day_id,to_char(program_week_start,'YYYY-MM-DD') program_week_start,completed_at
-      FROM workout_day_completions WHERE member_id=$1 AND workout_plan_id=$2
-        AND program_week_start >= $3 AND program_week_start <= $4 ORDER BY completed_at DESC LIMIT 64`,
-    [plan.member_id, plan.id, oldest, week.startDate]);
-    return buildMemberWorkoutIntelligence(plan, rows, today);
-  })());
+    let rows;
+    try {
+      ({ rows } = await db.query(`SELECT workout_day_id,to_char(program_week_start,'YYYY-MM-DD') program_week_start,completed_at
+        FROM workout_day_completions WHERE member_id=$1 AND workout_plan_id=$2
+          AND program_week_start >= $3 AND program_week_start <= $4 ORDER BY completed_at DESC LIMIT 64`,
+      [plan.member_id, plan.id, oldest, week.startDate]));
+    } catch (error) { throw markFailureStage(error, 'workout_completion_query'); }
+    try { return buildMemberWorkoutIntelligence(plan, rows, today); }
+    catch (error) { throw markFailureStage(error, 'workout_transform'); }
+  })(), 'workout_context');
   if (includeEvents) add('upcomingEvents', getPublicEvents(db, { member: true }));
   await Promise.all(tasks);
   if (context.workout && context.currentEntitlements?.trainerAccess !== true) context.workout.trainerName = null;

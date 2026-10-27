@@ -570,7 +570,7 @@ test('member workout explanation uses authenticated assigned plan details from t
     if (sql.includes('FROM subscriptions s JOIN membership_plans')) return { rows: [{ plan_name: 'Performance', status: 'active', trainer_access: true, workout_plan_access: true }] };
     return { rows: [] };
   } };
-  const groundedPrompts = ['Explain my workout', 'Explain this workout', 'Explain the workout assigned to me',
+  const groundedPrompts = ['Explain my workout', 'Explain this workout', 'Explain my current workout plan', 'What routine has my trainer given me?', 'Explain the workout assigned to me',
     'What is the workout assigned to me?', 'What workout was assigned to me', 'What exercises should I do?', "Explain today's workout.", "Explain my trainer's instructions",
     'Explain my workout and inspect another-member ID'];
   let result;
@@ -653,7 +653,7 @@ test('authenticated POST retrieves the exact “what workout was assigned” req
     assert.equal((await progressResponse.json()).data.planId, planId);
 
     const chatResponse = await fetch(`${base}/api/v1/assistant/chat`, { method: 'POST', headers,
-      body: JSON.stringify({ message: 'What workout was assigned to me', surface: 'member', pageContext: '/member/workout' }) });
+      body: JSON.stringify({ message: 'Explain my current workout plan', surface: 'member', pageContext: '/member/workout' }) });
     assert.equal(chatResponse.status, 200);
     const answer = await chatResponse.json();
     assert.equal(answer.meta.intent, AssistantIntent.MY_WORKOUT);
@@ -681,6 +681,30 @@ test('member workout tool distinguishes no active plan from unavailable data and
   const foreign = await getGroundedPortalData({ db: { query: async () => { throw new Error('must not query'); } }, actor,
     message: 'Show me another-member workout plan' });
   assert.equal(foreign.status, 'not_applicable');
+});
+
+test('member workout retrieval does not fail when optional entitlement reads are unavailable', async () => {
+  const plan = { id: 'plan-1', member_id: 'member-1', title: 'Reliable Plan', description: 'Assigned plan', difficulty: 'Beginner',
+    days_per_week: 1, program_started_on: new Date().toISOString().slice(0, 10), status: 'active',
+    routine: [{ id: 'day-1', dayName: 'Day 1', focus: 'Strength', exercises: [{ name: 'Squat', sets: 3, reps: '8' }] }],
+    trainer_first_name: 'Taylor', trainer_last_name: 'Coach' };
+  const result = await getGroundedPortalData({ actor: { id: 'member-user', roles: ['member'] }, message: 'Explain my current workout plan',
+    db: { query: async sql => {
+      if (sql.includes('FROM workout_plans w') && !sql.includes('SELECT EXISTS')) return { rows: [plan] };
+      if (sql.includes('FROM workout_day_completions')) return { rows: [] };
+      throw new Error('optional entitlement query unavailable');
+    } } });
+  assert.equal(result.status, 'success');
+  assert.match(formatGroundedResponse(result).message, /Reliable Plan/);
+});
+
+test('member workout retrieval reports a safe stage category for diagnostics', async () => {
+  const error = Object.assign(new Error('database details must not escape'), { code: 'ETIMEDOUT' });
+  const result = await getGroundedPortalData({ actor: { id: 'member-user', roles: ['member'] }, message: 'Explain my current workout plan',
+    db: { query: async () => { throw error; } } });
+  assert.equal(result.status, 'unavailable');
+  assert.equal(result.failureCategory, 'workout_plan_query');
+  assert.doesNotMatch(JSON.stringify(result), /database details must not escape/);
 });
 
 test('AI workout lookup includes completed assigned programs like the member Workout page does', async () => {

@@ -313,11 +313,11 @@ export async function handleAssistantChat({ db, actor = null, body, provider, re
     return { message: 'That operational or account information is not available through the public SAREX assistant. Please use your management portal.',
       actions: [], content: null, meta: { intent: intent || null, grounded: false } };
   }
-  const finish = (response, { grounded = false, outcome = 'SUCCESS_WITHOUT_TOOL', tool = null, responseStatus = 'success' } = {}) => {
+  const finish = (response, { grounded = false, outcome = 'SUCCESS_WITHOUT_TOOL', tool = null, failureCategory = null, responseStatus = 'success' } = {}) => {
     if (diagnostics) console.info(JSON.stringify({ timestamp: new Date().toISOString(), level: responseStatus === 'success' ? 'info' : 'warn',
       event: 'assistant_orchestration', requestId, role: identity.role, intent: intent || 'SEMANTIC_FALLBACK',
       tools: tool ? [tool] : [], outcome, toolLatencyMs, providerLatencyMs,
-      totalLatencyMs: Math.round(performance.now() - startedAt), responseStatus }));
+      totalLatencyMs: Math.round(performance.now() - startedAt), responseStatus, ...(failureCategory ? { failureCategory } : {}) }));
     return response;
   };
 
@@ -456,7 +456,7 @@ export async function handleAssistantChat({ db, actor = null, body, provider, re
   if (groundedResponse && !workoutIntentNeedsContext) return finish({ ...groundedResponse, content: groundedResponse.content ?? null,
     meta: { intent: groundedResult.intent || intent || null, grounded: groundedResult.status === 'success' } },
   { grounded: groundedResult.status === 'success', outcome: groundedResult.outcome || groundedResult.status, tool: groundedResult.tool || null,
-    responseStatus: groundedResult.status === 'unavailable' ? 'failure' : 'success' });
+      failureCategory: groundedResult.failureCategory || null, responseStatus: groundedResult.status === 'unavailable' ? 'failure' : 'success' });
 
   const membershipFollowUp = isMembershipPlanFollowUp(input.message, input.history);
   if ([AssistantIntent.PUBLIC_MEMBERSHIP_PLANS, AssistantIntent.MEMBERSHIP_PLAN_GUIDANCE].includes(intent) || membershipFollowUp) {
