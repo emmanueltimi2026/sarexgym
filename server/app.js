@@ -52,6 +52,7 @@ export function createApp({db,config,assistantProvider}) {
    },'SERIALIZABLE'); res.sendStatus(200);
  }));
 
+ app.use('/api/v1/admin/gallery',express.json({limit:'28mb'}));
  app.use(express.json({limit:'3mb'}));
  app.use((req,res,next)=>{
    if(['/api/v1/auth/login','/api/v1/auth/google','/api/v1/auth/google/register','/api/v1/auth/register','/api/v1/session','/api/v1/csrf','/api/v1/attendance/reception-check-in'].includes(req.path)) {

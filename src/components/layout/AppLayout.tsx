@@ -22,7 +22,7 @@ import {
   Menu,
   X,
   Bell,
-  ClipboardList, CalendarDays, ChevronDown, ChevronRight, FileText
+  ClipboardList, CalendarDays, ChevronDown, ChevronRight, FileText, Image as ImageIcon
 } from 'lucide-react';
 
 const avatarFallback = (initials: string) => `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96"><rect width="100%" height="100%" rx="48" fill="#EF1B23"/><text x="50%" y="54%" text-anchor="middle" dominant-baseline="middle" fill="white" font-family="Arial" font-size="30" font-weight="700">${initials}</text></svg>`)}`;
@@ -121,6 +121,7 @@ const AppLayoutFrame: React.FC<AppLayoutProps> = ({
           { label: 'Payments', path: '/admin/payments', icon: CreditCard },
           { label: 'Staff & Trainers', path: '/admin/staff', icon: UserCheck },
           { label: 'Events', path: '/admin/events', icon: CalendarDays },
+          { label: 'Gallery', path: '/admin/gallery', icon: ImageIcon },
           { label: 'Audit Trail', path: '/admin/audit', icon: ClipboardList },
           { label: 'Settings', path: '/admin/settings', icon: Settings }
         ];

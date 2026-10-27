@@ -32,6 +32,7 @@ const AdminPayments = lazyPage(() => import('./pages/admin/AdminPayments'), 'Adm
 const AdminStaff = lazyPage(() => import('./pages/admin/AdminStaff'), 'AdminStaff');
 const AdminSettings = lazyPage(() => import('./pages/admin/AdminSettings'), 'AdminSettings');
 const AdminAudit = lazyPage(() => import('./pages/admin/AdminAudit'), 'AdminAudit');
+const AdminGallery = lazyPage(() => import('./pages/admin/AdminGallery'), 'AdminGallery');
 const StaffDashboard = lazyPage(() => import('./pages/staff/StaffDashboard'), 'StaffDashboard');
 const StaffCheckIn = lazyPage(() => import('./pages/staff/StaffCheckIn'), 'StaffCheckIn');
 const StaffMembers = lazyPage(() => import('./pages/staff/StaffMembers'), 'StaffMembers');
@@ -259,6 +260,8 @@ const AppRouter: React.FC = () => {
         return <AdminAudit />;
       case '/admin/events':
         return <EventManagement />;
+      case '/admin/gallery':
+        return <AdminGallery />;
 
       case '/staff':
       case '/staff/dashboard':

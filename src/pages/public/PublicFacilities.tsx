@@ -5,6 +5,9 @@ import { useGym } from '../../context/GymContext';
 import { facilities, galleryPhotos } from './publicContent';
 import { PremiumImage, SlideUp, StaggerContainer, StaggerItem } from '../../components/public/PublicMotion';
 import { Modal } from '../../components/ui/Modal';
+import { apiUrl } from '../../lib/secureFetch';
+
+type PublicGalleryImage = { id: string; imageUrl: string; caption: string; altText: string; sortOrder: number };
 
 export const PublicFacilities: React.FC = () => {
   const { navigate } = useGym();
@@ -13,7 +16,27 @@ export const PublicFacilities: React.FC = () => {
   const galleryHoveredRef = useRef(false);
   const galleryInteractingRef = useRef(false);
   const previewOpenRef = useRef(false);
+  const [galleryImages, setGalleryImages] = useState<PublicGalleryImage[]>([]);
+  const [galleryLoaded, setGalleryLoaded] = useState(false);
   const [previewIndex, setPreviewIndex] = useState<number | null>(null);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    fetch(apiUrl('/api/v1/public/gallery'), { cache: 'no-store', signal: controller.signal })
+      .then(async response => {
+        const body = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(body?.error?.message || 'Gallery unavailable');
+        const images = Array.isArray(body.data) ? body.data as PublicGalleryImage[] : [];
+        setGalleryImages(images);
+      })
+      .catch(error => {
+        if (error instanceof DOMException && error.name === 'AbortError') return;
+        setGalleryImages(galleryPhotos.map((imageUrl, index) => ({ id: imageUrl, imageUrl, caption: '',
+          altText: `SAREX Fitness Clinic gallery image ${index + 1}`, sortOrder: index })));
+      })
+      .finally(() => { if (!controller.signal.aborted) setGalleryLoaded(true); });
+    return () => controller.abort();
+  }, []);
 
   const syncGalleryPause = () => {
     galleryPausedRef.current = galleryHoveredRef.current || galleryInteractingRef.current || previewOpenRef.current;
@@ -32,7 +55,7 @@ export const PublicFacilities: React.FC = () => {
   };
 
   const showAdjacentImage = (direction: -1 | 1) => {
-    setPreviewIndex(current => current === null ? 0 : (current + direction + galleryPhotos.length) % galleryPhotos.length);
+    setPreviewIndex(current => current === null || !galleryImages.length ? 0 : (current + direction + galleryImages.length) % galleryImages.length);
   };
 
   useEffect(() => {
@@ -120,7 +143,7 @@ export const PublicFacilities: React.FC = () => {
             </div>
           </div>
         </section>
-        <section className="public-section public-gallery-section" aria-labelledby="gallery-title">
+        {galleryLoaded && galleryImages.length > 0 && <section className="public-section public-gallery-section" aria-labelledby="gallery-title">
           <div className="public-container">
             <SectionHeading id="gallery-title" eyebrow="Inside the clinic" title="A closer look at SAREX" description="Training, movement, and the people who make the space feel alive." align="center" light />
             <div
@@ -148,15 +171,15 @@ export const PublicFacilities: React.FC = () => {
             >
               <div className="public-gallery-auto-track gallery-auto-track">
                 <div className="public-gallery-sequence gallery-sequence">
-                  {galleryPhotos.map((photo, index) => (
+                  {galleryImages.map((photo, index) => (
                     <button
-                      aria-label={`Preview SAREX Fitness Clinic facility image ${index + 1}`}
+                      aria-label={`Preview ${photo.altText}`}
                       className={`public-gallery-tile gallery-tile ${index % 5 === 0 ? 'gallery-tile-wide' : ''}`}
-                      key={photo}
+                      key={photo.id}
                       onClick={() => openPreview(index)}
                       type="button"
                     >
-                      <PremiumImage alt={`SAREX Fitness Clinic facility view ${index + 1}`} loading="lazy" src={photo} />
+                      <PremiumImage alt={photo.altText} loading="lazy" src={photo.imageUrl} />
                       <span aria-hidden="true"><Maximize2 /></span>
                     </button>
                   ))}
@@ -164,14 +187,15 @@ export const PublicFacilities: React.FC = () => {
               </div>
             </div>
           </div>
-        </section>
-        <Modal isOpen={previewIndex !== null} onClose={closePreview} title="Inside SAREX" subtitle={previewIndex === null ? undefined : `Image ${previewIndex + 1} of ${galleryPhotos.length}`} maxWidth="2xl">
+        </section>}
+        <Modal isOpen={previewIndex !== null} onClose={closePreview} title="Inside SAREX" subtitle={previewIndex === null ? undefined : `Image ${previewIndex + 1} of ${galleryImages.length}`} maxWidth="2xl">
           {previewIndex !== null && (
             <div className="public-gallery-preview">
-              <img src={galleryPhotos[previewIndex]} alt={`SAREX Fitness Clinic gallery preview ${previewIndex + 1}`} />
+              <img src={galleryImages[previewIndex]?.imageUrl} alt={galleryImages[previewIndex]?.altText || ''} />
+              {galleryImages[previewIndex]?.caption && <p className="px-4 py-2 text-sm text-gray-600">{galleryImages[previewIndex].caption}</p>}
               <div className="public-gallery-preview-controls">
                 <button type="button" onClick={() => showAdjacentImage(-1)} aria-label="Show previous gallery image"><ChevronLeft /></button>
-                <span>{previewIndex + 1} / {galleryPhotos.length}</span>
+                <span>{previewIndex + 1} / {galleryImages.length}</span>
                 <button type="button" onClick={() => showAdjacentImage(1)} aria-label="Show next gallery image"><ChevronRight /></button>
               </div>
             </div>
