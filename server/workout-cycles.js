@@ -22,6 +22,10 @@ export function calculateProgramWeek(startDate, currentDate = workoutDate()) {
 }
 
 const dayId = (day, index) => day?.id || `legacy-day-${index}`;
+const markWorkoutReadFailure = (error, stage) => {
+  if (error && typeof error === 'object' && !error.workoutReadStage) error.workoutReadStage = stage;
+  return error;
+};
 
 export function buildWorkoutCycleProgress(plan, records, currentDate = workoutDate()) {
   const startDate = dateText(plan.program_started_on || plan.start_date || plan.created_at);
@@ -94,11 +98,40 @@ const getMemberPlan = async (db, userId, planId, lock = false) => {
   return result.rows[0];
 };
 
-const readPlanProgress = async (db, plan, currentDate) => {
-  const result = await db.query(`SELECT workout_day_id,program_week_number,
-      to_char(program_week_start,'YYYY-MM-DD') AS program_week_start,completed_at
-    FROM workout_day_completions WHERE workout_plan_id=$1 ORDER BY program_week_start DESC`, [plan.id]);
-  return buildWorkoutCycleProgress(plan, result.rows, currentDate);
+const readPlanProgressData = async (db, plan, currentDate) => {
+  let records;
+  try {
+    const result = await db.query(`SELECT workout_day_id,program_week_number,
+        to_char(program_week_start,'YYYY-MM-DD') AS program_week_start,completed_at
+      FROM workout_day_completions WHERE workout_plan_id=$1 ORDER BY program_week_start DESC`, [plan.id]);
+    records = result.rows;
+  } catch (error) { throw markWorkoutReadFailure(error, 'workout_completion_query'); }
+  try { return { records, progress: buildWorkoutCycleProgress(plan, records, currentDate) }; }
+  catch (error) { throw markWorkoutReadFailure(error, 'workout_cycle_transform'); }
+};
+
+const readPlanProgress = async (db, plan, currentDate) =>
+  (await readPlanProgressData(db, plan, currentDate)).progress;
+
+export async function getCurrentMemberWorkoutData(db, userId, currentDate = workoutDate()) {
+  let result;
+  try {
+    result = await db.query(`SELECT w.id,w.member_id,w.trainer_id,w.title,w.description,w.difficulty,w.routine,w.days_per_week,w.status,
+      to_char(w.program_started_on,'YYYY-MM-DD') AS program_started_on,
+      t.first_name AS trainer_first_name,t.last_name AS trainer_last_name
+    FROM workout_plans w JOIN members m ON m.id=w.member_id LEFT JOIN trainers t ON t.id=w.trainer_id
+    WHERE m.user_id=$1 AND w.status IN ('active','completed') AND EXISTS (
+      SELECT 1 FROM subscriptions s JOIN membership_plans p ON p.id=s.plan_id
+      WHERE s.member_id=m.id AND s.status='active' AND s.starts_at<=now() AND s.ends_at>now()
+        AND p.workout_plan_access AND NOT EXISTS (
+          SELECT 1 FROM subscription_freezes f WHERE f.subscription_id=s.id AND f.released_at IS NULL
+            AND now()>=f.starts_at AND now()<f.ends_at))
+      ORDER BY CASE WHEN w.status='active' THEN 0 ELSE 1 END,w.updated_at DESC LIMIT 1`, [userId]);
+  } catch (error) { throw markWorkoutReadFailure(error, 'workout_plan_query'); }
+  const plan = result.rows[0];
+  if (!plan) return null;
+  const { records, progress } = await readPlanProgressData(db, plan, currentDate);
+  return { plan, records, progress };
 };
 
 export async function getMemberWorkoutCycle(db, userId, planId, currentDate = workoutDate()) {

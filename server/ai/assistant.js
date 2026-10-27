@@ -314,10 +314,15 @@ export async function handleAssistantChat({ db, actor = null, body, provider, re
       actions: [], content: null, meta: { intent: intent || null, grounded: false } };
   }
   const finish = (response, { grounded = false, outcome = 'SUCCESS_WITHOUT_TOOL', tool = null, failureCategory = null, responseStatus = 'success' } = {}) => {
-    if (diagnostics) console.info(JSON.stringify({ timestamp: new Date().toISOString(), level: responseStatus === 'success' ? 'info' : 'warn',
+    const timestamp = new Date().toISOString();
+    const totalLatencyMs = Math.round(performance.now() - startedAt);
+    if (diagnostics) console.info(JSON.stringify({ timestamp, level: responseStatus === 'success' ? 'info' : 'warn',
       event: 'assistant_orchestration', requestId, role: identity.role, intent: intent || 'SEMANTIC_FALLBACK',
       tools: tool ? [tool] : [], outcome, toolLatencyMs, providerLatencyMs,
-      totalLatencyMs: Math.round(performance.now() - startedAt), responseStatus, ...(failureCategory ? { failureCategory } : {}) }));
+      totalLatencyMs, responseStatus, ...(failureCategory ? { failureCategory } : {}) }));
+    else if (tool === 'myWorkout' && responseStatus === 'failure') console.warn(JSON.stringify({ timestamp, level: 'error',
+      event: 'assistant_retrieval_failure', requestId, role: identity.role, intent: intent || 'SEMANTIC_FALLBACK',
+      tool, outcome, failureCategory: failureCategory || 'unknown', toolLatencyMs, totalLatencyMs }));
     return response;
   };
 

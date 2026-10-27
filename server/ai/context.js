@@ -1,4 +1,4 @@
-import { calculateProgramWeek, workoutDate } from '../workout-cycles.js';
+import { calculateProgramWeek, getCurrentMemberWorkoutData, workoutDate } from '../workout-cycles.js';
 
 const facilities = [
   { name: 'Open gym floor', description: 'Free weights, resistance and cardio equipment for strength, conditioning and independent workouts.' },
@@ -205,33 +205,13 @@ export async function getMyMemberContext(db, userId, { includeEvents = false, in
       WHERE m.user_id=$1 AND w.status IN ('active','completed') AND w.trainer_id IS NOT NULL) AS assigned`, [userId])
     .then(result => Boolean(result.rows[0]?.assigned)), 'assignment_query');
   if (includeWorkout) add('workout', (async () => {
-    let plan;
-    try {
-      plan = (await db.query(`SELECT w.id,w.member_id,w.title,w.description,w.difficulty,w.days_per_week,w.routine,w.program_started_on,w.status,
-        t.first_name trainer_first_name,t.last_name trainer_last_name
-      FROM workout_plans w JOIN members m ON m.id=w.member_id LEFT JOIN trainers t ON t.id=w.trainer_id
-      WHERE m.user_id=$1 AND w.status IN ('active','completed') AND EXISTS (
-        SELECT 1 FROM subscriptions s JOIN membership_plans p ON p.id=s.plan_id
-        WHERE s.member_id=w.member_id AND s.status='active' AND s.starts_at<=now() AND s.ends_at>now()
-          AND p.workout_plan_access AND NOT EXISTS (
-            SELECT 1 FROM subscription_freezes f WHERE f.subscription_id=s.id AND f.released_at IS NULL
-              AND now()>=f.starts_at AND now()<f.ends_at))
-      ORDER BY CASE WHEN w.status='active' THEN 0 ELSE 1 END,w.updated_at DESC LIMIT 1`, [userId])).rows[0];
-    } catch (error) { throw markFailureStage(error, 'workout_plan_query'); }
-    if (!plan) return null;
+    let data;
+    try { data = await getCurrentMemberWorkoutData(db, userId); }
+    catch (error) { throw markFailureStage(error, error?.assistantFailureStage || error?.workoutReadStage || 'workout_cycle_service'); }
+    if (!data) return null;
+    const { plan, records } = data;
     const today = workoutDate();
-    let week;
-    try { week = calculateProgramWeek(plan.program_started_on, today); }
-    catch (error) { if (error?.code !== 'WORKOUT_NOT_STARTED') throw error; week = { number: 1, startDate: String(plan.program_started_on).slice(0, 10) }; }
-    const oldest = addDateDays(week.startDate, -49);
-    let rows;
-    try {
-      ({ rows } = await db.query(`SELECT workout_day_id,to_char(program_week_start,'YYYY-MM-DD') program_week_start,completed_at
-        FROM workout_day_completions WHERE member_id=$1 AND workout_plan_id=$2
-          AND program_week_start >= $3 AND program_week_start <= $4 ORDER BY completed_at DESC LIMIT 64`,
-      [plan.member_id, plan.id, oldest, week.startDate]));
-    } catch (error) { throw markFailureStage(error, 'workout_completion_query'); }
-    try { return buildMemberWorkoutIntelligence(plan, rows, today); }
+    try { return buildMemberWorkoutIntelligence(plan, records, today); }
     catch (error) { throw markFailureStage(error, 'workout_transform'); }
   })(), 'workout_context');
   if (includeEvents) add('upcomingEvents', getPublicEvents(db, { member: true }));

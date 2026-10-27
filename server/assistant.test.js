@@ -85,7 +85,7 @@ test('semantic capability selection routes unfamiliar workout phrasing into trus
     queries.push({ sql, params });
     if (sql.includes('SELECT EXISTS (') && sql.includes('workout_plans w')) return { rows: [{ assigned: true }] };
     if (sql.includes('SELECT EXISTS (')) return { rows: [{ trainer_access: false }] };
-    if (sql.includes('SELECT w.id,w.member_id,w.title,w.description')) return { rows: [plan] };
+    if (sql.includes('FROM workout_plans w') && !sql.includes('SELECT EXISTS')) return { rows: [plan] };
     if (sql.includes('FROM workout_day_completions')) return { rows: [] };
     return { rows: [] };
   } }, actor: { id: 'session-member', roles: ['member'] },
@@ -129,7 +129,7 @@ test('combined member requests execute both registered views while reusing the w
   const result = await handleAssistantChat({ db: { query: async sql => {
     if (sql.includes('SELECT EXISTS (') && sql.includes('workout_plans w')) return { rows: [{ assigned: true }] };
     if (sql.includes('SELECT EXISTS (')) return { rows: [{ trainer_access: false }] };
-    if (sql.includes('SELECT w.id,w.member_id,w.title,w.description')) { workoutReads += 1; return { rows: [plan] }; }
+    if (sql.includes('FROM workout_plans w') && !sql.includes('SELECT EXISTS')) { workoutReads += 1; return { rows: [plan] }; }
     if (sql.includes('FROM workout_day_completions')) return { rows: [] };
     return { rows: [] };
   } }, actor: { id: 'session-member', roles: ['member'] }, surface: 'member',
@@ -628,8 +628,7 @@ test('authenticated POST retrieves the exact “what workout was assigned” req
     if (sql.startsWith('SELECT w.*,concat(m.first_name')) return { rows: [assignedPlan], rowCount: 1 };
     if (sql.includes('SELECT EXISTS (') && sql.includes('workout_plans w')) return { rows: [{ assigned: true }], rowCount: 1 };
     if (sql.includes('SELECT EXISTS (')) return { rows: [{ trainer_access: true }], rowCount: 1 };
-    if (sql.includes('SELECT w.id,w.member_id,w.title,w.description')) return { rows: [assignedPlan], rowCount: 1 };
-    if (sql.includes('SELECT w.id,w.member_id,w.trainer_id,w.title,w.routine')) return { rows: [assignedPlan], rowCount: 1 };
+    if (sql.includes('FROM workout_plans w') && !sql.includes('SELECT EXISTS')) return { rows: [assignedPlan], rowCount: 1 };
     if (sql.includes('FROM workout_day_completions')) return { rows: [], rowCount: 0 };
     if (sql.includes('FROM gym_settings')) return { rows: [{ gym_name: 'SAREX Fitness Clinic' }], rowCount: 1 };
     return { rows: [], rowCount: 0 };
@@ -699,12 +698,22 @@ test('member workout retrieval does not fail when optional entitlement reads are
 });
 
 test('member workout retrieval reports a safe stage category for diagnostics', async () => {
-  const error = Object.assign(new Error('database details must not escape'), { code: 'ETIMEDOUT' });
-  const result = await getGroundedPortalData({ actor: { id: 'member-user', roles: ['member'] }, message: 'Explain my current workout plan',
-    db: { query: async () => { throw error; } } });
-  assert.equal(result.status, 'unavailable');
-  assert.equal(result.failureCategory, 'workout_plan_query');
-  assert.doesNotMatch(JSON.stringify(result), /database details must not escape/);
+  for (const [failedQuery, expectedCategory] of [
+    ['FROM workout_plans w', 'workout_plan_query'],
+    ['FROM workout_day_completions', 'workout_completion_query']
+  ]) {
+    const result = await getGroundedPortalData({ actor: { id: 'member-user', roles: ['member'] }, message: 'Explain my current workout plan',
+      db: { query: async sql => {
+        if (sql.includes(failedQuery)) throw Object.assign(new Error('database details must not escape'), { code: 'ETIMEDOUT' });
+        if (sql.includes('FROM workout_plans w')) return { rows: [{ id: 'plan-1', member_id: 'member-1', title: 'Plan', days_per_week: 1,
+          program_started_on: new Date().toISOString().slice(0, 10), status: 'active', routine: [{ id: 'day-1', dayName: 'Day 1', exercises: [] }] }] };
+        if (sql.includes('FROM workout_day_completions')) return { rows: [] };
+        throw new Error(`unexpected query: ${failedQuery}`);
+      } } });
+    assert.equal(result.status, 'unavailable');
+    assert.equal(result.failureCategory, expectedCategory);
+    assert.doesNotMatch(JSON.stringify(result), /database details must not escape/);
+  }
 });
 
 test('AI workout lookup includes completed assigned programs like the member Workout page does', async () => {
