@@ -5,7 +5,7 @@ import { AssistantMarkdownLink } from './AssistantMarkdownLink';
 import { useGym } from '../../context/GymContext';
 import { apiUrl } from '../../lib/secureFetch';
 import { getAssistantExperience, getAssistantWidgetBottom, isAssistantActionPathAllowed, isAssistantHiddenPath, shouldAutoFocusAssistantInput } from '../../lib/assistantUi';
-import { remarkLineBreaks } from '../../lib/assistantMarkdown.js';
+import { normalizeAssistantMarkdown, remarkLineBreaks } from '../../lib/assistantMarkdown.js';
 import { AssistantStructuredContent, parseAssistantStructuredContent } from './StructuredAssistantContent.js';
 
 type AssistantContentAction = { label: string; type: 'navigate'; path: string };
@@ -165,7 +165,7 @@ export const AssistantWidget: React.FC = () => {
                 strong: ({ children }) => <strong className="font-bold text-[#17191f]">{children}</strong>,
                 em: ({ children }) => <em className="italic">{children}</em>,
                 br: () => <br />,
-              }}>{message.content}</ReactMarkdown>
+              }}>{normalizeAssistantMarkdown(message.content)}</ReactMarkdown>
               </div>
               {message.structuredContent ? <AssistantStructuredContent content={message.structuredContent} onNavigate={path => { setOpen(false); navigate(path); }} /> : null}
             </>}

@@ -1,6 +1,7 @@
 import { getFacilities, getGymInformation, getMyCurrentEntitlements, getMyMemberContext, getMyUpcomingEvents,
   getPublicEvents, getPublicTrainerDirectory, getRegistrationInformation } from './context.js';
 import { AssistantIntent, resolveAssistantIdentity, resolveAssistantIntent } from './intent-registry.js';
+import { buildWorkoutCycleProgress, workoutDate } from '../workout-cycles.js';
 
 const isMember = actor => actor?.roles?.includes('member') === true;
 const isTrainer = actor => actor?.roles?.includes('trainer') === true;
@@ -14,29 +15,41 @@ async function myAttendanceSummary(db, userId) {
 }
 
 async function trainerAssignedSummary(db, userId) {
-  const { rows } = await db.query(`SELECT m.first_name,m.last_name,w.title plan_title,w.days_per_week,
-      COALESCE(progress.completed,0)::int completed,COALESCE(progress.week_start,week.current_start)::text week_start
+  const { rows } = await db.query(`SELECT m.id member_id,m.first_name,m.last_name,w.id plan_id,w.title plan_title,
+      w.routine,w.days_per_week,w.program_started_on,w.status plan_status,count(*) OVER()::int assigned_member_count
     FROM trainers t JOIN trainer_assignments ta ON ta.trainer_id=t.id AND ta.active
       AND ta.starts_at<=now() AND (ta.ends_at IS NULL OR ta.ends_at>now())
     JOIN members m ON m.id=ta.member_id
-    CROSS JOIN LATERAL (SELECT (now() AT TIME ZONE 'Africa/Lagos')::date today) clinic
-    LEFT JOIN LATERAL (SELECT wp.id,wp.title,wp.days_per_week,wp.program_started_on,
-        CASE WHEN clinic.today<wp.program_started_on THEN wp.program_started_on
-          ELSE (wp.program_started_on + (((clinic.today-wp.program_started_on)/7)*7))::date END current_start
-      FROM workout_plans wp WHERE wp.member_id=m.id AND wp.trainer_id=t.id AND wp.status='active'
-      ORDER BY wp.updated_at DESC LIMIT 1) w ON true
-    LEFT JOIN LATERAL (SELECT w.current_start) week ON w.id IS NOT NULL
-    LEFT JOIN LATERAL (SELECT count(*)::int completed,min(c.program_week_start)::text week_start
-      FROM workout_day_completions c WHERE c.member_id=m.id AND c.workout_plan_id=w.id AND c.program_week_start=week.current_start) progress ON true
-    WHERE t.user_id=$1 ORDER BY m.first_name,m.last_name LIMIT 50`, [userId]);
-  return rows.map(row => {
-    const assignedPerWeek = count(row.days_per_week);
-    const completedThisWeek = count(row.completed);
+    LEFT JOIN LATERAL (SELECT wp.id,wp.title,wp.routine,wp.days_per_week,wp.program_started_on,wp.status
+      FROM workout_plans wp WHERE wp.member_id=m.id AND wp.trainer_id=t.id AND wp.status IN ('active','completed')
+      ORDER BY CASE WHEN wp.status='active' THEN 0 ELSE 1 END,wp.updated_at DESC LIMIT 1) w ON true
+    WHERE t.user_id=$1 ORDER BY m.first_name,m.last_name`, [userId]);
+  const planRows = rows.filter(row => row.plan_id);
+  const completions = planRows.length ? await db.query(`SELECT workout_plan_id,workout_day_id,program_week_number,
+      to_char(program_week_start,'YYYY-MM-DD') AS program_week_start,completed_at
+    FROM workout_day_completions WHERE workout_plan_id=ANY($1::uuid[])
+    ORDER BY program_week_start DESC`, [planRows.map(row => row.plan_id)]) : { rows: [] };
+  const currentDate = workoutDate();
+  const members = rows.map(row => {
+    const records = completions.rows.filter(record => record.workout_plan_id === row.plan_id);
+    const progress = row.plan_id ? buildWorkoutCycleProgress({ ...row, id: row.plan_id,
+      program_started_on: row.program_started_on }, records, currentDate) : null;
+    const completedWeeks = progress?.history.slice(1) || [];
+    const missedInRecentWeeks = completedWeeks.slice(0, 4).reduce((total, week) =>
+      total + week.days.filter(day => day.status === 'missed').length, 0);
+    const latestCompletedWeek = completedWeeks[0] || null;
     return { memberName: `${row.first_name} ${row.last_name}`.trim(), plan: row.plan_title || null,
-      assignedPerWeek, completedThisWeek,
-      completionPercentage: assignedPerWeek ? Math.round(completedThisWeek / assignedPerWeek * 100) : 0,
-      weekStart: row.week_start || null };
+      assignedPerWeek: count(row.days_per_week), completedThisWeek: progress?.currentWeek.completedWorkouts || 0,
+      completionPercentage: progress?.currentWeek.percentage || 0,
+      weekStart: progress?.currentWeek.startDate || null,
+      missedInRecentWeeks,
+      missedDaysToDate: completedWeeks.reduce((total, week) => total + week.days.filter(day => day.status === 'missed').length, 0),
+      latestCompletedWeek: latestCompletedWeek ? { number: latestCompletedWeek.weekNumber, startDate: latestCompletedWeek.startDate,
+        endDate: latestCompletedWeek.endDate, missedDays: latestCompletedWeek.days.filter(day => day.status === 'missed').map(day => day.dayName) } : null,
+      recentMissedWeeks: completedWeeks.slice(0, 4).map(week => ({ number: week.weekNumber, startDate: week.startDate,
+        missedDays: week.days.filter(day => day.status === 'missed').map(day => day.dayName) })) };
   });
+  return { assignedMemberCount: Number(rows[0]?.assigned_member_count || 0), members };
 }
 
 async function getMemberWorkout(db, actor) {
@@ -141,7 +154,7 @@ export async function getGroundedPortalData({ db, actor, message, history = [], 
   }
 }
 
-export function formatGroundedResponse(result) {
+export function formatGroundedResponse(result, { message = '' } = {}) {
   if (!result || result.status === 'not_applicable') return null;
   if (result.status === 'unauthorized') return { message: "I can't access that information for your account role.", actions: [] };
   if (result.status === 'unavailable' || result.data?.status === 'unavailable') return {
@@ -163,6 +176,17 @@ export function formatGroundedResponse(result) {
       }).format(date);
     };
     const weekLabel = week => `Week ${week.number} (${dateLabel(week.startDate)} to ${dateLabel(week.endDate)})`;
+    if (result.intent === AssistantIntent.MY_WORKOUT_HISTORY &&
+      /\bhow many\s+(?:workout\s+)?(?:days?|sessions?|workouts?)\s+(?:have|did)\s+i\s+miss(?:ed)?\b/i.test(message)) {
+      const missedByWeek = (p.recentHistory || []).map(week => ({
+        week,
+        count: week.days.filter(day => day.status === 'missed').length
+      })).filter(item => item.count > 0);
+      const missedCount = missedByWeek.reduce((total, item) => total + item.count, 0);
+      if (!missedCount) return { message: 'You haven’t missed any workout days in your recorded history. Sessions in the current week aren’t counted as missed until that week is over.', actions: workoutAction };
+      const breakdown = missedByWeek.map(item => `${item.count} in Week ${item.week.number}`).join(' and ');
+      return { message: `You missed **${missedCount} ${missedCount === 1 ? 'workout day' : 'workout days'}** in your recorded history: ${breakdown}. Sessions in the current week aren’t counted as missed until that week is over.`, actions: workoutAction };
+    }
     if (result.intent === AssistantIntent.MY_WORKOUT_PROGRESS) {
       const pending = p.days.filter(day => day.status !== 'completed');
       return { message: `**This program week — ${weekLabel(p.currentWeek)}**\n\nYou've completed **${p.currentWeek.completed} of ${p.currentWeek.required} workouts (${p.currentWeek.completionPercentage}%)**.${p.currentWeek.isComplete ? ' Your weekly training is complete.' : !p.currentWeek.notStarted && pending.length ? ` Still available: ${pending.map(day => day.name).join(', ')}.` : ''}${p.currentWeek.notStarted ? ' This program week has not started yet.' : ''}`, actions: workoutAction };
@@ -233,9 +257,35 @@ export function formatGroundedResponse(result) {
   if (tool === 'myAttendance') return { message: `You have ${data.successfulVisitsLast30Days} successful visits recorded in the last 30 days${data.latestVisit ? `; your most recent check-in was ${new Date(data.latestVisit).toLocaleDateString('en-NG')}` : ''}.`, actions: [{ label: 'View My Attendance', type: 'navigate', path: '/member/attendance' }] };
   if (tool === 'myEvents') return { message: data.length ? `Your upcoming SAREX events are:\n${data.slice(0, 5).map(event => `- ${event.title} — ${new Date(event.startsAt).toLocaleString('en-NG')}`).join('\n')}` : 'There are no upcoming SAREX events available to your account right now.', actions: [{ label: 'View Events', type: 'navigate', path: '/member/events' }] };
   if (tool === 'myEntitlements') return { message: data ? `Your ${data.plan} membership currently includes ${data.trainer_access ? 'trainer access' : 'no trainer access'} and ${data.workout_plan_access ? 'workout-plan access' : 'no workout-plan access'}.` : "I couldn't find a current membership on your account to check its access features.", actions: [{ label: 'Open My Membership', type: 'navigate', path: '/member/membership' }] };
-  if (tool === 'trainerAssigned') return { message: data.length
-    ? `You currently have ${data.length} assigned ${data.length === 1 ? 'member' : 'members'}:\n${data.map(member => `- ${member.memberName}: ${member.plan ? `${member.completedThisWeek}/${member.assignedPerWeek} workouts this week (${member.completionPercentage}%)` : 'no active plan'}${member.assignedPerWeek > member.completedThisWeek ? `; ${member.assignedPerWeek - member.completedThisWeek} remaining` : ''}`).join('\n')}`
-    : 'You have no active member assignments right now.', actions: [{ label: 'View Assigned Members', type: 'navigate', path: '/trainer/members' }] };
+  if (tool === 'trainerAssigned') {
+    const members = data.members || [];
+    const assignedCount = data.assignedMemberCount || 0;
+    const countOnly = /\bhow many\b.{0,45}\bmembers?\b.{0,35}\bassigned\b|\bcount\b.{0,35}\bassigned members?\b/i.test(message);
+    const asksWhoMissed = /\bwho\b.{0,60}\bmiss(?:ed|ing)?\b.{0,40}\b(?:workouts?|sessions?|days?)\b|\bwhich members?\b.{0,45}\bmiss(?:ed|ing)\b/i.test(message);
+    const asksMissedCount = /\bhow many\b.{0,80}\bmiss(?:ed)?\b.{0,50}\b(?:days?|sessions?|workouts?)\b|\bhow many\b.{0,50}\b(?:days?|sessions?|workouts?)\b.{0,80}\bmiss(?:ed)?\b/i.test(message);
+    const assignedAction = [{ label: 'View Assigned Members', type: 'navigate', path: '/trainer/members' }];
+    if (!assignedCount) return { message: 'You have no active member assignments right now.', actions: assignedAction };
+    if (asksWhoMissed) {
+      const mostRecentMisses = members.map(member => ({ member, week: member.latestCompletedWeek, days: member.latestCompletedWeek?.missedDays || [] }))
+        .filter(item => item.days.length);
+      return mostRecentMisses.length
+        ? { message: `Recent completed program weeks with missed workouts:\n${mostRecentMisses.slice(0, 10).map(item => `- **${item.member.memberName}** — ${item.days.length} ${item.days.length === 1 ? 'session' : 'sessions'} in Week ${item.week.number} (${item.week.startDate} to ${item.week.endDate}): ${item.days.join(', ')}`).join('\n')}${mostRecentMisses.length > 10 ? `\n- And ${mostRecentMisses.length - 10} more.` : ''}\n\nSessions in the current week are still pending, not missed.`, actions: assignedAction }
+        : { message: 'No missed workouts were recorded in the most recently completed program week for your active assigned members. Sessions in the current week are still pending, not missed.', actions: assignedAction };
+    }
+    if (asksMissedCount) {
+      const matchingName = members.find(member => message.toLowerCase().includes(member.memberName.toLowerCase()));
+      const relevantMembers = matchingName ? [matchingName] : members;
+      const totalMissed = relevantMembers.reduce((total, member) => total + member.missedDaysToDate, 0);
+      const scopeLabel = matchingName ? `**${matchingName.memberName}**'s assigned plan` : 'your active assigned members’ plans';
+      const detail = matchingName || relevantMembers.length === 1 ? '' : ` (${relevantMembers.map(member => `${member.memberName}: ${member.missedDaysToDate}`).join('; ')})`;
+      return { message: `Across completed program weeks, ${scopeLabel} have **${totalMissed} missed ${totalMissed === 1 ? 'workout session' : 'workout sessions'}** recorded${detail}. Current-week sessions are not counted as missed until their week is over.`, actions: assignedAction };
+    }
+    if (countOnly) return { message: `You currently have **${assignedCount} active ${assignedCount === 1 ? 'member' : 'members'} assigned** to you.`, actions: assignedAction };
+    const list = members.slice(0, 10).map(member => `- **${member.memberName}**: ${member.plan
+      ? `${member.completedThisWeek}/${member.assignedPerWeek} workouts this week (${member.completionPercentage}%)${member.assignedPerWeek > member.completedThisWeek ? `; ${member.assignedPerWeek - member.completedThisWeek} remaining` : ''}`
+      : 'no active plan'}`).join('\n');
+    return { message: `You currently have **${assignedCount} active ${assignedCount === 1 ? 'member' : 'members'} assigned** to you.${list ? `\n\nCurrent-week progress:\n${list}` : ''}${assignedCount > 10 ? `\n\nShowing 10 of ${assignedCount} assigned members.` : ''}`, actions: assignedAction };
+  }
   return null;
 }
 

@@ -8,9 +8,8 @@ const suggestionsByRole = Object.freeze({
     'Help with my membership', 'Explain an exercise', 'Show my workout progress'
   ]),
   trainer: Object.freeze([
-    'Where can I find my assigned members?', 'How do I review workout progress?',
-    'Help me understand the trainer workflow', 'Draft a workout idea for review',
-    'Explain exercise programming', 'How can I discuss missed sessions with a member?'
+    'How can I progress a beginner safely?', 'Suggest a general strength-session structure',
+    'What should I review when progress stalls?', 'How can I discuss missed sessions constructively?'
   ])
 });
 
@@ -52,6 +51,16 @@ export const getAssistantExperience = (authenticatedRole, currentPath = '/') => 
     suggestions = Object.freeze([
       'Membership Plans', 'Help Me Choose a Plan', 'Help with my membership',
       'Workout Advice', 'SAREX Facilities'
+    ]);
+  } else if (experienceRole === 'trainer' && /^\/trainer\/(?:plans|workout-plans)(?:\/|$)/.test(currentPath)) {
+    suggestions = Object.freeze([
+      'How can I progress a beginner safely?', 'How should I balance weekly training volume?',
+      'Suggest a general warm-up for strength training', 'How can I discuss missed sessions constructively?'
+    ]);
+  } else if (experienceRole === 'trainer' && /^\/trainer\/members(?:\/|$)/.test(currentPath)) {
+    suggestions = Object.freeze([
+      'What should I review when progress stalls?', 'What questions help uncover consistency barriers?',
+      'How can I discuss missed sessions constructively?', 'How can I give encouraging progress feedback?'
     ]);
   }
 

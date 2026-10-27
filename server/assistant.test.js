@@ -4,7 +4,7 @@ import { readFile } from 'node:fs/promises';
 import React from 'react';
 import ReactMarkdown from 'react-markdown';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { remarkLineBreaks } from '../src/lib/assistantMarkdown.js';
+import { normalizeAssistantMarkdown, remarkLineBreaks } from '../src/lib/assistantMarkdown.js';
 import { AssistantStructuredContent, parseAssistantStructuredContent } from '../src/components/assistant/StructuredAssistantContent.js';
 import { assistantPrompts, assistantScope, handleAssistantChat, validateAssistantRequest } from './ai/assistant.js';
 import { buildMemberWorkoutIntelligence, getFacilities, getMyCurrentEntitlements, getMyMemberContext, getPublicMembershipPlans } from './ai/context.js';
@@ -13,6 +13,7 @@ import { createApp } from './app.js';
 import { getAssistantExperience, getAssistantMarkdownHref, guestAssistantSuggestions, isAssistantActionPathAllowed, isAssistantHiddenPath, memberAssistantSuggestions } from '../src/lib/assistantUi.js';
 import { formatGroundedResponse, getGroundedPortalData } from './ai/grounded-tools.js';
 import { AssistantIntent, assistantCapabilities, resolveAssistantIdentity, resolveAssistantIntent } from './ai/intent-registry.js';
+import { workoutDate } from './workout-cycles.js';
 
 const answerProvider = { complete: async () => 'A helpful SAREX answer.' };
 
@@ -385,7 +386,7 @@ test('assistant widget renders structured content separately while normal answer
   const component = await readFile(new URL('../src/components/assistant/AssistantWidget.tsx', import.meta.url), 'utf8');
   assert.match(component, /parseAssistantStructuredContent\(body\.content\)/);
   assert.match(component, /<AssistantStructuredContent content=\{message\.structuredContent\}/);
-  assert.match(component, /<ReactMarkdown[\s\S]*\{message\.content\}<\/ReactMarkdown>/);
+  assert.match(component, /<ReactMarkdown[\s\S]*normalizeAssistantMarkdown\(message\.content\)\}<\/ReactMarkdown>/);
   assert.doesNotMatch(component, /JSON\.stringify\(body\.content\)|String\(body\.content\)/);
 });
 
@@ -423,11 +424,25 @@ test('assistant intent registry is session-first and distinguishes personal from
     const expected = /history/i.test(prompt) ? AssistantIntent.MY_WORKOUT_HISTORY : AssistantIntent.MY_WORKOUT;
     assert.equal(resolveAssistantIntent({ message: prompt, identity: member }), expected, prompt);
   }
-  for (const prompt of ['Summarize my workout progress.', 'Which workouts have I completed?', 'Did I miss any workout sessions?', 'Which workouts have I been missing?']) {
+  for (const prompt of ['Summarize my workout progress.', 'Which workouts have I completed?', 'Did I miss any workout sessions?',
+    'Which workouts have I been missing?', 'How many days have I missed?', 'How many workouts did I miss?']) {
     const expected = /progress/i.test(prompt) ? AssistantIntent.MY_WORKOUT_PROGRESS : AssistantIntent.MY_WORKOUT_HISTORY;
     assert.equal(resolveAssistantIntent({ message: prompt, identity: member }), expected, prompt);
   }
   assert.equal(resolveAssistantIdentity(null).role, 'guest');
+});
+
+test('missed-workout count answers directly from historical misses and excludes the current week', () => {
+  const response = formatGroundedResponse({ status: 'success', tool: 'myWorkout', intent: AssistantIntent.MY_WORKOUT_HISTORY, data: {
+    status: 'success', plan: { title: 'Full Body Building', currentWeek: { number: 5, startDate: '2026-10-23', endDate: '2026-10-29', completed: 0, required: 2, completionPercentage: 0 },
+      recentHistory: [
+        { number: 4, startDate: '2026-10-16', endDate: '2026-10-22', days: [{ status: 'completed' }, { status: 'completed' }] },
+        { number: 3, startDate: '2026-10-09', endDate: '2026-10-15', days: [{ status: 'missed' }, { status: 'missed' }] },
+        { number: 2, startDate: '2026-10-02', endDate: '2026-10-08', days: [{ status: 'missed' }, { status: 'missed' }] },
+        { number: 1, startDate: '2026-09-25', endDate: '2026-10-01', days: [{ status: 'completed' }, { status: 'completed' }] }
+      ], days: [{ status: 'available' }, { status: 'available' }] }
+  } }, { message: 'How many days have I missed?' });
+  assert.equal(response.message, 'You missed **4 workout days** in your recorded history: 2 in Week 3 and 2 in Week 2. Sessions in the current week aren’t counted as missed until that week is over.');
 });
 
 test('authenticated member on public homepage receives own membership and never the public catalog', async () => {
@@ -513,15 +528,29 @@ test('model-generated domains and paths are removed from assistant text', async 
 test('trainer uses assigned-member tools on the Trainer surface', async () => {
   let trainerSql = '';
   let trainerParams = [];
-  const trainer = await handleAssistantChat({ db: { query: async (sql, params) => {
-    trainerSql = sql; trainerParams = params;
-    return { rows: [{ first_name: 'Alex', last_name: 'Member', plan_title: 'Strength', days_per_week: 2, completed: 1, week_start: '2026-10-19' }] };
-  } }, actor: { id: 'trainer-session-id', roles: ['trainer'] },
-  body: { message: 'How are my assigned members doing?', pageContext: '/trainer/dashboard', surface: 'trainer' }, provider: { complete: async () => 'I cannot see assigned members.' } });
-  assert.match(trainer.message, /Alex Member: 1\/2 workouts this week \(50%\)/);
+  let providerCalls = 0;
+  const db = { query: async (sql, params) => {
+    if (sql.includes('FROM trainers t JOIN trainer_assignments')) {
+      trainerSql = sql; trainerParams = params;
+      return { rows: [{ member_id: 'member-1', first_name: 'Alex', last_name: 'Member',
+        plan_id: 'plan-1', plan_title: 'Strength', routine: [{ id: 'day-1' }, { id: 'day-2' }], days_per_week: 2,
+        program_started_on: workoutDate(), plan_status: 'active', assigned_member_count: 1 }] };
+    }
+    return { rows: [] };
+  } };
+  const actor = { id: 'trainer-session-id', roles: ['trainer'] };
+  const provider = { complete: async () => { providerCalls += 1; return 'I cannot see assigned members.'; } };
+  const trainer = await handleAssistantChat({ db, actor,
+    body: { message: 'How are my assigned members doing?', pageContext: '/trainer/dashboard', surface: 'trainer' }, provider });
+  assert.match(trainer.message, /Alex Member.*0\/2 workouts this week/);
   assert.deepEqual(trainerParams, ['trainer-session-id']);
   assert.match(trainerSql, /t\.user_id=\$1/);
   assert.match(trainerSql, /ta\.active/);
+  const assignedCount = await handleAssistantChat({ db, actor,
+    body: { message: 'can you check how many members are assigned to me', pageContext: '/trainer/plans', surface: 'trainer' }, provider });
+  assert.match(assignedCount.message, /\*\*1 active member assigned\*\*/);
+  assert.equal(assignedCount.meta.intent, AssistantIntent.TRAINER_ASSIGNED_MEMBERS);
+  assert.equal(providerCalls, 0, 'assigned-member answers use the trainer-authorized records directly');
 });
 
 test('trainer on the public surface cannot use assigned-member tools', async () => {
@@ -756,17 +785,44 @@ test('empty and unapproved assistant Markdown destinations render only safe, non
   assert.doesNotMatch(result.message, /\]\(\s*\)/);
 });
 
-test('trainer read-only summaries are limited to that trainer and active assignments', async () => {
-  let sql = '';
-  let params;
-  const result = await getGroundedPortalData({ db: { query: async (query, values) => {
-    sql = query; params = values;
-    return { rows: [{ first_name: 'Alex', last_name: 'Member', plan_title: 'Strength', days_per_week: 2, completed: 1, week_start: '2026-10-19' }] };
-  } }, actor: { id: 'trainer-user', roles: ['trainer'] }, message: 'Which members are missing workouts?' });
-  assert.deepEqual(params, ['trainer-user']);
-  assert.match(sql, /ta\.active/);
-  assert.match(sql, /t\.user_id=\$1/);
-  assert.match(formatGroundedResponse(result).message, /Alex Member: 1\/2 workouts this week \(50%\); 1 remaining/);
+test('trainer questions retrieve only assigned members and report exact counts and completed-week misses', async () => {
+  const today = workoutDate();
+  const offsetDate = days => {
+    const date = new Date(`${today}T00:00:00.000Z`);
+    date.setUTCDate(date.getUTCDate() - days);
+    return date.toISOString().slice(0, 10);
+  };
+  const programStartedOn = offsetDate(21);
+  const lastCompletedWeekStart = offsetDate(7);
+  const calls = [];
+  const db = { query: async (sql, params) => {
+    calls.push({ sql, params });
+    if (sql.includes('FROM trainers t JOIN trainer_assignments')) return { rows: [
+      { member_id: 'member-1', first_name: 'Alex', last_name: 'Member', plan_id: 'plan-1', plan_title: 'Strength',
+        routine: [{ id: 'day-1', dayName: 'Day 1' }, { id: 'day-2', dayName: 'Day 2' }], days_per_week: 2,
+        program_started_on: programStartedOn, plan_status: 'active', assigned_member_count: 2 },
+      { member_id: 'member-2', first_name: 'Bea', last_name: 'Member', plan_id: null, plan_title: null,
+        routine: null, days_per_week: null, program_started_on: null, plan_status: null, assigned_member_count: 2 }
+    ] };
+    if (sql.includes('FROM workout_day_completions')) return { rows: [{ workout_plan_id: 'plan-1', workout_day_id: 'day-1',
+      program_week_number: 3, program_week_start: lastCompletedWeekStart, completed_at: `${lastCompletedWeekStart}T10:00:00.000Z` }] };
+    throw new Error(`Unexpected query: ${sql}`);
+  } };
+  const actor = { id: 'trainer-user', roles: ['trainer'] };
+  const missed = await getGroundedPortalData({ db, actor, message: 'who missed workout session', surface: 'trainer' });
+  assert.equal(missed.intent, AssistantIntent.TRAINER_ASSIGNED_MEMBERS);
+  assert.deepEqual(calls[0].params, ['trainer-user']);
+  assert.match(calls[0].sql, /ta\.active/);
+  assert.match(calls[0].sql, /t\.user_id=\$1/);
+  assert.deepEqual(calls[1].params, [['plan-1']]);
+  assert.match(formatGroundedResponse(missed, { message: 'who missed workout session' }).message, /Alex Member.*Day 2/);
+
+  const assignedCount = await getGroundedPortalData({ db, actor, message: 'can you check how many members are assigned to me', surface: 'trainer' });
+  assert.match(formatGroundedResponse(assignedCount, { message: 'can you check how many members are assigned to me' }).message, /\*\*2 active members assigned\*\*/);
+  assert.equal(resolveAssistantIntent({ message: 'how many days does my member missed in the workout i assigned to them', identity: resolveAssistantIdentity(actor) }),
+    AssistantIntent.TRAINER_ASSIGNED_MEMBERS);
+  const missedCount = formatGroundedResponse(missed, { message: 'how many days does my member missed in the workout i assigned to them' });
+  assert.match(missedCount.message, /\*\*5 missed workout sessions\*\*/);
   const unauthorized = await getGroundedPortalData({ db: { query: async () => { throw new Error('must not query'); } },
     actor: { id: 'unrelated-user', roles: ['member'] }, message: 'Which members are missing workouts?' });
   assert.equal(unauthorized.status, 'unauthorized');
@@ -1289,9 +1345,11 @@ test('Ask SAREX is available on public pages for every role and uses surface-awa
   for (const prompt of ['How am I doing this week?', 'Explain my workout', 'I missed a workout, what should I do?', 'Help with my membership', 'Explain an exercise', 'Show my workout progress']) {
     assert.ok(member.suggestions.includes(prompt));
   }
-  for (const prompt of ['Where can I find my assigned members?', 'How do I review workout progress?', 'Help me understand the trainer workflow', 'Draft a workout idea for review']) {
+  for (const prompt of ['How can I progress a beginner safely?', 'Suggest a general strength-session structure',
+    'What should I review when progress stalls?', 'How can I discuss missed sessions constructively?']) {
     assert.ok(trainer.suggestions.includes(prompt));
   }
+  assert.ok(!trainer.suggestions.some(prompt => /where can i find|how do i review workout progress|trainer workflow/i.test(prompt)));
   assert.equal(staff.available, true);
   assert.equal(admin.available, true);
   assert.equal(staff.surface, 'public');
@@ -1321,6 +1379,10 @@ test('portal suggestions require the backend-authenticated role and public disco
   assert.equal(getAssistantExperience('super_admin', '/admin/members').available, false);
   assert.equal(getAssistantExperience('staff', '/membership').surface, 'public');
   assert.ok(getAssistantExperience('member', '/member/workout').suggestions.includes('How am I doing this week?'));
+  const trainerPlans = getAssistantExperience('trainer', '/trainer/plans');
+  assert.equal(trainerPlans.suggestions.length, 4);
+  assert.ok(trainerPlans.suggestions.every(prompt => !/where can i find|workflow/i.test(prompt)));
+  assert.ok(getAssistantExperience('trainer', '/trainer/members').suggestions.some(prompt => /consistency barriers/i.test(prompt)));
 });
 
 test('assistant role suggestions use backend bootstrap state, never a client-supplied role', async () => {
@@ -1419,6 +1481,18 @@ test('assistant Markdown renderer safely formats bold text and ordered lists', (
   assert.match(lineBreakHtml, /First line<br\/>\s*Second line/);
 });
 
+test('assistant pipe tables are normalized to readable phase headings and labeled bullets', () => {
+  const normalized = normalizeAssistantMarkdown('Sample routine\n\n| Phase | Activity | Notes |\n|---|---|---|\n| Warm-up | 5 min light cardio | Keep an easy pace |\n| Main | Squats | Use controlled form |');
+  assert.equal(normalized, 'Sample routine\n\n**Warm-up**\n- **Activity:** 5 min light cardio\n- **Notes:** Keep an easy pace\n\n**Main**\n- **Activity:** Squats\n- **Notes:** Use controlled form');
+  const html = renderToStaticMarkup(React.createElement(ReactMarkdown, {
+    children: normalizeAssistantMarkdown('| Phase | Activity | Notes |\n|---|---|---|\n| Warm-up | 5 min cardio | Easy pace |'),
+    remarkPlugins: [remarkLineBreaks],
+  }));
+  assert.match(html, /<strong>Warm-up<\/strong>/);
+  assert.match(html, /<strong>Activity:<\/strong> 5 min cardio/);
+  assert.doesNotMatch(html, /\|---|<table>/);
+});
+
 test('chat keeps user text plain, scrolls only its message area, and renders allowlisted actions below answers', async () => {
   const component = await readFile(new URL('../src/components/assistant/AssistantWidget.tsx', import.meta.url), 'utf8');
   assert.match(component, /message\.role === 'user' \? message\.content : <>/);
@@ -1435,6 +1509,8 @@ test('assistant responses are instructed to stay concise and use scannable Markd
   const assistant = await readFile(new URL('../server/ai/assistant.js', import.meta.url), 'utf8');
   assert.match(assistant, /Use Markdown formatting for readability/);
   assert.match(assistant, /short paragraphs, numbered or bulleted lists/);
+  assert.match(assistant, /Never use Markdown tables or pipe-delimited tables/);
+  assert.match(assistant, /phase headings and concise bullets/);
   assert.match(assistant, /under 120 words/);
 });
 
