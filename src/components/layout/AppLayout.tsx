@@ -49,6 +49,7 @@ const AppLayoutFrame: React.FC<AppLayoutProps> = ({
   const [notifications, setNotifications] = useState<Array<{id:string;type:string;title:string;message:string;metadata?:Record<string,string>;read_at?:string;created_at:string}>>([]);
   const [dailySummary, setDailySummary] = useState<DailyOperationsSummaryData | null>(null);
   const [dailySummaryOpen, setDailySummaryOpen] = useState(false);
+  const [dailySummaryLoading, setDailySummaryLoading] = useState(false);
   const [dailySummaryBusy, setDailySummaryBusy] = useState(false);
   const [dailySummaryError, setDailySummaryError] = useState('');
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -202,6 +203,11 @@ const AppLayoutFrame: React.FC<AppLayoutProps> = ({
   const isDashboard = currentPath === '/admin/dashboard' || currentPath === '/staff/dashboard' || currentPath === '/trainer/dashboard' || currentPath === '/member/dashboard';
   const canViewDailySummary = role === 'super_admin' || role === 'staff';
   const fetchDailySummary = useCallback(async (reopen: boolean, signal?: AbortSignal) => {
+    if (reopen) {
+      setDailySummaryOpen(true);
+      setDailySummaryLoading(true);
+      setDailySummaryError('');
+    }
     try {
       const response = await fetch(apiUrl(`/api/v1/operations/daily-summary${reopen ? '?reopen=true' : ''}`), { credentials: 'include', cache: 'no-store', signal });
       const body = await response.json().catch(() => ({}));
@@ -215,6 +221,8 @@ const AppLayoutFrame: React.FC<AppLayoutProps> = ({
       setDailySummaryError(error instanceof Error ? error.message : 'Unable to load yesterday’s operations summary.');
       setDailySummary(null);
       setDailySummaryOpen(true);
+    } finally {
+      if (reopen) setDailySummaryLoading(false);
     }
   }, []);
 
@@ -227,14 +235,15 @@ const AppLayoutFrame: React.FC<AppLayoutProps> = ({
 
   const dismissDailySummary = async () => {
     setDailySummaryBusy(true);
+    setDailySummaryError('');
+    setDailySummaryOpen(false);
     try {
       const response = await fetch(apiUrl('/api/v1/operations/daily-summary/dismiss'), { method: 'POST', credentials: 'include' });
       const body = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(body?.error?.message || 'Unable to save your dismissal. Please try again.');
-      setDailySummaryOpen(false);
-      setDailySummaryError('');
     } catch (error) {
       setDailySummaryError(error instanceof Error ? error.message : 'Unable to save your dismissal. Please try again.');
+      setDailySummaryOpen(true);
     } finally {
       setDailySummaryBusy(false);
     }
@@ -575,7 +584,7 @@ const AppLayoutFrame: React.FC<AppLayoutProps> = ({
         </nav>
       )}
       <ConfirmDialog open={confirmLogout} title="Sign out?" message="You will need to sign in again to access this portal." confirmLabel="Sign out" tone="danger" onClose={() => setConfirmLogout(false)} onConfirm={() => { setConfirmLogout(false); void handleLogout(); }} />
-      {canViewDailySummary && <DailyOperationsSummary data={dailySummary} open={dailySummaryOpen} busy={dailySummaryBusy} error={dailySummaryError} onDismiss={() => dailySummary ? void dismissDailySummary() : setDailySummaryOpen(false)} />}
+      {canViewDailySummary && <DailyOperationsSummary data={dailySummary} open={dailySummaryOpen} loading={dailySummaryLoading} busy={dailySummaryBusy} error={dailySummaryError} onDismiss={() => dailySummaryLoading || !dailySummary ? setDailySummaryOpen(false) : void dismissDailySummary()} />}
     </div>
   );
 };

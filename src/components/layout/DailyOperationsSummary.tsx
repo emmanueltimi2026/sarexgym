@@ -48,9 +48,21 @@ const Metric = ({ label, value, note, icon: Icon }: { label: string; value: stri
   </article>
 );
 
-export const DailyOperationsSummary: React.FC<{ data: DailyOperationsSummaryData | null; open: boolean; busy?: boolean; error?: string; onDismiss: () => void }> = ({ data, open, busy = false, error, onDismiss }) => (
+const SummarySkeleton: React.FC = () => (
+  <div className="space-y-5 p-1" role="status" aria-label="Loading operations summary">
+    <div className="h-4 w-4/5 animate-pulse rounded bg-gray-100" />
+    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+      {Array.from({ length: 6 }, (_, index) => <div key={index} className="h-24 animate-pulse rounded-xl border border-gray-200 bg-gray-100" />)}
+    </div>
+    <div className="h-32 animate-pulse rounded-xl border border-gray-200 bg-gray-100" />
+    <div className="grid gap-3 sm:grid-cols-2"><div className="h-24 animate-pulse rounded-xl border border-gray-200 bg-gray-100" /><div className="h-24 animate-pulse rounded-xl border border-gray-200 bg-gray-100" /></div>
+    <span className="sr-only">Loading verified operations data</span>
+  </div>
+);
+
+export const DailyOperationsSummary: React.FC<{ data: DailyOperationsSummaryData | null; open: boolean; busy?: boolean; loading?: boolean; error?: string; onDismiss: () => void }> = ({ data, open, busy = false, loading = false, error, onDismiss }) => (
   <Modal isOpen={open} onClose={onDismiss} title="Yesterday’s Operations Summary" subtitle={data ? `${formatAppDate(data.reportDate)} · ${data.timezone}` : 'Loading verified operations data…'} maxWidth="2xl">
-    {!data ? error ? <div className="rounded-xl border border-red-200 bg-red-50 p-5 text-sm text-red-800" role="alert">{error}<p className="mt-2 text-xs text-red-700">Close this dialog and try again from the dashboard.</p></div> : <div className="space-y-3 p-1" role="status" aria-label="Loading operations summary"><div className="h-20 animate-pulse rounded-xl bg-gray-100"/><div className="grid grid-cols-2 gap-3"><div className="h-24 animate-pulse rounded-xl bg-gray-100"/><div className="h-24 animate-pulse rounded-xl bg-gray-100"/></div></div> : <div className="max-h-[min(72vh,46rem)] space-y-5 overflow-y-auto pr-1">
+    {loading || !data ? error ? <div className="rounded-xl border border-red-200 bg-red-50 p-5 text-sm text-red-800" role="alert">{error}<p className="mt-2 text-xs text-red-700">Close this dialog and try again from the dashboard.</p></div> : <SummarySkeleton/> : <div className="max-h-[min(72vh,46rem)] space-y-5 overflow-y-auto pr-1">
       <p className="text-xs leading-relaxed text-gray-500">Activity from {formatAppDate(data.reportDate)} in the gym’s {data.timezone} timezone. Payments are grouped by currency and include successful transactions only.</p>
       {error && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</p>}
       <section aria-label="Attendance summary" className="grid grid-cols-2 gap-3 sm:grid-cols-3">
