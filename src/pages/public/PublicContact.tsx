@@ -4,18 +4,29 @@ import { PublicPageHero, SectionHeading } from '../../components/public/PublicSe
 import { useGym } from '../../context/GymContext';
 import { openingHours } from './publicContent';
 import { FadeIn, SlideUp, StaggerContainer, StaggerItem } from '../../components/public/PublicMotion';
+import { apiUrl } from '../../lib/secureFetch';
 
 export const PublicContact: React.FC = () => {
   const { settings } = useGym();
   const [form, setForm] = useState({ name: '', email: '', phone: '', message: '' });
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const [sent, setSent] = useState(false);
   const phones = settings.phone.split(/\s*(?:\/|,|\n)\s*/).filter(Boolean);
   const mapQuery = encodeURIComponent(settings.address);
 
-  const submit = (event: React.FormEvent) => {
+  const submit = async (event: React.FormEvent) => {
     event.preventDefault();
-    const subject = encodeURIComponent(`Website enquiry from ${form.name}`);
-    const body = encodeURIComponent(`Name: ${form.name}\nEmail: ${form.email}\nPhone: ${form.phone}\n\n${form.message}`);
-    window.location.href = `mailto:${settings.email}?subject=${subject}&body=${body}`;
+    setBusy(true); setError(''); setSent(false);
+    try {
+      const response = await fetch(apiUrl('/api/v1/public/contact-messages'), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body?.error?.message || 'Your enquiry could not be sent. Please try again.');
+      setForm({ name: '', email: '', phone: '', message: '' });
+      setSent(true);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Your enquiry could not be sent. Please try again.');
+    } finally { setBusy(false); }
   };
 
   return (
@@ -42,8 +53,10 @@ export const PublicContact: React.FC = () => {
                 <div><label htmlFor="contact-email">Email address</label><input id="contact-email" required type="email" autoComplete="email" value={form.email} onChange={event => setForm({ ...form, email: event.target.value })} /></div>
                 <div className="is-full"><label htmlFor="contact-phone">Phone number</label><input id="contact-phone" required type="tel" autoComplete="tel" value={form.phone} onChange={event => setForm({ ...form, phone: event.target.value })} /></div>
                 <div className="is-full"><label htmlFor="contact-message">How can we help?</label><textarea id="contact-message" required rows={6} value={form.message} onChange={event => setForm({ ...form, message: event.target.value })} /></div>
-                <button className="public-primary-button is-full" type="submit">Send enquiry <Send aria-hidden="true" /></button>
-                <p className="is-full public-form-note">Submitting opens your email app with the enquiry addressed to SAREX. Your message is not stored by this website.</p>
+                <button className="public-primary-button is-full" type="submit" disabled={busy}>{busy ? 'Sending…' : sent ? 'Send another enquiry' : 'Send enquiry'} <Send aria-hidden="true" /></button>
+                {error && <p className="is-full" role="alert">{error}</p>}
+                {sent && <p className="is-full" role="status">Thanks for contacting SAREX. Your message has been sent to our team.</p>}
+                <p className="is-full public-form-note">Your enquiry will be received by the SAREX admin and staff team.</p>
               </SlideUp>
             </div>
           </div>

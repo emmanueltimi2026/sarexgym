@@ -31,6 +31,8 @@ const AdminStaff = lazyPage(() => import('./pages/admin/AdminStaff'), 'AdminStaf
 const AdminSettings = lazyPage(() => import('./pages/admin/AdminSettings'), 'AdminSettings');
 const AdminAudit = lazyPage(() => import('./pages/admin/AdminAudit'), 'AdminAudit');
 const AdminGallery = lazyPage(() => import('./pages/admin/AdminGallery'), 'AdminGallery');
+const AdminServices = lazyPage(() => import('./pages/admin/AdminServices'), 'AdminServices');
+const ContactInbox = lazyPage(() => import('./pages/shared/ContactInbox'), 'ContactInbox');
 const StaffDashboard = lazyPage(() => import('./pages/staff/StaffDashboard'), 'StaffDashboard');
 const StaffCheckIn = lazyPage(() => import('./pages/staff/StaffCheckIn'), 'StaffCheckIn');
 const StaffMembers = lazyPage(() => import('./pages/staff/StaffMembers'), 'StaffMembers');
@@ -260,6 +262,10 @@ const AppRouter: React.FC = () => {
         return <EventManagement />;
       case '/admin/gallery':
         return <AdminGallery />;
+      case '/admin/services':
+        return <AdminServices />;
+      case '/admin/messages':
+        return <ContactInbox />;
 
       case '/staff':
       case '/staff/dashboard':
@@ -276,6 +282,8 @@ const AppRouter: React.FC = () => {
         return <StaffPayments />;
       case '/staff/events':
         return <EventManagement />;
+      case '/staff/messages':
+        return <ContactInbox />;
 
       case '/trainer':
       case '/trainer/dashboard':

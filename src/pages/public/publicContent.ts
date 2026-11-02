@@ -19,6 +19,8 @@ export const facilities = [
     category: 'Strength & conditioning',
     title: 'Open gym floor',
     image: '/assets/photos/photo-1581009146145-b5ef050c2e1e.jpg',
+    altText: 'Athlete training on the SAREX strength floor',
+    shortDescription: 'Train independently with room and equipment for strength, cardio, and conditioning.',
     description: 'A practical training floor with free weights, resistance equipment, and space for strength, conditioning, and independent workouts.',
     features: ['Free weights and resistance training', 'Cardio and conditioning equipment', 'Floor support from the training team']
   },
@@ -27,6 +29,8 @@ export const facilities = [
     category: 'Movement & cardio',
     title: 'Aerobics and guided sessions',
     image: '/assets/photos/photo-1518611012118-696072aa579a.jpg',
+    altText: 'Instructor guiding a group fitness session',
+    shortDescription: 'Join guided sessions that build stamina, coordination, mobility, and consistency.',
     description: 'Instructor-led sessions designed to improve stamina, coordination, mobility, and consistency in a motivating environment.',
     features: ['Aerobics classes', 'Core and abdominal sessions', 'Adaptable intensity levels']
   },
@@ -35,6 +39,8 @@ export const facilities = [
     category: 'Goal-based support',
     title: 'Personal training',
     image: '/assets/photos/photo-1574680096145-d05b474e2155.jpg',
+    altText: 'Personal trainer supporting a gym member',
+    shortDescription: 'Get coaching and workout structure shaped around your goals and progress.',
     description: 'Focused coaching and progressive workout planning for members who want more structure, accountability, and measurable progress.',
     features: ['Personalized workout direction', 'Weight-loss and muscle-tone support', 'Progress-focused programming']
   },
@@ -43,6 +49,8 @@ export const facilities = [
     category: 'Wellness & recovery',
     title: 'Full-body spa',
     image: '/assets/photos/full-body-spa.jfif',
+    altText: 'Full-body spa service at SAREX Fitness Clinic',
+    shortDescription: 'Make time for relaxation and restorative care alongside your training routine.',
     description: 'A calming wellness experience that helps reduce tension, improve relaxation, and support recovery between training sessions.',
     features: ['Full-body spa care', 'Relaxation and recovery', 'Appointment-based service']
   },
@@ -51,6 +59,8 @@ export const facilities = [
     category: 'Therapeutic recovery',
     title: 'Body massage',
     image: '/assets/photos/massage.jfif',
+    altText: 'Body massage service at SAREX Fitness Clinic',
+    shortDescription: 'Ease muscular tension and support relaxation and post-training recovery.',
     description: 'Professional massage sessions for muscular tension relief, circulation, relaxation, and post-training recovery.',
     features: ['Targeted tension relief', 'Post-workout recovery', 'Bookable sessions']
   },
@@ -59,6 +69,8 @@ export const facilities = [
     category: 'Supported movement',
     title: 'Pregnancy and after-birth fitness',
     image: '/assets/photos/pregnancy.jpg',
+    altText: 'Adapted movement support for pregnancy and after-birth fitness',
+    shortDescription: 'Find carefully adapted movement support for pregnancy and returning to activity.',
     description: 'Carefully adapted prenatal and postnatal movement focused on mobility, confidence, strength, and a comfortable return to activity.',
     features: ['Prenatal movement support', 'Postnatal conditioning', 'Consultation-led sessions']
   }

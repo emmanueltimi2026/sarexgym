@@ -2,7 +2,8 @@ import React, { useEffect, useRef, useState } from 'react';
 import { ArrowRight, Check, ChevronLeft, ChevronRight, Dumbbell, HeartPulse, Maximize2, Sparkles } from 'lucide-react';
 import { FinalCta, PublicPageHero, SectionHeading } from '../../components/public/PublicSections';
 import { useGym } from '../../context/GymContext';
-import { facilities, galleryPhotos } from './publicContent';
+import { galleryPhotos } from './publicContent';
+import { usePublicServices } from './usePublicServices';
 import { PremiumImage, SlideUp, StaggerContainer, StaggerItem } from '../../components/public/PublicMotion';
 import { Modal } from '../../components/ui/Modal';
 import { apiUrl } from '../../lib/secureFetch';
@@ -11,6 +12,7 @@ type PublicGalleryImage = { id: string; imageUrl: string; caption: string; altTe
 
 export const PublicFacilities: React.FC = () => {
   const { navigate } = useGym();
+  const services = usePublicServices();
   const galleryRailRef = useRef<HTMLDivElement>(null);
   const galleryPausedRef = useRef(false);
   const galleryHoveredRef = useRef(false);
@@ -134,10 +136,10 @@ export const PublicFacilities: React.FC = () => {
           <div className="public-container">
             <SectionHeading id="facility-list-title" eyebrow="Areas and services" title="Explore the SAREX experience" description="A closer look at the spaces and support available to members and wellness clients." />
             <div className="public-facility-rows">
-              {facilities.map((facility, index) => (
+              {services.map((facility, index) => (
                 <SlideUp as="article" distance={90} duration={0.68} delay={Math.min(index * 0.035, 0.14)} key={facility.id} className={index % 2 ? 'is-reversed' : ''}>
-                  <PremiumImage src={facility.image} alt={`${facility.title} at SAREX Fitness Clinic`} loading="lazy" />
-                  <div><small>{facility.category}</small><h3>{facility.title}</h3><p>{facility.description}</p><ul>{facility.features.map(feature => <li key={feature}><Check aria-hidden="true" />{feature}</li>)}</ul><button className="public-text-button" onClick={() => navigate('/contact')}>Ask about this service <ArrowRight aria-hidden="true" /></button></div>
+                  <PremiumImage src={facility.imageUrl} alt={facility.altText} loading="lazy" />
+                  <div><small>{facility.category}</small><h3>{facility.title}</h3><p>{facility.fullDescription}</p><ul>{facility.features.map(feature => <li key={feature}><Check aria-hidden="true" />{feature}</li>)}</ul><button className="public-text-button" onClick={() => navigate('/contact')}>Ask about this service <ArrowRight aria-hidden="true" /></button></div>
                 </SlideUp>
               ))}
             </div>

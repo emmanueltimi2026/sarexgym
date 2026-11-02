@@ -22,7 +22,7 @@ import {
   Menu,
   X,
   Bell,
-  ClipboardList, CalendarDays, ChevronDown, ChevronRight, FileText, Image as ImageIcon
+  ClipboardList, CalendarDays, ChevronDown, ChevronRight, FileText, Image as ImageIcon, Inbox, HeartPulse
 } from 'lucide-react';
 
 const avatarFallback = (initials: string) => `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96"><rect width="100%" height="100%" rx="48" fill="#EF1B23"/><text x="50%" y="54%" text-anchor="middle" dominant-baseline="middle" fill="white" font-family="Arial" font-size="30" font-weight="700">${initials}</text></svg>`)}`;
@@ -94,6 +94,7 @@ const AppLayoutFrame: React.FC<AppLayoutProps> = ({
     if (notification.type === 'payment_receipt' || notification.type === 'subscription_expiry' || notification.type === 'membership_access') return '/member/membership';
     if (notification.type === 'trainer_assignment_required') return metadata.memberId ? `/staff/members/${metadata.memberId}` : '/staff/members';
     if (notification.type === 'password_reset') return role === 'member' ? '/member/profile' : role === 'super_admin' ? '/admin/settings' : null;
+    if (notification.type === 'contact_message') return role === 'super_admin' ? '/admin/messages' : role === 'staff' ? '/staff/messages' : null;
     return null;
   };
 
@@ -120,8 +121,10 @@ const AppLayoutFrame: React.FC<AppLayoutProps> = ({
           { label: 'Membership Plans', path: '/admin/membership-plans', icon: CreditCard },
           { label: 'Attendance', path: '/admin/attendance', icon: CalendarCheck },
           { label: 'Payments', path: '/admin/payments', icon: CreditCard },
+          { label: 'Contact Messages', path: '/admin/messages', icon: Inbox },
           { label: 'Staff & Trainers', path: '/admin/staff', icon: UserCheck },
           { label: 'Events', path: '/admin/events', icon: CalendarDays },
+          { label: 'Services', path: '/admin/services', icon: HeartPulse },
           { label: 'Gallery', path: '/admin/gallery', icon: ImageIcon },
           { label: 'Audit Trail', path: '/admin/audit', icon: ClipboardList },
           { label: 'Settings', path: '/admin/settings', icon: Settings }
@@ -134,6 +137,7 @@ const AppLayoutFrame: React.FC<AppLayoutProps> = ({
           { label: 'Memberships', path: '/staff/memberships', icon: CreditCard },
           { label: 'Attendance', path: '/staff/attendance', icon: CalendarCheck },
           { label: 'Payments', path: '/staff/payments', icon: CreditCard },
+          { label: 'Contact Messages', path: '/staff/messages', icon: Inbox },
           { label: 'Events', path: '/staff/events', icon: CalendarDays }
         ];
       case 'trainer':

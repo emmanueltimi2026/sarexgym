@@ -2,7 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { ArrowRight, CalendarDays, CheckCircle2, MapPin, Star, Users } from 'lucide-react';
 import { FinalCta, PlanGrid, SectionHeading } from '../../components/public/PublicSections';
 import { useGym } from '../../context/GymContext';
-import { facilities, testimonials } from './publicContent';
+import { testimonials } from './publicContent';
+import { usePublicServices } from './usePublicServices';
 import { PremiumImage, ScaleReveal, SlideUp, StaggerContainer, StaggerItem } from '../../components/public/PublicMotion';
 import { apiBase as BASE } from '../../lib/secureFetch';
 
@@ -44,6 +45,7 @@ const workProcess = [
 
 export const PublicHome: React.FC = () => {
   const { navigate, plans } = useGym();
+  const services = usePublicServices();
   const [bmiWeight, setBmiWeight] = useState('');
   const [bmiHeight, setBmiHeight] = useState('');
   const [bmiResult, setBmiResult] = useState<number | null>(null);
@@ -136,13 +138,13 @@ export const PublicHome: React.FC = () => {
               <button className="public-text-button" onClick={() => navigate('/facilities')}>Explore our facilities <ArrowRight aria-hidden="true" /></button>
             </div>
             <StaggerContainer className="public-service-grid public-service-reveal-grid" delay={0.08} stagger={0.14}>
-              {facilities.map((service, index) => (
+              {services.map((service, index) => (
                 <StaggerItem as="article" distance={112} duration={0.76} key={service.id} className="public-service-card" style={{ '--service-index': index } as React.CSSProperties}>
                   <div className="public-service-image-wrap">
-                    <PremiumImage src={service.image} alt={`${service.title} at SAREX Fitness Clinic`} loading="lazy" />
+                    <PremiumImage src={service.imageUrl} alt={service.altText} loading="lazy" />
                     <span>{String(index + 1).padStart(2, '0')}</span>
                   </div>
-                  <div className="public-service-card-copy"><small>{service.category}</small><h3>{service.title}</h3><p>{service.description}</p></div>
+                  <div className="public-service-card-copy"><small>{service.category}</small><h3>{service.title}</h3><p>{service.shortDescription}</p></div>
                 </StaggerItem>
               ))}
             </StaggerContainer>
