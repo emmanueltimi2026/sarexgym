@@ -66,6 +66,26 @@ test('deterministic scope rules handle clear SAREX, fitness, and blocked subject
   }
 });
 
+test('assistant answers wellbeing check-ins and identity questions without misclassifying them as out of scope', async () => {
+  const prompts = [
+    ['How are you?', /doing well, thanks for asking/i],
+    ['Who are you?', /SAREX AI, the SAREX Fitness Clinic assistant/i],
+  ];
+  for (const [message, expected] of prompts) {
+    let databaseCalls = 0;
+    let providerCalls = 0;
+    const result = await handleAssistantChat({
+      db: { query: async () => { databaseCalls += 1; throw new Error('small talk must not query the database'); } },
+      body: { message },
+      provider: { complete: async () => { providerCalls += 1; return 'OUT_OF_SCOPE'; } },
+    });
+    assert.match(result.message, expected, message);
+    assert.deepEqual(result.actions, []);
+    assert.equal(databaseCalls, 0);
+    assert.equal(providerCalls, 0);
+  }
+});
+
 test('capability registry documents trusted services and authorization separately from phrasing', async () => {
   assert.equal(assistantCapabilities[AssistantIntent.MY_WORKOUT].service, 'getGroundedPortalData:myWorkout');
   assert.equal(assistantCapabilities[AssistantIntent.MY_WORKOUT].behavior, 'read_only');

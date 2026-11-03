@@ -107,6 +107,16 @@ Choose capabilities only from the supplied server registry and consistent with t
 const passwordResetIntent = /\b(forgot|forget|reset|resetting|recover)\b.{0,40}\b(password|account|login)\b|\b(password|account)\b.{0,40}\b(forgot|forget|reset|recover)\b/i;
 const passwordChangeIntent = /\b(password|passcode|credentials?)\b.{0,50}\b(change|chang(?:e|ing)|update|updating|modify|set)\b|\b(change|chang(?:e|ing)|update|updating|modify|set)\b.{0,50}\b(password|passcode|credentials?)\b/i;
 const outOfScopeResponse = "I'm here to help with SAREX Fitness Clinic, memberships, workouts, fitness and wellness. I can't help with that topic, but I can help with SAREX or your training.";
+const simpleConversationResponse = message => {
+  const text = String(message || '').trim().replace(/[.!?]+$/, '').toLowerCase();
+  if (/^(?:how are you|how's it going|how is it going|you doing okay|are you doing well)$/.test(text)) {
+    return "I'm doing well, thanks for asking! I'm SAREX AI, ready to help with SAREX or your training. What can I help you with?";
+  }
+  if (/^(?:who are you|what are you|what is sarex ai|what's sarex ai)$/.test(text)) {
+    return "I'm SAREX AI, the SAREX Fitness Clinic assistant. I can help with memberships, clinic services, account guidance, and fitness or training questions.";
+  }
+  return null;
+};
 
 function classifyAssistantScope(message, history = [], actor = null) {
   const text = String(message || '');
@@ -326,6 +336,9 @@ export async function handleAssistantChat({ db, actor = null, body, provider, re
       tool, outcome, failureCategory: failureCategory || 'unknown', toolLatencyMs, totalLatencyMs }));
     return response;
   };
+
+  const simpleConversation = simpleConversationResponse(input.message);
+  if (simpleConversation) return finish({ message: simpleConversation, actions: [] }, { outcome: 'SOCIAL_RESPONSE' });
 
   const mentionsWorkoutRecord = /\b(workout|training|exercise|adherence|missed session|day\s*\d+)\b/i.test(input.message);
   if (mentionsWorkoutRecord && workoutRecordMutationIntent.test(input.message)) {
